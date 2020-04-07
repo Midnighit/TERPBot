@@ -56,7 +56,7 @@ async def send_question(author, id, msg=''):
     await author.dm_channel.send(f"{msg}\n__**Question {id + 1}:**__\n> {parse(author, config.QUESTIONS[id])}")
 
 async def send_overview(author, msg='', commited=False):
-    channel = config.APL_CHAN if commited else author.dm_channel
+    channel = config.CHANNEL[config.APPLICATIONS] if commited else author.dm_channel
     buffer = msg + "\n" if msg else ''
     for id in range(len(config.QUESTIONS)):
         if id in config.APL[author]['answers']:
@@ -99,10 +99,14 @@ def find_next_unanswered(author):
     return -1
 
 def parse(author, msg):
-    return str(msg).replace('{PREFIX}', config.PREFIX) \
-                   .replace('{OWNER}', config.GUILD.owner.mention) \
-                   .replace('{RULES}', config.RLS_CHAN.mention) \
-                   .replace('{PLAYER}', author.mention)
+    msg = str(msg).replace('{PREFIX}', config.PREFIX) \
+                  .replace('{OWNER}', config.GUILD.owner.mention) \
+                  .replace('{PLAYER}', author.mention)
+    for name, channel in config.CHANNEL.items():
+        msg = re.sub("(?i){" + name + "}", channel.mention, msg)
+    for name, role in config.ROLE.items():
+        msg = re.sub("(?i){" + name + "}", role.mention, msg)
+    return msg
 
 def get_steam64Id(author):
     result = re.search(r'(7\d{16})', config.APL[author]['answers'][config.STEAMID_QUESTION])
@@ -148,35 +152,25 @@ async def on_ready():
     for guild in bot.guilds:
         if guild.name == config.DISCORD_NAME:
             config.GUILD = guild
-            print(f"Discord server was found (id = {guild.id})")
+            print(f"Discord server {guild.name} was found (id = {guild.id})")
             break
-    # determine discord chjannel category
-    if hasattr(config, 'DISCORD_CATEGORY') and config.DISCORD_CATEGORY:
-        for category in config.GUILD.categories:
-            if category.name == config.DISCORD_CATEGORY:
-                config.CATEGORY = category
-                print(f"Category was found (id = {category.id})")
-                break
-    else:
-        config.CATEGORY = None
-    # determine discord channel
+    # get all categories
+    config.CATEGORY = {}
+    for category in config.GUILD.categories:
+        config.CATEGORY[category.name] = category
+    # get all channels
+    config.CHANNEL = {}
     for channel in config.GUILD.channels:
-        if channel.name == config.APPLICATION_CHANNEL:
-            config.APL_CHAN = channel
-            print(f"Applications channel was found (id = {channel.id})")
-        elif channel.name == config.WELCOME_CHANNEL:
-            config.WLC_CHAN = channel
-            print(f"Welcome channel was found (id = {channel.id})")
-        elif channel.name == config.RULES_CHANNEL:
-            config.RLS_CHAN = channel
-            print(f"Rules channel was found (id = {channel.id})")
+        config.CHANNEL[channel.name] = channel
+    # get all roles
+    config.ROLE = {}
+    for role in config.GUILD.roles:
+        config.ROLE[role.name] = role
     # create channel and category if necessary
-    if not hasattr(config, 'APL_CHAN'):
-        config.APL_CHAN = await config.GUILD.create_text_channel(config.APPLICATION_CHANNEL, category=config.CATEGORY)
-        print(f"Applications channel was created (id = {config.APL_CHAN.id})")
-    if not hasattr(config, 'WLC_CHAN'):
-        config.WLC_CHAN = await config.GUILD.create_text_channel(config.WELCOME_CHANNEL, category=config.CATEGORY)
-        print(f"Welcome channel was created (id = {config.WLC_CHAN.id})")
+    for channel in config.DISCORD_CHANNELS:
+        if not channel[0] in config.CHANNEL:
+            config.CHANNEL[channel[0]] = await config.GUILD.create_text_channel(channel[0], category=channel[1])
+            print(f"{channel[0]} channel was created (id = {config.CHANNEL[channel[0]].id})")
     # read questions from google sheet
     update_questions()
     print("Questions have been read from the spreadsheet")
@@ -186,7 +180,7 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    await config.WLC_CHAN.send(parse(member, config.GREETINGS))
+    await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETINGS))
 
 ####################
 ''' Bot commands '''
@@ -198,7 +192,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def apply(self, ctx):
         await ctx.author.create_dm()
         await send_question(ctx.author, 0, msg=parse(ctx.author, config.APPLIED))
-        await config.APL_CHAN.send(f"{ctx.author} has started an application.")
+        await config.CHANNEL[config.APPLICATIONS].send(f"{ctx.author} has started an application.")
         print(f"{ctx.author} has started an application.")
         config.APL[ctx.author] = \
             {'timestamp': datetime.utcnow(), 'open': True, 'questionId': 0, 'answers': {}}
@@ -216,6 +210,7 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
         else:
             await ctx.send(error)
+            logger.error(error)
 
     @command(name='a', help="Used to answer questions during the application process")
     @check(is_applicant)
@@ -270,7 +265,7 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='cancel', help="Cancel your application")
     @check(is_applicant)
     async def cancel(self, ctx):
-        await config.APL_CHAN.send(f"{ctx.author} has canceled their application.")
+        await config.CHANNEL[config.APPLICATIONS].send(f"{ctx.author} has canceled their application.")
         await ctx.author.dm_channel.send("Your application has been canceled.")
         print(f"{ctx.author} has canceled their application.")
         del config.APL[ctx.author]
@@ -287,6 +282,7 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
         else:
             await ctx.send(error)
+            logger.error(error)
 
     @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent")
     @commands.has_role(config.ADMIN_ROLE)
@@ -311,13 +307,13 @@ class Applications(commands.Cog, name="Application commands"):
                 result = {'msg': "Whitelisting attempt timed out", 'success': False}
         else:
             result = {'msg': "No SteamID64 was given.", 'success': False}
-        await config.APL_CHAN.send(result['msg'])
+        await config.CHANNEL[config.APPLICATIONS].send(result['msg'])
         # Store SteamID64 <-> Discord Name link in db
         if result['success']:
             session.add(User(SteamID64=SteamID64, disc_user=str(applicant)))
             session.commit()
         # Send feedback to applications channel and to applicant
-        await config.APL_CHAN.send(f"{applicant}'s application has been accepted.")
+        await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been accepted.")
         if not message:
             message = parse(ctx.author, config.ACCEPTED)
         if result['success']:
@@ -332,7 +328,7 @@ class Applications(commands.Cog, name="Application commands"):
     @commands.has_role(config.ADMIN_ROLE)
     async def reject(self, ctx, applicant: Member, *message):
         # Send feedback to applications channel and to applicant
-        await config.APL_CHAN.send(f"{applicant}'s application has been rejected.")
+        await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been rejected.")
         if not message:
             await applicant.dm_channel.send(parse(ctx.author, config.REJECTED))
         else:
@@ -351,6 +347,7 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send("Applicant couldn't be found")
         else:
             await ctx.send(error)
+            logger.error(error)
 
 class RCon(commands.Cog, name="RCon commands"):
     @command(name='listplayers', help="Shows a list of all players online right now")
@@ -369,6 +366,11 @@ class RCon(commands.Cog, name="RCon commands"):
                         names.append(columns[1].strip())
             await ctx.send(f"{len(names)} players online:\n" + ', '.join(names))
 
+    @listplayers.error
+    async def listplayers_error(self, ctx, error):
+        await ctx.send(error)
+        logger.error(error)
+
     @command(name='whitelist', help="Whitelists the player with the given SteamID64")
     @commands.has_role(config.ADMIN_ROLE)
     async def whitelist(self, ctx, SteamID64: int):
@@ -382,6 +384,9 @@ class RCon(commands.Cog, name="RCon commands"):
     async def whitelist_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
             await ctx.send("SteamID64 must be a 17 digits number")
+        else:
+            await ctx.send(error)
+            logger.error(error)
 
 class General(commands.Cog, name="General commands"):
     @command(name='roll', help="Rolls a dice in NdN format")
@@ -395,6 +400,11 @@ class General(commands.Cog, name="General commands"):
         s = ', '.join([str(r) for r in l])
         result = f"{s} (total: {sum(l)})" if len(l) > 1 else s
         await ctx.send(result)
+
+    @roll.error
+    async def roll_error(self, ctx, error):
+        await ctx.send(error)
+        logger.error(error)
 
 bot.add_cog(Applications())
 bot.add_cog(RCon())

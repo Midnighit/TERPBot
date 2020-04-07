@@ -7,13 +7,12 @@ load_dotenv()
 LOG_LEVEL = logging.DEBUG
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 DISCORD_NAME = 'Test'
-DISCORD_CATEGORY = None
-WELCOME_CHANNEL = 'welcome'
-RULES_CHANNEL = 'the-golden-rules'
-APPLICATION_CHANNEL = 'applications'
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+WELCOME = 'welcome'
+APPLICATIONS = 'applications'
+DISCORD_CHANNELS = [(WELCOME, None), (APPLICATIONS, None)]
 ADMIN_ROLE = 'Administrators'
 NOT_APPLIED_ROLE = 'Not Applied'
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 RCON_IP = os.getenv('RCON_IP')
 RCON_PORT = int(os.getenv('RCON_PORT'))
 PREFIX = '!'
