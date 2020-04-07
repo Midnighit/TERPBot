@@ -1,0 +1,24 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+ADMIN_ROLE = 'Administrators'
+RCON_IP = os.getenv('RCON_IP')
+RCON_PORT = int(os.getenv('RCON_PORT'))
+PREFIX = '!'
+SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
+APPLICATION_SHEET_ID = os.getenv('APPLICATION_SHEET_ID')
+STEAMID_QUESTION = 0
+APL = {}
+GREETING_RANGE = 'Apps!D2'
+FINISHED_RANGE = 'Apps!D3'
+COMMITED_RANGE = 'Apps!D4'
+ACCEPTED_RANGE = 'Apps!D5'
+REJECTED_RANGE = 'Apps!D6'
+WHITELISTING_FAILED_RANGE = 'Apps!D7'
+WHITELISTING_SUCCEEDED_RANGE = 'Apps!D8'
+APP_CLOSED_RANGE = 'Apps!D9'
+QUESTIONS_RANGE = 'Apps!B2:B'
