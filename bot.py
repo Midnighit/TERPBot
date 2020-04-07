@@ -3,18 +3,21 @@ import os
 import re
 import random
 import config
+import logging
+from logging.handlers import RotatingFileHandler
 from asyncio import wait_for, TimeoutError
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
-from discord import DiscordException, ChannelType, Member
+from discord import DiscordException, ChannelType, Member, Guild
 from discord.ext import commands
 from discord.ext.commands import command, check
 from mcrcon import MCRcon
 from google_api import sheets
 
 bot = commands.Bot(config.PREFIX)
+logger = logging.getLogger(__name__)
 engine = create_engine('sqlite:///users.db')
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -50,17 +53,17 @@ session = Session()
 ########################
 
 async def send_question(author, id, msg=''):
-    await author.dm_channel.send(f"{msg}\n__**Question {id + 1}:**__\n> {config.QUESTIONS[id]}")
+    await author.dm_channel.send(f"{msg}\n__**Question {id + 1}:**__\n> {parse(author, config.QUESTIONS[id])}")
 
 async def send_overview(author, msg='', commited=False):
     channel = config.APL_CHAN if commited else author.dm_channel
     buffer = msg + "\n" if msg else ''
     for id in range(len(config.QUESTIONS)):
         if id in config.APL[author]['answers']:
-            if len(buffer) + 21 + len(config.QUESTIONS[id]) > 2000:
+            if len(buffer) + 21 + len(parse(author, config.QUESTIONS[id])) > 2000:
                 await channel.send(buffer)
                 buffer = ''
-            buffer += f"__**Question {id + 1}:**__\n> {config.QUESTIONS[id]}\n"
+            buffer += f"__**Question {id + 1}:**__\n> {parse(author, config.QUESTIONS[id])}\n"
             if len(buffer) + len(config.APL[author]['answers'][id]) > 2000:
                 await channel.send(buffer)
                 buffer = ''
@@ -76,15 +79,16 @@ async def whitelist_player(SteamID64):
         return {'msg': msg, 'success': success}
 
 def update_questions():
-    config.QUESTIONS = [parse(value[0]) for value in sheets.read(config.SPREADSHEET_ID, config.QUESTIONS_RANGE)]
-    config.GREETINGS = parse(sheets.read(config.SPREADSHEET_ID, config.GREETING_RANGE)[0][0])
-    config.FINISHED = parse(sheets.read(config.SPREADSHEET_ID, config.FINISHED_RANGE)[0][0])
-    config.COMMITED = parse(sheets.read(config.SPREADSHEET_ID, config.COMMITED_RANGE)[0][0])
-    config.ACCEPTED = parse(sheets.read(config.SPREADSHEET_ID, config.ACCEPTED_RANGE)[0][0])
-    config.REJECTED = parse(sheets.read(config.SPREADSHEET_ID, config.REJECTED_RANGE)[0][0])
-    config.WHITELISTING_FAILED = parse(sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_FAILED_RANGE)[0][0])
-    config.WHITELISTING_SUCCEEDED = parse(sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_SUCCEEDED_RANGE)[0][0])
-    config.APP_CLOSED = parse(sheets.read(config.SPREADSHEET_ID, config.APP_CLOSED_RANGE)[0][0])
+    config.QUESTIONS = [value[0] for value in sheets.read(config.SPREADSHEET_ID, config.QUESTIONS_RANGE)]
+    config.GREETING = sheets.read(config.SPREADSHEET_ID, config.GREETING_RANGE)[0][0]
+    config.APPLIED = sheets.read(config.SPREADSHEET_ID, config.APPLIED_RANGE)[0][0]
+    config.FINISHED =sheets.read(config.SPREADSHEET_ID, config.FINISHED_RANGE)[0][0]
+    config.COMMITED = sheets.read(config.SPREADSHEET_ID, config.COMMITED_RANGE)[0][0]
+    config.ACCEPTED = sheets.read(config.SPREADSHEET_ID, config.ACCEPTED_RANGE)[0][0]
+    config.REJECTED = sheets.read(config.SPREADSHEET_ID, config.REJECTED_RANGE)[0][0]
+    config.WHITELISTING_FAILED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_FAILED_RANGE)[0][0]
+    config.WHITELISTING_SUCCEEDED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_SUCCEEDED_RANGE)[0][0]
+    config.APP_CLOSED = sheets.read(config.SPREADSHEET_ID, config.APP_CLOSED_RANGE)[0][0]
 
 def find_next_unanswered(author):
     if len(config.APL[author]['answers']) >= len(config.QUESTIONS):
@@ -94,8 +98,11 @@ def find_next_unanswered(author):
             return id
     return -1
 
-def parse(msg):
-    return msg.replace('{PREFIX}', config.PREFIX)
+def parse(author, msg):
+    return str(msg).replace('{PREFIX}', config.PREFIX) \
+                   .replace('{OWNER}', config.GUILD.owner.mention) \
+                   .replace('{RULES}', config.RLS_CHAN.mention) \
+                   .replace('{PLAYER}', author.mention)
 
 def get_steam64Id(author):
     result = re.search(r'(7\d{16})', config.APL[author]['answers'][config.STEAMID_QUESTION])
@@ -115,14 +122,6 @@ async def is_not_applicant(ctx):
 async def is_private(ctx):
     return ctx.channel.type == ChannelType.private
 
-async def is_admin(ctx):
-    if not hasattr(ctx.author, 'roles'):
-        return False
-    for role in ctx.author.roles:
-        if role.name == config.ADMIN_ROLE:
-            return True
-    return False
-
 async def is_not_bot(ctx):
     return ctx.author != bot.user
 
@@ -132,23 +131,62 @@ async def is_not_bot(ctx):
 
 @bot.event
 async def on_ready():
+    # enable logging
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    err_handler = RotatingFileHandler('logs/error.log', maxBytes=10240, backupCount=10)
+    err_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
+    err_handler.setLevel(logging.ERROR)
+    logger.addHandler(err_handler)
+    file_handler = RotatingFileHandler('logs/bot.log', maxBytes=10240, backupCount=10)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    logger.setLevel(config.LOG_LEVEL)
+    logger.addHandler(file_handler)
     print(f"{bot.user.name} has connected to Discord!")
-    for channel in bot.get_all_channels():
-        if channel.name == 'applications':
+    logger.info(f"{bot.user.name} has connected to Discord!")
+    # determine discord server
+    for guild in bot.guilds:
+        if guild.name == config.DISCORD_NAME:
+            config.GUILD = guild
+            print(f"Discord server was found (id = {guild.id})")
+            break
+    # determine discord chjannel category
+    if hasattr(config, 'DISCORD_CATEGORY') and config.DISCORD_CATEGORY:
+        for category in config.GUILD.categories:
+            if category.name == config.DISCORD_CATEGORY:
+                config.CATEGORY = category
+                print(f"Category was found (id = {category.id})")
+                break
+    else:
+        config.CATEGORY = None
+    # determine discord channel
+    for channel in config.GUILD.channels:
+        if channel.name == config.APPLICATION_CHANNEL:
             config.APL_CHAN = channel
             print(f"Applications channel was found (id = {channel.id})")
-    if not config.APL_CHAN:
-        config.APL_CHAN = await bot.guild.create_text_channel('applications')
+        elif channel.name == config.WELCOME_CHANNEL:
+            config.WLC_CHAN = channel
+            print(f"Welcome channel was found (id = {channel.id})")
+        elif channel.name == config.RULES_CHANNEL:
+            config.RLS_CHAN = channel
+            print(f"Rules channel was found (id = {channel.id})")
+    # create channel and category if necessary
+    if not hasattr(config, 'APL_CHAN'):
+        config.APL_CHAN = await config.GUILD.create_text_channel(config.APPLICATION_CHANNEL, category=config.CATEGORY)
         print(f"Applications channel was created (id = {config.APL_CHAN.id})")
+    if not hasattr(config, 'WLC_CHAN'):
+        config.WLC_CHAN = await config.GUILD.create_text_channel(config.WELCOME_CHANNEL, category=config.CATEGORY)
+        print(f"Welcome channel was created (id = {config.WLC_CHAN.id})")
+    # read questions from google sheet
     update_questions()
     print("Questions have been read from the spreadsheet")
+    # initialize randomizer
     random.seed()
     print("Seed for RNG generated")
 
 @bot.event
 async def on_member_join(member):
-    await member.create_dm()
-    await member.dm_channel.send(f"Hi {member.display_name}, welcome to the discord server of The Exiled RP!")
+    await config.WLC_CHAN.send(parse(member, config.GREETINGS))
 
 ####################
 ''' Bot commands '''
@@ -159,9 +197,11 @@ class Applications(commands.Cog, name="Application commands"):
     @check(is_not_applicant)
     async def apply(self, ctx):
         await ctx.author.create_dm()
-        await send_question(ctx.author, 0, msg=config.GREETINGS)
+        await send_question(ctx.author, 0, msg=parse(ctx.author, config.APPLIED))
+        await config.APL_CHAN.send(f"{ctx.author} has started an application.")
+        print(f"{ctx.author} has started an application.")
         config.APL[ctx.author] = \
-            {'timestamp': datetime.utcnow(), 'open': True, 'questionId': 0, 'finished': False, 'answers': {}}
+            {'timestamp': datetime.utcnow(), 'open': True, 'questionId': 0, 'answers': {}}
 
     @apply.error
     async def applicant_error(self, ctx, error):
@@ -172,38 +212,40 @@ class Applications(commands.Cog, name="Application commands"):
             else:
                 msg = f"You already have an open application. Answer questions with `{config.PREFIX}a <answer text>`."
                 await send_question(ctx.author, config.APL[ctx.author]['questionId'], msg=msg)
-
         elif isinstance(error, commands.BadArgument):
             await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
+        else:
+            await ctx.send(error)
 
     @command(name='a', help="Used to answer questions during the application process")
     @check(is_applicant)
     @check(is_private)
     async def a(self, ctx, *, answer: str):
         if not config.APL[ctx.author]['open']:
-            await ctx.author.dm_channel.send(config.APP_CLOSED)
+            await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
         config.APL[ctx.author]['answers'][config.APL[ctx.author]['questionId']] = answer
         questionId = find_next_unanswered(ctx.author)
         if questionId >= 0:
             await send_question(ctx.author, questionId)
             config.APL[ctx.author]['questionId'] = questionId
-        elif not config.APL[ctx.author]['finished']:
-            config.APL[ctx.author]['finished'] = True
-            await ctx.author.dm_channel.send(config.FINISHED)
+        else:
+            await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
 
     @command(name='q', help='Used to switch to a given question')
     @check(is_applicant)
     @check(is_private)
-    async def q(self, ctx, questionId: int):
+    async def q(self, ctx, *questionId: int):
         if not config.APL[ctx.author]['open']:
-            await ctx.author.dm_channel.send(config.APP_CLOSED)
+            await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
-        if questionId < 1 or questionId > len(config.QUESTIONS):
+        if not questionId:
+            await send_question(ctx.author, config.APL[ctx.author]['questionId'])
+            return
+        if questionId[0] < 1 or questionId[0] > len(config.QUESTIONS):
             raise commands.BadArgument
-        questionId -= 1
-        await send_question(ctx.author, questionId)
-        config.APL[ctx.author]['questionId'] = questionId
+        await send_question(ctx.author, questionId[0] - 1)
+        config.APL[ctx.author]['questionId'] = questionId[0] - 1
 
     @command(name='overview', help="Display all questions that have already been answered")
     @check(is_applicant)
@@ -217,41 +259,55 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.author.dm_channel.send("Please answer all questions first.")
             return
         if not config.APL[ctx.author]['open']:
-            await ctx.author.dm_channel.send(config.APP_CLOSED)
+            await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
         config.APL[ctx.author]['open'] = False
-        await ctx.author.dm_channel.send(config.COMMITED)
-        msg = f"{ctx.author.mention} has filled out the following application. You can now either `{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it. If <message> is omitted a default message will be sent."
+        await ctx.author.dm_channel.send(parse(ctx.author, config.COMMITED))
+        print(f"{ctx.author} has commited their application.")
+        msg = f"{ctx.author} has filled out the following application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent."
         await send_overview(ctx.author, msg=msg, commited=True)
+
+    @command(name='cancel', help="Cancel your application")
+    @check(is_applicant)
+    async def cancel(self, ctx):
+        await config.APL_CHAN.send(f"{ctx.author} has canceled their application.")
+        await ctx.author.dm_channel.send("Your application has been canceled.")
+        print(f"{ctx.author} has canceled their application.")
+        del config.APL[ctx.author]
 
     @a.error
     @q.error
     @overview.error
     @commit.error
-    async def not_applicant_error(self, ctx, error):
+    @cancel.error
+    async def application_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             await ctx.send(f"You do not have an open application. Start one with `{config.PREFIX}apply`.")
         elif isinstance(error, commands.BadArgument):
             await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
+        else:
+            await ctx.send(error)
 
     @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent")
-    @check(is_admin)
-    async def accept(self, ctx, applicant: Member, *, message):
+    @commands.has_role(config.ADMIN_ROLE)
+    async def accept(self, ctx, applicant: Member, *message):
         # remove Not Applied role
-        role_to_remove = None
+        if message:
+            message = " ".join(message)
+        roles = []
         for role in applicant.roles:
-            if role.name == "Not Applied":
-                role_to_remove = role
-                break
-        if role_to_remove:
-            applicant.roles.remove(role_to_remove)
-        await applicant.edit(roles=applicant.roles)
+            if role.name != config.NOT_APPLIED_ROLE:
+                roles.append(role)
+        await applicant.edit(roles=roles)
         # Whitelist applicant
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
             try:
+                print(f"[{datetime.utcnow()}] Trying to whitelist...")
                 result = await wait_for(whitelist_player(SteamID64), timeout=5)
+                print(f"[{datetime.utcnow()}] Whitelisting successful.")
             except TimeoutError:
+                print(f"[{datetime.utcnow()}] Whitelisting timed out.")
                 result = {'msg': "Whitelisting attempt timed out", 'success': False}
         else:
             result = {'msg': "No SteamID64 was given.", 'success': False}
@@ -261,35 +317,40 @@ class Applications(commands.Cog, name="Application commands"):
             session.add(User(SteamID64=SteamID64, disc_user=str(applicant)))
             session.commit()
         # Send feedback to applications channel and to applicant
-        await config.APL_CHAN.send(f"{applicant.mention}'s application has been accepted.")
+        await config.APL_CHAN.send(f"{applicant}'s application has been accepted.")
         if not message:
-            message = config.ACCEPTED
+            message = parse(ctx.author, config.ACCEPTED)
         if result['success']:
-            await applicant.dm_channel.send(message + "\n" + config.WHITELISTING_SUCCEEDED)
+            await applicant.dm_channel.send(message + "\n" + parse(ctx.author, config.WHITELISTING_SUCCEEDED))
         else:
-            await applicant.dm_channel.send(message + "\n" + config.WHITELISTING_FAILED)
+            await applicant.dm_channel.send(message + "\n" + parse(ctx.author, config.WHITELISTING_FAILED))
         # remove application from list of open applications
         del config.APL[applicant]
+        print(f"{ctx.author} has accepted {applicant}'s application.")
 
     @command(name='reject', help="Reject the application. If message is omitted a default message will be sent")
-    @check(is_admin)
-    async def reject(self, ctx, applicant: Member, *, message):
+    @commands.has_role(config.ADMIN_ROLE)
+    async def reject(self, ctx, applicant: Member, *message):
         # Send feedback to applications channel and to applicant
-        await config.APL_CHAN.send(f"{applicant.mention}'s application has been rejected.")
+        await config.APL_CHAN.send(f"{applicant}'s application has been rejected.")
         if not message:
-            await applicant.dm_channel.send(config.REJECTED)
+            await applicant.dm_channel.send(parse(ctx.author, config.REJECTED))
         else:
-            await applicant.dm_channel.send(message)
+            await applicant.dm_channel.send(" ".join(message))
         # remove application from list of open applications
         del config.APL[applicant]
+        print(f"{ctx.author} has rejected {applicant}'s application.")
 
     @accept.error
     @reject.error
     async def accept_reject_error(self, ctx, error):
+        print(f"accept_reject_error: {error}")
         if isinstance(error, commands.CheckFailure):
             await ctx.send("You do not have the required permissions to accept or reject applications")
         elif isinstance(error, commands.BadArgument):
             await ctx.send("Applicant couldn't be found")
+        else:
+            await ctx.send(error)
 
 class RCon(commands.Cog, name="RCon commands"):
     @command(name='listplayers', help="Shows a list of all players online right now")
@@ -309,7 +370,7 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send(f"{len(names)} players online:\n" + ', '.join(names))
 
     @command(name='whitelist', help="Whitelists the player with the given SteamID64")
-    @check(is_admin)
+    @commands.has_role(config.ADMIN_ROLE)
     async def whitelist(self, ctx, SteamID64: int):
         try:
             result = await wait_for(whitelist_player(SteamID64), timeout=5)
