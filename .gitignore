@@ -133,3 +133,6 @@ dmypy.json
 
 # oauth secret
 *.json
+
+# config
+config.py
