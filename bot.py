@@ -225,13 +225,16 @@ class Applications(commands.Cog, name="Application commands"):
         if not config.APL[ctx.author]['open']:
             await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
+        if config.APL[ctx.author]['questionId'] < 0:
+            await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
+            return
         config.APL[ctx.author]['answers'][config.APL[ctx.author]['questionId']] = answer
         questionId = find_next_unanswered(ctx.author)
         if questionId >= 0:
             await send_question(ctx.author, questionId)
-            config.APL[ctx.author]['questionId'] = questionId
         else:
             await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
+        config.APL[ctx.author]['questionId'] = questionId
 
     @command(name='q', help='Used to switch to a given question')
     @check(is_applicant)
