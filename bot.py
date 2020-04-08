@@ -55,8 +55,8 @@ session = Session()
 async def send_question(author, id, msg=''):
     await author.dm_channel.send(f"{msg}\n__**Question {id + 1}:**__\n> {parse(author, config.QUESTIONS[id])}")
 
-async def send_overview(author, msg='', commited=False):
-    channel = config.CHANNEL[config.APPLICATIONS] if commited else author.dm_channel
+async def send_overview(author, msg='', submitted=False):
+    channel = config.CHANNEL[config.APPLICATIONS] if submitted else author.dm_channel
     buffer = msg + "\n" if msg else ''
     for id in range(len(config.QUESTIONS)):
         if id in config.APL[author]['answers']:
@@ -201,7 +201,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def applicant_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             if config.APL[ctx.author]['finished']:
-                msg = f"You already have an open application and all questions have been answered. You can review them with `{config.PREFIX}overview` and use `{config.PREFIX}commit` to finish the application and send it to the admins."
+                msg = f"You already have an open application and all questions have been answered. You can review them with `{config.PREFIX}overview` and use `{config.PREFIX}submit` to finish the application and send it to the admins."
                 await ctx.author.dm_channel.send(msg)
             else:
                 msg = f"You already have an open application. Answer questions with `{config.PREFIX}a <answer text>`."
@@ -247,9 +247,9 @@ class Applications(commands.Cog, name="Application commands"):
     async def overview(self, ctx):
         await send_overview(ctx.author)
 
-    @command(name='commit', help="Commit your application and send it to the admins")
+    @command(name='submit', help="Submit your application and send it to the admins")
     @check(is_applicant)
-    async def commit(self, ctx):
+    async def submit(self, ctx):
         if len(config.QUESTIONS) > len(config.APL[ctx.author]['answers']):
             await ctx.author.dm_channel.send("Please answer all questions first.")
             return
@@ -258,9 +258,9 @@ class Applications(commands.Cog, name="Application commands"):
             return
         config.APL[ctx.author]['open'] = False
         await ctx.author.dm_channel.send(parse(ctx.author, config.COMMITED))
-        print(f"{ctx.author} has commited their application.")
+        print(f"{ctx.author} has submitted their application.")
         msg = f"{ctx.author} has filled out the following application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent."
-        await send_overview(ctx.author, msg=msg, commited=True)
+        await send_overview(ctx.author, msg=msg, submitted=True)
 
     @command(name='cancel', help="Cancel your application")
     @check(is_applicant)
@@ -273,7 +273,7 @@ class Applications(commands.Cog, name="Application commands"):
     @a.error
     @q.error
     @overview.error
-    @commit.error
+    @submit.error
     @cancel.error
     async def application_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
