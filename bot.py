@@ -57,7 +57,7 @@ async def send_question(author, id, msg=''):
 
 async def send_overview(author, msg='', submitted=False):
     channel = config.CHANNEL[config.APPLICATIONS] if submitted else author.dm_channel
-    buffer = msg + "\n" if msg else ''
+    buffer = ''
     for id in range(len(config.QUESTIONS)):
         if id in config.APL[author]['answers']:
             if len(buffer) + 21 + len(parse(author, config.QUESTIONS[id])) > 2000:
@@ -68,7 +68,13 @@ async def send_overview(author, msg='', submitted=False):
                 await channel.send(buffer)
                 buffer = ''
             buffer += config.APL[author]['answers'][id] + "\n"
-    await channel.send(buffer)
+    if msg and len(buffer) + len(msg) > 2000:
+        await channel.send(buffer)
+        await channel.send(msg)
+    elif msg:
+        await channel.send(buffer + msg)
+    else:
+        await channel.send(buffer)
 
 async def whitelist_player(SteamID64):
     if len(str(SteamID64)) != 17:
@@ -259,7 +265,7 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[ctx.author]['open'] = False
         await ctx.author.dm_channel.send(parse(ctx.author, config.COMMITED))
         print(f"{ctx.author} has submitted their application.")
-        msg = f"{ctx.author} has filled out the following application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent."
+        msg = f"{ctx.author} has filled out the application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent."
         await send_overview(ctx.author, msg=msg, submitted=True)
 
     @command(name='cancel', help="Cancel your application")
