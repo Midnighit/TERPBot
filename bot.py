@@ -4,13 +4,14 @@ import re
 import random
 import config
 import logging
+import discord
 from logging.handlers import RotatingFileHandler
 from asyncio import wait_for, TimeoutError
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
-from discord import DiscordException, ChannelType, Member, Guild, Message
+from discord import utils, DiscordException, ChannelType, Member, Guild, Message
 from discord.ext import commands
 from discord.ext.commands import command, check
 from mcrcon import MCRcon
@@ -155,14 +156,14 @@ async def on_ready():
     file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.setLevel(config.LOG_LEVEL)
     logger.addHandler(file_handler)
-    print(f"{bot.user.name} has connected to Discord!")
-    logger.info(f"{bot.user.name} has connected to Discord!")
+    print(f"{bot.user.name} has connected to Discord.")
+    logger.info(f"{bot.user.name} has connected to Discord.")
     # determine discord server
-    for guild in bot.guilds:
-        if guild.name == config.DISCORD_NAME:
-            config.GUILD = guild
-            print(f"Discord server {guild.name} was found (id = {guild.id})")
-            break
+    config.GUILD = discord.utils.get(bot.guilds, name=config.DISCORD_NAME)
+    if config.GUILD:
+        print(f"Discord server {config.GUILD.name} ({config.GUILD.id}) was found.")
+    else:
+        exit(f"{config.DISCORD_NAME} wasn't found. Please check config.py or authorize the bot.")
     # get all categories
     config.CATEGORY = {}
     for category in config.GUILD.categories:
@@ -182,10 +183,8 @@ async def on_ready():
             print(f"{channel[0]} channel was created (id = {config.CHANNEL[channel[0]].id})")
     # read questions from google sheet
     update_questions()
-    print("Questions have been read from the spreadsheet")
     # initialize randomizer
     random.seed()
-    print("Seed for RNG generated")
 
 @bot.event
 async def on_member_join(member):
