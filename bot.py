@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
-from discord import DiscordException, ChannelType, Member, Guild
+from discord import DiscordException, ChannelType, Member, Guild, Message
 from discord.ext import commands
 from discord.ext.commands import command, check
 from mcrcon import MCRcon
@@ -53,10 +53,13 @@ session = Session()
 ########################
 
 async def send_question(author, id, msg=''):
-    await author.dm_channel.send(f"{msg}\n__**Question {id + 1}:**__\n> {parse(author, config.QUESTIONS[id])}")
+    await author.dm_channel.send(f"{msg}\n__**Question {id + 1}/{len(config.QUESTIONS)}:**__\n> {parse(author, config.QUESTIONS[id])}")
 
 async def send_overview(author, msg='', submitted=False):
     channel = config.CHANNEL[config.APPLICATIONS] if submitted else author.dm_channel
+    if len(config.APL[author]['answers']) == 0:
+        await channel.send("No questions answered yet!" + msg)
+        return
     buffer = ''
     for id in range(len(config.QUESTIONS)):
         if id in config.APL[author]['answers']:
@@ -188,6 +191,31 @@ async def on_ready():
 async def on_member_join(member):
     await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETINGS))
 
+@bot.event
+async def on_message(message):
+    if not message.channel.type == ChannelType.private or not message.author in config.APL:
+        await bot.process_commands(message)
+        return
+    if message.content[0] == config.PREFIX:
+        word = message.content.split(None, 1)[0][1:]
+        for command in bot.commands:
+            if command.name == word:
+                await bot.process_commands(message)
+                return
+    if not config.APL[message.author]['open']:
+        await message.author.dm_channel.send(parse(message.author, config.APP_CLOSED))
+        return
+    if config.APL[message.author]['questionId'] < 0:
+        return
+    config.APL[message.author]['answers'][config.APL[message.author]['questionId']] = message.content
+    questionId = find_next_unanswered(message.author)
+    if questionId >= 0:
+        await send_question(message.author, questionId)
+    elif not config.APL[message.author]['finished']:
+        config.APL[message.author]['finished'] = True
+        await message.author.dm_channel.send(parse(message.author, config.FINISHED))
+    config.APL[message.author]['questionId'] = questionId
+
 ####################
 ''' Bot commands '''
 ####################
@@ -201,7 +229,7 @@ class Applications(commands.Cog, name="Application commands"):
         await config.CHANNEL[config.APPLICATIONS].send(f"{ctx.author} has started an application.")
         print(f"{ctx.author} has started an application.")
         config.APL[ctx.author] = \
-            {'timestamp': datetime.utcnow(), 'open': True, 'questionId': 0, 'answers': {}}
+            {'timestamp': datetime.utcnow(), 'finished': False, 'open': True, 'questionId': 0, 'answers': {}}
 
     @apply.error
     async def applicant_error(self, ctx, error):
@@ -218,24 +246,6 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(error)
             logger.error(error)
 
-    @command(name='a', help="Used to answer questions during the application process")
-    @check(is_applicant)
-    @check(is_private)
-    async def a(self, ctx, *, answer: str):
-        if not config.APL[ctx.author]['open']:
-            await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
-            return
-        if config.APL[ctx.author]['questionId'] < 0:
-            await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
-            return
-        config.APL[ctx.author]['answers'][config.APL[ctx.author]['questionId']] = answer
-        questionId = find_next_unanswered(ctx.author)
-        if questionId >= 0:
-            await send_question(ctx.author, questionId)
-        else:
-            await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
-        config.APL[ctx.author]['questionId'] = questionId
-
     @command(name='q', help='Used to switch to a given question')
     @check(is_applicant)
     @check(is_private)
@@ -244,8 +254,12 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
         if not questionId:
+            if config.APL[ctx.author]['questionId'] < 0:
+                await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
+                return
             await send_question(ctx.author, config.APL[ctx.author]['questionId'])
             return
+        print(f"Argument: {questionId}")
         if questionId[0] < 1 or questionId[0] > len(config.QUESTIONS):
             raise commands.BadArgument
         await send_question(ctx.author, questionId[0] - 1)
@@ -279,7 +293,7 @@ class Applications(commands.Cog, name="Application commands"):
         print(f"{ctx.author} has canceled their application.")
         del config.APL[ctx.author]
 
-    @a.error
+    # @a.error
     @q.error
     @overview.error
     @submit.error
@@ -400,6 +414,7 @@ class RCon(commands.Cog, name="RCon commands"):
 class General(commands.Cog, name="General commands"):
     @command(name='roll', help="Rolls a dice in NdN format")
     async def roll(self, ctx, dice: str):
+        msg = Message(channel=ctx.channel)
         try:
             rolls, limit = map(int, dice.split('d'))
         except Exception:
