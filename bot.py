@@ -88,6 +88,15 @@ async def whitelist_player(SteamID64):
         success = False if msg.find("Invalid argument") >= 0 else True
         return {'msg': msg, 'success': success}
 
+async def find_last_applicant(ctx):
+    async for message in ctx.channel.history(limit=100):
+        if message.author == bot.user:
+            pos = message.content.find(" has filled out the application. You can now either")
+            if pos < 0:
+                continue
+            return message.content[:pos].split(None)[-1:][0]
+    return None
+
 def update_questions():
     config.QUESTIONS = [value[0] for value in sheets.read(config.SPREADSHEET_ID, config.QUESTIONS_RANGE)]
     config.GREETING = sheets.read(config.SPREADSHEET_ID, config.GREETING_RANGE)[0][0]
@@ -213,7 +222,7 @@ async def on_message(message):
     elif not config.APL[message.author]['finished']:
         config.APL[message.author]['finished'] = True
         await message.author.dm_channel.send(parse(message.author, config.FINISHED))
-    config.APL[message.author]['questionId'] = question
+    config.APL[message.author]['questionId'] = questionId
 
 ####################
 ''' Bot commands '''
@@ -280,7 +289,7 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[ctx.author]['open'] = False
         await ctx.author.dm_channel.send(parse(ctx.author, config.COMMITED))
         print(f"{ctx.author} has submitted their application.")
-        msg = f"{ctx.author} has filled out the application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent."
+        msg = f"{ctx.author} has filled out the application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
         await send_overview(ctx.author, msg=msg, submitted=True)
 
     @command(name='cancel', help="Cancel your application")
@@ -306,7 +315,14 @@ class Applications(commands.Cog, name="Application commands"):
 
     @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent")
     @commands.has_role(config.ADMIN_ROLE)
-    async def accept(self, ctx, applicant: Member, *message):
+    async def accept(self, ctx, applicant=None, *message):
+        # if no applicant is given, try to automatically determine one
+        if applicant is None:
+            applicant = await find_last_applicant(ctx)
+            if applicant is None:
+                config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the applicant via `{config.PREFIX}accept <applicant>`.")
+                return
+        applicant = await commands.MemberConverter().convert(ctx, applicant)
         # remove Not Applied role
         if message:
             message = " ".join(message)
@@ -346,7 +362,14 @@ class Applications(commands.Cog, name="Application commands"):
 
     @command(name='reject', help="Reject the application. If message is omitted a default message will be sent")
     @commands.has_role(config.ADMIN_ROLE)
-    async def reject(self, ctx, applicant: Member, *message):
+    async def reject(self, ctx, applicant=None, *message):
+        # if no applicant is given, try to automatically determine one
+        if applicant is None:
+            applicant = await find_last_applicant(ctx)
+            if applicant is None:
+                config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the applicant via `{config.PREFIX}reject <applicant> <message>`.")
+                return
+        applicant = await commands.MemberConverter().convert(ctx, applicant)
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been rejected.")
         if not message:
