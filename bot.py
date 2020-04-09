@@ -84,8 +84,15 @@ async def whitelist_player(SteamID64, player):
     with MCRcon(config.RCON_IP, config.ADMIN_PASSWORD, port=config.RCON_PORT) as mcr:
         msg =  mcr.command(f"WhitelistPlayer {SteamID64}")
         success = False if msg.find("Invalid argument") >= 0 else True
-        # Store SteamID64 <-> Discord Name link in db
         if success:
+            # If either SteamID64 or disc_user already exist, delete them first
+            user = session.query(User).filter_by(SteamID64=SteamID64).first()
+            if user:
+                session.delete(user)
+            user = session.query(User).filter_by(disc_user=player).first()
+            if user:
+                session.delete(user)
+            # Store SteamID64 <-> Discord Name link in db
             session.add(User(SteamID64=SteamID64, disc_user=str(player)))
             session.commit()
         return {'msg': msg, 'success': success}
