@@ -246,10 +246,10 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(error)
             logger.error(error)
 
-    @command(name='q', help='Used to switch to a given question')
+    @command(name='question', help='Used to switch to a given question. If ')
     @check(is_applicant)
     @check(is_private)
-    async def q(self, ctx, *questionId: int):
+    async def question(self, ctx, *questionId: int):
         if not config.APL[ctx.author]['open']:
             await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
@@ -259,7 +259,6 @@ class Applications(commands.Cog, name="Application commands"):
                 return
             await send_question(ctx.author, config.APL[ctx.author]['questionId'])
             return
-        print(f"Argument: {questionId}")
         if questionId[0] < 1 or questionId[0] > len(config.QUESTIONS):
             raise commands.BadArgument
         await send_question(ctx.author, questionId[0] - 1)
@@ -293,8 +292,7 @@ class Applications(commands.Cog, name="Application commands"):
         print(f"{ctx.author} has canceled their application.")
         del config.APL[ctx.author]
 
-    # @a.error
-    @q.error
+    @question.error
     @overview.error
     @submit.error
     @cancel.error
@@ -414,7 +412,6 @@ class RCon(commands.Cog, name="RCon commands"):
 class General(commands.Cog, name="General commands"):
     @command(name='roll', help="Rolls a dice in NdN format")
     async def roll(self, ctx, dice: str):
-        msg = Message(channel=ctx.channel)
         try:
             rolls, limit = map(int, dice.split('d'))
         except Exception:
