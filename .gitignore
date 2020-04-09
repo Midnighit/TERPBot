@@ -136,3 +136,6 @@ dmypy.json
 
 # config
 config.py
+
+# log folder
+logs/
