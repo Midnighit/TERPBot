@@ -53,7 +53,7 @@ session = Session()
 ########################
 
 async def send_question(author, id, msg=''):
-    await author.dm_channel.send(f"{msg}\n__**Question {id + 1}/{len(config.QUESTIONS)}:**__\n> {parse(author, config.QUESTIONS[id])}")
+    await author.dm_channel.send(f"{msg}\n__**Question {id + 1} of {len(config.QUESTIONS)}:**__\n> {parse(author, config.QUESTIONS[id])}")
 
 async def send_overview(author, msg='', submitted=False):
     channel = config.CHANNEL[config.APPLICATIONS] if submitted else author.dm_channel
@@ -214,7 +214,7 @@ async def on_message(message):
     elif not config.APL[message.author]['finished']:
         config.APL[message.author]['finished'] = True
         await message.author.dm_channel.send(parse(message.author, config.FINISHED))
-    config.APL[message.author]['questionId'] = questionId
+    config.APL[message.author]['questionId'] = question
 
 ####################
 ''' Bot commands '''
@@ -246,23 +246,23 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(error)
             logger.error(error)
 
-    @command(name='question', help='Used to switch to a given question. If ')
+    @command(name='question', help="Used to switch to a given question. If no number is given, repeats the current question")
     @check(is_applicant)
     @check(is_private)
-    async def question(self, ctx, *questionId: int):
+    async def question(self, ctx, number=None):
         if not config.APL[ctx.author]['open']:
             await ctx.author.dm_channel.send(parse(ctx.author, config.APP_CLOSED))
             return
-        if not questionId:
+        if number is None:
             if config.APL[ctx.author]['questionId'] < 0:
                 await ctx.author.dm_channel.send(parse(ctx.author, config.FINISHED))
                 return
             await send_question(ctx.author, config.APL[ctx.author]['questionId'])
             return
-        if questionId[0] < 1 or questionId[0] > len(config.QUESTIONS):
+        if not number.isnumeric() or int(number) < 1 or int(number) > len(config.QUESTIONS):
             raise commands.BadArgument
-        await send_question(ctx.author, questionId[0] - 1)
-        config.APL[ctx.author]['questionId'] = questionId[0] - 1
+        await send_question(ctx.author, int(number) - 1)
+        config.APL[ctx.author]['questionId'] = int(number) - 1
 
     @command(name='overview', help="Display all questions that have already been answered")
     @check(is_applicant)
@@ -300,7 +300,7 @@ class Applications(commands.Cog, name="Application commands"):
         if isinstance(error, commands.CheckFailure):
             await ctx.send(f"You do not have an open application. Start one with `{config.PREFIX}apply`.")
         elif isinstance(error, commands.BadArgument):
-            await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
+            await ctx.send(f"Question number must be a number between 1 and {len(config.QUESTIONS)}")
         else:
             await ctx.send(error)
             logger.error(error)
