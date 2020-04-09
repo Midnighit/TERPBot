@@ -105,6 +105,7 @@ def update_questions():
     config.COMMITED = sheets.read(config.SPREADSHEET_ID, config.COMMITED_RANGE)[0][0]
     config.ACCEPTED = sheets.read(config.SPREADSHEET_ID, config.ACCEPTED_RANGE)[0][0]
     config.REJECTED = sheets.read(config.SPREADSHEET_ID, config.REJECTED_RANGE)[0][0]
+    config.REVIEWED = sheets.read(config.SPREADSHEET_ID, config.REVIEWED_RANGE)[0][0]
     config.WHITELISTING_FAILED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_FAILED_RANGE)[0][0]
     config.WHITELISTING_SUCCEEDED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_SUCCEEDED_RANGE)[0][0]
     config.APP_CLOSED = sheets.read(config.SPREADSHEET_ID, config.APP_CLOSED_RANGE)[0][0]
@@ -289,7 +290,7 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[ctx.author]['open'] = False
         await ctx.author.dm_channel.send(parse(ctx.author, config.COMMITED))
         print(f"{ctx.author} has submitted their application.")
-        msg = f"{ctx.author} has filled out the application. You can now either \n`{config.PREFIX}accept <applicant> <message>` or `{config.PREFIX}reject <applicant> <message>` it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
+        msg = f"{ctx.author} has filled out the application. You can now either \n`{config.PREFIX}accept <applicant> <message>`, `{config.PREFIX}reject <applicant> <message>` or `{config.PREFIX}review <applicant> <message>` (asking the applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
         await send_overview(ctx.author, msg=msg, submitted=True)
 
     @command(name='cancel', help="Cancel your application")
@@ -313,7 +314,7 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(error)
             logger.error(error)
 
-    @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent")
+    @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent. If message and applicant are omitted target the last submitted application.")
     @commands.has_role(config.ADMIN_ROLE)
     async def accept(self, ctx, applicant=None, *message):
         # if no applicant is given, try to automatically determine one
@@ -323,6 +324,9 @@ class Applications(commands.Cog, name="Application commands"):
                 config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the applicant via `{config.PREFIX}accept <applicant>`.")
                 return
         applicant = await commands.MemberConverter().convert(ctx, applicant)
+        # confirm that there is a closed application for that applicant
+        if not applicant in config.APL or config.APL[applicant]['open']:
+            await config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application for {applicant}. Please verify that the name is written correctly and try again.")
         # remove Not Applied role
         if message:
             message = " ".join(message)
@@ -353,14 +357,14 @@ class Applications(commands.Cog, name="Application commands"):
         if not message:
             message = parse(ctx.author, config.ACCEPTED)
         if result['success']:
-            await applicant.dm_channel.send(message + "\n" + parse(ctx.author, config.WHITELISTING_SUCCEEDED))
+            await applicant.dm_channel.send("Your application was accepted:\n" + message + "\n" + parse(ctx.author, config.WHITELISTING_SUCCEEDED))
         else:
-            await applicant.dm_channel.send(message + "\n" + parse(ctx.author, config.WHITELISTING_FAILED))
+            await applicant.dm_channel.send("Your application was accepted:\n" + message + "\n" + parse(ctx.author, config.WHITELISTING_FAILED))
         # remove application from list of open applications
         del config.APL[applicant]
         print(f"{ctx.author} has accepted {applicant}'s application.")
 
-    @command(name='reject', help="Reject the application. If message is omitted a default message will be sent")
+    @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. If message and applicant are omitted target the last submitted application.")
     @commands.has_role(config.ADMIN_ROLE)
     async def reject(self, ctx, applicant=None, *message):
         # if no applicant is given, try to automatically determine one
@@ -370,22 +374,50 @@ class Applications(commands.Cog, name="Application commands"):
                 config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the applicant via `{config.PREFIX}reject <applicant> <message>`.")
                 return
         applicant = await commands.MemberConverter().convert(ctx, applicant)
+        # confirm that there is a closed application for that applicant
+        if not applicant in config.APL or config.APL[applicant]['open']:
+            await config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application for {applicant}. Please verify that the name is written correctly and try again.")
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been rejected.")
         if not message:
-            await applicant.dm_channel.send(parse(ctx.author, config.REJECTED))
+            await applicant.dm_channel.send(parse(ctx.author, "Your application was rejected:\n" + config.REJECTED))
         else:
-            await applicant.dm_channel.send(" ".join(message))
+            await applicant.dm_channel.send("Your application was rejected:\n" + " ".join(message))
         # remove application from list of open applications
         del config.APL[applicant]
         print(f"{ctx.author} has rejected {applicant}'s application.")
 
+    @command(name='review', help="Ask the applicant to review their application. If message is omitted a default message will be sent. If message and applicant are omitted target the last submitted application.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def review(self, ctx, applicant=None, *message):
+        # if no applicant is given, try to automatically determine one
+        if applicant is None:
+            applicant = await find_last_applicant(ctx)
+            if applicant is None:
+                await config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the applicant via `{config.PREFIX}review <applicant> <message>`.")
+                return
+        applicant = await commands.MemberConverter().convert(ctx, applicant)
+        # confirm that there is a closed application for that applicant
+        if not applicant in config.APL or config.APL[applicant]['open']:
+            await config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application for {applicant}. Please verify that the name is written correctly and try again.")
+        # Send feedback to applications channel and to applicant
+        await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been returned.")
+        explanation = f"\nYou can change the answer to any question by going to that question with `{config.PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{config.PREFIX}overview`."
+        if not message:
+            await send_overview(applicant, "Your application was returned to you for review:\n" + config.REVIEWED + explanation)
+        else:
+            await send_overview(applicant, "Your application was returned to you for review:\n" + " ".join(message) + explanation)
+        # remove application from list of open applications
+        config.APL[applicant]['open'] = True
+        print(f"{ctx.author} has returned {applicant}'s application.")
+
     @accept.error
     @reject.error
-    async def accept_reject_error(self, ctx, error):
-        print(f"accept_reject_error: {error}")
+    @review.error
+    async def accept_reject_review_error(self, ctx, error):
+        print(f"accept_reject_review_error: {error}")
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("You do not have the required permissions to accept or reject applications")
+            await ctx.send("You do not have the required permissions to accept, reject or review applications")
         elif isinstance(error, commands.BadArgument):
             await ctx.send("Applicant couldn't be found")
         else:
