@@ -80,13 +80,13 @@ async def send_overview(author, msg='', submitted=False):
     else:
         await channel.send(buffer)
 
-async def whitelist_player(SteamID64):
+async def whitelist_player(SteamID64, player):
     with MCRcon(config.RCON_IP, config.ADMIN_PASSWORD, port=config.RCON_PORT) as mcr:
         msg =  mcr.command(f"WhitelistPlayer {SteamID64}")
         success = False if msg.find("Invalid argument") >= 0 else True
         # Store SteamID64 <-> Discord Name link in db
         if success:
-            session.add(User(SteamID64=SteamID64, disc_user=str(applicant)))
+            session.add(User(SteamID64=SteamID64, disc_user=str(player)))
             session.commit()
         return {'msg': msg, 'success': success}
 
@@ -250,7 +250,7 @@ class Applications(commands.Cog, name="Application commands"):
                 msg = f"You already have an open application and all questions have been answered. You can review them with `{config.PREFIX}overview` and use `{config.PREFIX}submit` to finish the application and send it to the admins."
                 await ctx.author.dm_channel.send(msg)
             else:
-                msg = f"You already have an open application. Answer questions with `{config.PREFIX}a <answer text>`."
+                msg = f"You already have an open application."
                 await send_question(ctx.author, config.APL[ctx.author]['questionId'], msg=msg)
         elif isinstance(error, commands.BadArgument):
             await ctx.send(f"Question number must be between 1 and {len(config.QUESTIONS)}")
@@ -343,7 +343,7 @@ class Applications(commands.Cog, name="Application commands"):
         if SteamID64:
             try:
                 logger.info(f"Trying to whitelist SteamID64 {SteamID64} of {applicant} now...")
-                result = await wait_for(whitelist_player(SteamID64), timeout=5)
+                result = await wait_for(whitelist_player(SteamID64, applicant), timeout=5)
                 logger.info(f"Whitelisting SteamID64 {SteamID64} of {applicant} successfully.")
             except TimeoutError:
                 logger.warning(f"Whitelisting SteamID64 {SteamID64} of {applicant} timed out.")
@@ -450,8 +450,11 @@ class RCon(commands.Cog, name="RCon commands"):
     @commands.has_role(config.ADMIN_ROLE)
     async def whitelist(self, ctx, SteamID64: int):
         try:
-            result = await wait_for(whitelist_player(SteamID64), timeout=5)
+            logger.info(f"Trying to whitelist SteamID64 {SteamID64} now...")
+            result = await wait_for(whitelist_player(SteamID64, applicant), timeout=5)
+            logger.info(f"Whitelisting SteamID64 {SteamID64} successfully.")
         except TimeoutError:
+            logger.warning(f"Whitelisting SteamID64 {SteamID64} timed out.")
             result = {'msg': "Whitelisting attempt timed out", 'success': False}
         await ctx.send(result['msg'])
 
