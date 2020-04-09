@@ -81,11 +81,13 @@ async def send_overview(author, msg='', submitted=False):
         await channel.send(buffer)
 
 async def whitelist_player(SteamID64):
-    if len(str(SteamID64)) != 17:
-        return {'msg': "SteamID64 must be a 17 digits number", 'success': False}
     with MCRcon(config.RCON_IP, config.ADMIN_PASSWORD, port=config.RCON_PORT) as mcr:
         msg =  mcr.command(f"WhitelistPlayer {SteamID64}")
         success = False if msg.find("Invalid argument") >= 0 else True
+        # Store SteamID64 <-> Discord Name link in db
+        if success:
+            session.add(User(SteamID64=SteamID64, disc_user=str(applicant)))
+            session.commit()
         return {'msg': msg, 'success': success}
 
 async def find_last_applicant(ctx):
@@ -198,6 +200,7 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
+    logger.info(f"{member} just joined the discord.")
     await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETINGS))
 
 @bot.event
@@ -339,19 +342,16 @@ class Applications(commands.Cog, name="Application commands"):
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
             try:
-                print(f"[{datetime.utcnow()}] Trying to whitelist...")
+                logger.info(f"Trying to whitelist SteamID64 {SteamID64} of {applicant} now...")
                 result = await wait_for(whitelist_player(SteamID64), timeout=5)
-                print(f"[{datetime.utcnow()}] Whitelisting successful.")
+                logger.info(f"Whitelisting SteamID64 {SteamID64} of {applicant} successfully.")
             except TimeoutError:
-                print(f"[{datetime.utcnow()}] Whitelisting timed out.")
+                logger.warning(f"Whitelisting SteamID64 {SteamID64} of {applicant} timed out.")
                 result = {'msg': "Whitelisting attempt timed out", 'success': False}
         else:
+            logger.warning(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
             result = {'msg': "No SteamID64 was given.", 'success': False}
         await config.CHANNEL[config.APPLICATIONS].send(result['msg'])
-        # Store SteamID64 <-> Discord Name link in db
-        if result['success']:
-            session.add(User(SteamID64=SteamID64, disc_user=str(applicant)))
-            session.commit()
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been accepted.")
         if not message:
