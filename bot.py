@@ -6,7 +6,6 @@ import config
 import logging
 import discord
 from logging.handlers import RotatingFileHandler
-from asyncio import wait_for, TimeoutError
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -14,7 +13,7 @@ from datetime import datetime
 from discord import utils, DiscordException, ChannelType, Member, Guild, Message
 from discord.ext import commands
 from discord.ext.commands import command, check
-from mcrcon import MCRcon
+from valve import rcon
 from google_api import sheets
 
 bot = commands.Bot(config.PREFIX)
@@ -80,22 +79,34 @@ async def send_overview(author, msg='', submitted=False):
     else:
         await channel.send(buffer)
 
-async def whitelist_player(SteamID64, player):
-    with MCRcon(config.RCON_IP, config.ADMIN_PASSWORD, port=config.RCON_PORT) as mcr:
-        msg =  mcr.command(f"WhitelistPlayer {SteamID64}")
-        success = False if msg.find("Invalid argument") >= 0 else True
+async def whitelist_player(SteamID64, player, channel):
+    try:
+        msg = rcon.execute((config.RCON_IP, config.RCON_PORT), config.RCON_PASSWORD, f"WhitelistPlayer {SteamID64}")
+        success = True if msg == f"Player {SteamID64} added to whitelist." else False
         if success:
             # If either SteamID64 or disc_user already exist, delete them first
             user = session.query(User).filter_by(SteamID64=SteamID64).first()
             if user:
                 session.delete(user)
-            user = session.query(User).filter_by(disc_user=player).first()
+            user = session.query(User).filter_by(disc_user=str(player)).first()
             if user:
                 session.delete(user)
             # Store SteamID64 <-> Discord Name link in db
             session.add(User(SteamID64=SteamID64, disc_user=str(player)))
             session.commit()
-        return {'msg': msg, 'success': success}
+            print(msg)
+            await channel.send(msg)
+            logger.info(msg)
+        else:
+            config.WHITELIST[SteamID64] = {'player': player, 'channel': channel}
+            print(f"Whitelisting failed ({msg}). Trying again after next restart.")
+            logger.info(f"Whitelisting failed ({msg}). Trying again after next restart.")
+            await channel.send("Whitelisting failed. Trying again after next restart.")
+    except Exception as e:
+        config.WHITELIST[SteamID64] = {'player': player, 'channel': channel}
+        print(f"Whitelisting failed ({e}). Trying again after next restart.")
+        logger.error(f"Whitelisting failed ({e}). Trying again after next restart.")
+        await channel.send(f"2Whitelisting failed. Trying again after next restart.")
 
 async def find_last_applicant(ctx):
     async for message in ctx.channel.history(limit=100):
@@ -177,6 +188,7 @@ async def on_ready():
     logger.addHandler(file_handler)
     print(f"{bot.user.name} has connected to Discord.")
     logger.info(f"{bot.user.name} has connected to Discord.")
+    config.APL = config.WHITELIST = {}
     # determine discord server
     config.GUILD = discord.utils.get(bot.guilds, name=config.DISCORD_NAME)
     if config.GUILD:
@@ -212,6 +224,10 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
+    if message.content.find("Server The Exiled RP-PvP is Ready:") >= 0:
+        for SteamID64, data in config.WHITELIST.items():
+            await whitelist_player(SteamID64, data['player'], data['channel'])
+        return
     if not message.channel.type == ChannelType.private or not message.author in config.APL:
         await bot.process_commands(message)
         return
@@ -348,17 +364,10 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist applicant
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
-            try:
-                logger.info(f"Trying to whitelist SteamID64 {SteamID64} of {applicant} now...")
-                result = await wait_for(whitelist_player(SteamID64, applicant), timeout=5)
-                logger.info(f"Whitelisting SteamID64 {SteamID64} of {applicant} successfully.")
-            except TimeoutError:
-                logger.warning(f"Whitelisting SteamID64 {SteamID64} of {applicant} timed out.")
-                result = {'msg': "Whitelisting attempt timed out", 'success': False}
+            await whitelist_player(SteamID64, applicant, config.CHANNEL[config.APPLICATIONS])
         else:
-            logger.warning(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
-            result = {'msg': "No SteamID64 was given.", 'success': False}
-        await config.CHANNEL[config.APPLICATIONS].send(result['msg'])
+            logger.info(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
+            await config.CHANNEL[config.APPLICATIONS].send(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been accepted.")
         if not message:
@@ -407,6 +416,7 @@ class Applications(commands.Cog, name="Application commands"):
         # confirm that there is a closed application for that applicant
         if not applicant in config.APL or config.APL[applicant]['open']:
             await config.CHANNEL[config.APPLICATIONS].send(f"Couldn't find a submitted application for {applicant}. Please verify that the name is written correctly and try again.")
+            return
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been returned.")
         explanation = f"\nYou can change the answer to any question by going to that question with `{config.PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{config.PREFIX}overview`."
@@ -434,36 +444,28 @@ class Applications(commands.Cog, name="Application commands"):
 class RCon(commands.Cog, name="RCon commands"):
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
-        with MCRcon(config.RCON_IP, config.ADMIN_PASSWORD, port=config.RCON_PORT) as mcr:
-            playerlist = mcr.command("ListPlayers")
-            lines = playerlist.split('\n')
-            names = []
-            headline = True
-            for line in lines:
-                if headline:
-                    headline = False
-                else:
-                    columns = line.split('|')
-                    if len(columns) >= 2:
-                        names.append(columns[1].strip())
-            await ctx.send(f"{len(names)} players online:\n" + ', '.join(names))
+        playerlist = rcon.execute((config.RCON_IP, config.RCON_PORT), config.RCON_PASSWORD, "ListPlayers")
+        lines = playerlist.split('\n')
+        names = []
+        headline = True
+        for line in lines:
+            if headline:
+                headline = False
+            else:
+                columns = line.split('|')
+                if len(columns) >= 2:
+                    names.append(columns[1].strip())
+        await ctx.send(f"{len(names)} players online:\n" + ', '.join(names))
 
     @listplayers.error
     async def listplayers_error(self, ctx, error):
         await ctx.send(error)
         logger.error(error)
 
-    @command(name='whitelist', help="Whitelists the player with the given SteamID64")
+    @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
     @commands.has_role(config.ADMIN_ROLE)
-    async def whitelist(self, ctx, SteamID64: int):
-        try:
-            logger.info(f"Trying to whitelist SteamID64 {SteamID64} now...")
-            result = await wait_for(whitelist_player(SteamID64, applicant), timeout=5)
-            logger.info(f"Whitelisting SteamID64 {SteamID64} successfully.")
-        except TimeoutError:
-            logger.warning(f"Whitelisting SteamID64 {SteamID64} timed out.")
-            result = {'msg': "Whitelisting attempt timed out", 'success': False}
-        await ctx.send(result['msg'])
+    async def whitelist(self, ctx, player: Member, SteamID64: int):
+        await whitelist_player(SteamID64, player, ctx.channel)
 
     @whitelist.error
     async def whitelist_error(self, ctx, error):
