@@ -89,6 +89,11 @@ async def whitelist_player(SteamID64, player, channel):
             await channel.send(msg)
             logger.info(msg)
             return 'yes'
+        elif msg.find("Invalid argument") >= 0:
+            print(f"Whitelisting failed ({msg}).")
+            logger.info(f"Whitelisting failed ({msg}).")
+            await channel.send("Whitelisting failed.")
+            return 'no'
         else:
             config.WHITELIST[SteamID64] = {'player': player, 'channel': channel}
             print(f"Whitelisting failed ({msg}). Trying again after next restart.")
