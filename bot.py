@@ -181,6 +181,7 @@ async def on_ready():
     file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.setLevel(config.LOG_LEVEL)
     logger.addHandler(file_handler)
+    rcon.RCONMessage.ENCODING = "utf-8"
     print(f"{bot.user.name} has connected to Discord.")
     logger.info(f"{bot.user.name} has connected to Discord.")
     config.APL = config.WHITELIST = {}
