@@ -215,7 +215,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
-    await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETINGS))
+    await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETING))
 
 @bot.event
 async def on_message(message):
