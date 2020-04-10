@@ -6,7 +6,7 @@ import config
 import logging
 import discord
 from logging.handlers import RotatingFileHandler
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -31,7 +31,6 @@ Base.metadata.create_all(engine)
 # setup the classes
 engine = create_engine('sqlite:///users.db')
 Base = declarative_base()
-Session = sessionmaker(bind=engine)
 
 class User(Base):
     __tablename__ = 'users'
@@ -44,9 +43,6 @@ class User(Base):
 
 # create the table
 Base.metadata.create_all(engine)
-
-# instantiate a session object
-session = Session()
 
 ########################
 ''' Helper functions '''
@@ -85,28 +81,26 @@ async def whitelist_player(SteamID64, player, channel):
         success = True if msg == f"Player {SteamID64} added to whitelist." else False
         if success:
             # If either SteamID64 or disc_user already exist, delete them first
-            user = session.query(User).filter_by(SteamID64=SteamID64).first()
-            if user:
-                session.delete(user)
-            user = session.query(User).filter_by(disc_user=str(player)).first()
-            if user:
-                session.delete(user)
+            session.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(player))).delete()
             # Store SteamID64 <-> Discord Name link in db
             session.add(User(SteamID64=SteamID64, disc_user=str(player)))
             session.commit()
             print(msg)
             await channel.send(msg)
             logger.info(msg)
+            return 'yes'
         else:
             config.WHITELIST[SteamID64] = {'player': player, 'channel': channel}
             print(f"Whitelisting failed ({msg}). Trying again after next restart.")
             logger.info(f"Whitelisting failed ({msg}). Trying again after next restart.")
             await channel.send("Whitelisting failed. Trying again after next restart.")
+            return 'delayed'
     except Exception as e:
         config.WHITELIST[SteamID64] = {'player': player, 'channel': channel}
         print(f"Whitelisting failed ({e}). Trying again after next restart.")
         logger.error(f"Whitelisting failed ({e}). Trying again after next restart.")
-        await channel.send(f"2Whitelisting failed. Trying again after next restart.")
+        await channel.send(f"Whitelisting failed. Trying again after next restart.")
+        return 'delayed'
 
 async def find_last_applicant(ctx):
     async for message in ctx.channel.history(limit=100):
@@ -127,6 +121,7 @@ def update_questions():
     config.REJECTED = sheets.read(config.SPREADSHEET_ID, config.REJECTED_RANGE)[0][0]
     config.REVIEWED = sheets.read(config.SPREADSHEET_ID, config.REVIEWED_RANGE)[0][0]
     config.WHITELISTING_FAILED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_FAILED_RANGE)[0][0]
+    config.WHITELISTING_DELAYED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_DELAYED_RANGE)[0][0]
     config.WHITELISTING_SUCCEEDED = sheets.read(config.SPREADSHEET_ID, config.WHITELISTING_SUCCEEDED_RANGE)[0][0]
     config.APP_CLOSED = sheets.read(config.SPREADSHEET_ID, config.APP_CLOSED_RANGE)[0][0]
 
@@ -364,16 +359,19 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist applicant
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
-            await whitelist_player(SteamID64, applicant, config.CHANNEL[config.APPLICATIONS])
+            result = await whitelist_player(SteamID64, applicant, config.CHANNEL[config.APPLICATIONS])
         else:
-            logger.info(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
-            await config.CHANNEL[config.APPLICATIONS].send(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[author]['answers'][config.STEAMID_QUESTION]}].")
+            result = 'no'
+            logger.info(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[ctx.author]['answers'][config.STEAMID_QUESTION]}].")
+            await config.CHANNEL[config.APPLICATIONS].send(f"Whitelisting {applicant} failed. No SteamID64 found in answer [{config.APL[ctx.author]['answers'][config.STEAMID_QUESTION]}].")
         # Send feedback to applications channel and to applicant
         await config.CHANNEL[config.APPLICATIONS].send(f"{applicant}'s application has been accepted.")
         if not message:
             message = parse(ctx.author, config.ACCEPTED)
-        if result['success']:
+        if result == 'yes':
             await applicant.dm_channel.send("Your application was accepted:\n" + message + "\n" + parse(ctx.author, config.WHITELISTING_SUCCEEDED))
+        elif result == 'delayed':
+            await applicant.dm_channel.send("Your application was accepted:\n" + message + "\n" + parse(ctx.author, config.WHITELISTING_DELAYED))
         else:
             await applicant.dm_channel.send("Your application was accepted:\n" + message + "\n" + parse(ctx.author, config.WHITELISTING_FAILED))
         # remove application from list of open applications
