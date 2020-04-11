@@ -426,9 +426,9 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[applicant]['open'] = True
         print(f"{ctx.author} has returned {applicant}'s application.")
 
-    @command(name='showapps', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
+    @command(name='showapp', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
     @commands.has_role(config.ADMIN_ROLE)
-    async def showapps(self, ctx, *, applicant=None):
+    async def showapp(self, ctx, *, applicant=None):
         if applicant:
             applicant = await commands.MemberConverter().convert(ctx, applicant)
             if not applicant in config.APL:
@@ -442,8 +442,24 @@ class Applications(commands.Cog, name="Application commands"):
             msg = "" if len(config.APL) > 0 else "No open applications right now."
             for applicant, aplication in config.APL.items():
                 msg += f"Applicant {applicant} is {'still working on their application' if aplication['open'] else 'waiting for admin approval'}.\n"
+            if len(config.APL) > 0:
+                msg += f"You can view a specific application by entering `{config.PREFIX}showapp <applicant>`."
             await ctx.channel.send(msg)
             return
+
+    @command(name='cancelapp', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def cancelapp(self, ctx, applicant, *message):
+        applicant = await commands.MemberConverter().convert(ctx, applicant)
+        if not applicant in config.APL:
+            await ctx.channel.send(f"Applicant {applicant} couldn't be found.")
+            return
+        del config.APL[applicant]
+        if message:
+            message = " ".join(message)
+        await ctx.channel.send(f"Application for {applicant} has been cancelled.")
+        await applicant.dm_channel.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
+        print(f"Application for {applicant} has been cancelled.")
 
     @command(name='reloadsheets', help="Updates all default messages and questions from google sheets.")
     @commands.has_role(config.ADMIN_ROLE)
@@ -454,7 +470,8 @@ class Applications(commands.Cog, name="Application commands"):
     @accept.error
     @reject.error
     @review.error
-    @showapps.error
+    @showapp.error
+    @cancelapp.error
     @reloadsheets.error
     async def not_admin_error(self, ctx, error):
         print(f"not_admin_error: {error}")
