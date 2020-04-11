@@ -117,6 +117,25 @@ async def find_last_applicant(ctx):
             return message.content[pos_start:pos_end]
     return None
 
+async def roll_dice(dice):
+    dice = dice.replace(' ','').split('+')
+    val = 0
+    lst = []
+    for die in dice:
+        if die.isnumeric():
+            val += int(die)
+        else:
+            try:
+                rolls, limit = map(int, die.split('d'))
+            except Exception:
+                return None
+            lst += [random.randint(1, limit) for r in range(rolls)]
+    result = ', '.join([str(r) for r in lst])
+    result = rreplace(result, ',', ' and', 1)
+    result = result + " + " + str(val) if val > 0 else result
+    result = f"{result} (total: {sum(lst) + val})" if len(lst) > 1 or val > 0 else result
+    return result
+
 def update_questions():
     config.QUESTIONS = [value[0] for value in sheets.read(config.SPREADSHEET_ID, config.QUESTIONS_RANGE)]
     config.GREETING = sheets.read(config.SPREADSHEET_ID, config.GREETING_RANGE)[0][0]
@@ -534,16 +553,10 @@ class RCon(commands.Cog, name="RCon commands"):
 
 class General(commands.Cog, name="General commands"):
     @command(name='roll', help="Rolls a dice in NdN format")
-    async def roll(self, ctx, dice: str):
-        try:
-            rolls, limit = map(int, dice.split('d'))
-        except Exception:
-            await ctx.send('Format has to be in NdN!')
-            return
-        l = [random.randint(1, limit) for r in range(rolls)]
-        s = ', '.join([str(r) for r in l])
-        result = f"{s} (total: {sum(l)})" if len(l) > 1 else s
-        result = rreplace(result, ',', ' and', 1)
+    async def roll(self, ctx, *, dice: str):
+        result = await roll_dice(dice)
+        if not result:
+            await ctx.send("Format needs to be in XdY+Z format. (e.g. 1d20 + 3d4 + 4)" )
         await ctx.send(f"{ctx.author.mention} **rolled:** " + result)
 
     @roll.error
