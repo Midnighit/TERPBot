@@ -428,7 +428,7 @@ class Applications(commands.Cog, name="Application commands"):
 
     @command(name='showapps', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
     @commands.has_role(config.ADMIN_ROLE)
-    async def review(self, ctx, *, applicant=None):
+    async def showapps(self, ctx, *, applicant=None):
         if applicant:
             applicant = await commands.MemberConverter().convert(ctx, applicant)
             if not applicant in config.APL:
@@ -441,19 +441,27 @@ class Applications(commands.Cog, name="Application commands"):
         else:
             msg = "" if len(config.APL) > 0 else "No open applications right now."
             for applicant, aplication in config.APL.items():
-                msg += f"Applicant {applicant} is {'still working on their application.' if aplication['open'] else 'waiting for admin approval.'}.\n"
+                msg += f"Applicant {applicant} is {'still working on their application' if aplication['open'] else 'waiting for admin approval'}.\n"
             await ctx.channel.send(msg)
             return
+
+    @command(name='reloadsheets', help="Updates all default messages and questions from google sheets.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def reloadsheets(self, ctx):
+        update_questions()
+        await ctx.channel.send("Default messages and questions have been reloaded from google sheets.")
 
     @accept.error
     @reject.error
     @review.error
-    async def accept_reject_review_error(self, ctx, error):
-        print(f"accept_reject_review_error: {error}")
+    @showapps.error
+    @reloadsheets.error
+    async def not_admin_error(self, ctx, error):
+        print(f"not_admin_error: {error}")
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("You do not have the required permissions to accept, reject or review applications")
+            await ctx.send(f"You do not have the required permissions ({error})")
         elif isinstance(error, commands.BadArgument):
-            await ctx.send("Applicant couldn't be found")
+            await ctx.send(f"Applicant couldn't be found")
         else:
             await ctx.send(error)
             logger.error(error)
