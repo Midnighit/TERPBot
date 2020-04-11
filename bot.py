@@ -215,6 +215,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
+    await member.edit(roles=member.roles + [config.ROLE[config.NOT_APPLIED_ROLE]])
     await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETING))
 
 @bot.event
@@ -351,11 +352,10 @@ class Applications(commands.Cog, name="Application commands"):
         # remove Not Applied role
         if message:
             message = " ".join(message)
-        roles = []
-        for role in applicant.roles:
-            if role.name != config.NOT_APPLIED_ROLE:
-                roles.append(role)
-        await applicant.edit(roles=roles)
+        if config.ROLE[config.NOT_APPLIED_ROLE] in applicant.roles:
+            new_roles = applicant.roles
+            new_roles.remove(config.ROLE[config.NOT_APPLIED_ROLE])
+            await applicant.edit(roles=new_roles)
         # Whitelist applicant
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
