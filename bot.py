@@ -149,6 +149,10 @@ def parse(author, msg):
         msg = re.sub("(?i){" + name + "}", role.mention, msg)
     return msg
 
+def rreplace(s, old, new, occurrence):
+    li = s.rsplit(old, occurrence)
+    return new.join(li)
+
 def get_steam64Id(author):
     result = re.search(r'(7\d{16})', config.APL[author]['answers'][config.STEAMID_QUESTION])
     result = result.group(1) if result else None
@@ -539,7 +543,8 @@ class General(commands.Cog, name="General commands"):
         l = [random.randint(1, limit) for r in range(rolls)]
         s = ', '.join([str(r) for r in l])
         result = f"{s} (total: {sum(l)})" if len(l) > 1 else s
-        await ctx.send(result)
+        result = rreplace(result, ',', ' and', 1)
+        await ctx.send(f"{ctx.author.mention} **rolled:** " + result)
 
     @roll.error
     async def roll_error(self, ctx, error):
