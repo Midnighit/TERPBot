@@ -110,10 +110,11 @@ async def whitelist_player(SteamID64, player, channel):
 async def find_last_applicant(ctx):
     async for message in ctx.channel.history(limit=100):
         if message.author == bot.user:
-            pos = message.content.find(" has filled out the application. You can now either")
-            if pos < 0:
+            pos_end = message.content.find(" has filled out the application. You can now either")
+            if pos_end < 0:
                 continue
-            return message.content[:pos].split(None)[-1:][0]
+            pos_start = message.content.rfind("\n", 0, pos_end) + 1
+            return message.content[pos_start:pos_end]
     return None
 
 def update_questions():
@@ -221,6 +222,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
+    await member.edit(roles=member.roles + [config.ROLE[config.NOT_APPLIED_ROLE]])
     await config.CHANNEL[config.WELCOME].send(parse(member, config.GREETING))
 
 @bot.event
@@ -357,11 +359,10 @@ class Applications(commands.Cog, name="Application commands"):
         # remove Not Applied role
         if message:
             message = " ".join(message)
-        roles = []
-        for role in applicant.roles:
-            if role.name != config.NOT_APPLIED_ROLE:
-                roles.append(role)
-        await applicant.edit(roles=roles)
+        if config.ROLE[config.NOT_APPLIED_ROLE] in applicant.roles:
+            new_roles = applicant.roles
+            new_roles.remove(config.ROLE[config.NOT_APPLIED_ROLE])
+            await applicant.edit(roles=new_roles)
         # Whitelist applicant
         SteamID64 = get_steam64Id(applicant)
         if SteamID64:
@@ -432,15 +433,59 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[applicant]['open'] = True
         print(f"{ctx.author} has returned {applicant}'s application.")
 
+    @command(name='showapp', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def showapp(self, ctx, *, applicant=None):
+        if applicant:
+            applicant = await commands.MemberConverter().convert(ctx, applicant)
+            if not applicant in config.APL:
+                await ctx.channel.send(f"No application for {applicant} found")
+            elif config.APL[applicant]['open']:
+                await ctx.channel.send("Can't access application while it's still being worked on.")
+            else:
+                await send_overview(ctx.author, submitted=True)
+            return
+        else:
+            msg = "" if len(config.APL) > 0 else "No open applications right now."
+            for applicant, aplication in config.APL.items():
+                msg += f"Applicant {applicant} is {'still working on their application' if aplication['open'] else 'waiting for admin approval'}.\n"
+            if len(config.APL) > 0:
+                msg += f"You can view a specific application by entering `{config.PREFIX}showapp <applicant>`."
+            await ctx.channel.send(msg)
+            return
+
+    @command(name='cancelapp', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def cancelapp(self, ctx, applicant, *message):
+        applicant = await commands.MemberConverter().convert(ctx, applicant)
+        if not applicant in config.APL:
+            await ctx.channel.send(f"Applicant {applicant} couldn't be found.")
+            return
+        del config.APL[applicant]
+        if message:
+            message = " ".join(message)
+        await ctx.channel.send(f"Application for {applicant} has been cancelled.")
+        await applicant.dm_channel.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
+        print(f"Application for {applicant} has been cancelled.")
+
+    @command(name='reloadsheets', help="Updates all default messages and questions from google sheets.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def reloadsheets(self, ctx):
+        update_questions()
+        await ctx.channel.send("Default messages and questions have been reloaded from google sheets.")
+
     @accept.error
     @reject.error
     @review.error
-    async def accept_reject_review_error(self, ctx, error):
-        print(f"accept_reject_review_error: {error}")
+    @showapp.error
+    @cancelapp.error
+    @reloadsheets.error
+    async def not_admin_error(self, ctx, error):
+        print(f"not_admin_error: {error}")
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("You do not have the required permissions to accept, reject or review applications")
+            await ctx.send(f"You do not have the required permissions ({error})")
         elif isinstance(error, commands.BadArgument):
-            await ctx.send("Applicant couldn't be found")
+            await ctx.send(f"Applicant couldn't be found")
         else:
             await ctx.send(error)
             logger.error(error)
