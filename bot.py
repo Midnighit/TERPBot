@@ -105,10 +105,11 @@ async def whitelist_player(SteamID64, player, channel):
 async def find_last_applicant(ctx):
     async for message in ctx.channel.history(limit=100):
         if message.author == bot.user:
-            pos = message.content.find(" has filled out the application. You can now either")
-            if pos < 0:
+            pos_end = message.content.find(" has filled out the application. You can now either")
+            if pos_end < 0:
                 continue
-            return message.content[:pos].split(None)[-1:][0]
+            pos_start = message.content.rfind("\n", 0, pos_end) + 1
+            return message.content[pos_start:pos_end]
     return None
 
 def update_questions():
