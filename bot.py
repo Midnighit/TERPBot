@@ -426,6 +426,25 @@ class Applications(commands.Cog, name="Application commands"):
         config.APL[applicant]['open'] = True
         print(f"{ctx.author} has returned {applicant}'s application.")
 
+    @command(name='showapps', help="Displays the given applicants application if it has been submitted. When applicant is omitted, shows all applications.")
+    @commands.has_role(config.ADMIN_ROLE)
+    async def review(self, ctx, *, applicant=None):
+        if applicant:
+            applicant = await commands.MemberConverter().convert(ctx, applicant)
+            if not applicant in config.APL:
+                await ctx.channel.send(f"No application for {applicant} found")
+            elif config.APL[applicant]['open']:
+                await ctx.channel.send("Can't access application while it's still being worked on.")
+            else:
+                await send_overview(ctx.author, submitted=True)
+            return
+        else:
+            msg = "" if len(config.APL) > 0 else "No open applications right now."
+            for applicant, aplication in config.APL.items():
+                msg += f"Applicant {applicant} is {'still working on their application.' if aplication['open'] else 'waiting for admin approval.'}.\n"
+            await ctx.channel.send(msg)
+            return
+
     @accept.error
     @reject.error
     @review.error
