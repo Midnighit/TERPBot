@@ -463,9 +463,9 @@ class RCon(commands.Cog, name="RCon commands"):
         if num == 0:
             await ctx.send("Nobody is currently online")
         elif num == 1:
-            await ctx.send(f"{len(names)} player online:\n {names[0]}")
+            await ctx.send(f"__**{len(names)} player online:**__\n {names[0]}")
         else:
-            await ctx.send(f"{len(names)} players online:\n" + ', '.join(names))
+            await ctx.send(f"__**{len(names)} players online:**__\n" + ', '.join(names))
 
     @listplayers.error
     async def listplayers_error(self, ctx, error):
