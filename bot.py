@@ -572,45 +572,6 @@ class General(commands.Cog, name="General commands"):
         await ctx.send(error)
         logger.error(error)
 
-    @command(name="gatherdiscordlinks")
-    async def gatherdiscordlinks(self, ctx):
-        midnight = await commands.MemberConverter().convert(ctx, 'Midnight#7982')
-        if ctx.author != midnight:
-            return
-        appbot = await commands.MemberConverter().convert(ctx, 'Application Bot#7283')
-        count = 0
-        last_message_date = None
-        delta = timedelta(seconds = 5)
-        filtered_messages = []
-        async for message in config.CHANNEL['applications'].history(limit=9999):
-            if message.author != appbot:
-                continue
-            if not last_message_date or last_message_date - message.created_at >= delta:
-                filtered_messages.append(message.content)
-            else:
-                filtered_messages[len(filtered_messages) - 1] = message.content + filtered_messages[len(filtered_messages) - 1]
-            last_message_date = message.created_at
-
-        for m in filtered_messages:
-            count += 1
-            findings = re.findall(r'(7\d{16})', m)
-            while("76561197960287930" in findings):
-                findings.remove("76561197960287930")
-            SteamID64 = findings[len(findings) - 1] if findings else None
-            if not SteamID64:
-                continue
-            pos_start = m.find("Name of Applicant: ") + 19
-            disc_user = m[pos_start:] if pos_start >= 19 else None
-            if disc_user:
-                print(f"Linking: {SteamID64} <=> {disc_user}")
-                logger.info(f"Linking: {SteamID64} <=> {disc_user}")
-                # If either SteamID64 or disc_user already exist, delete them first
-                session.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==disc_user)).delete()
-                # Store SteamID64 <-> Discord Name link in db
-                session.add(User(SteamID64=SteamID64, disc_user=disc_user))
-                session.commit()
-        print(f"Done filtering {count} messages.")
-
 bot.add_cog(Applications())
 bot.add_cog(RCon())
 bot.add_cog(General())
