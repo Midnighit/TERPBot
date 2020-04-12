@@ -572,6 +572,24 @@ class General(commands.Cog, name="General commands"):
         await ctx.send(error)
         logger.error(error)
 
+    @command(name="setsteamid", help="Set your 17 digit SteamID64 (the one used to whitelist you)")
+    async def setsteamid(self, ctx, SteamID64: str):
+        if not SteamID64.isnumeric() or len(SteamID64) != 17:
+            raise DiscordException("SteamID64 must be a 17 digits number")
+        session.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(ctx.author))).delete()
+        session.add(User(SteamID64=SteamID64, disc_user=str(ctx.author)))
+        session.commit()
+        logger.info(f"Player {ctx.author} set their SteamID64 to {SteamID64}.")
+        await ctx.channel.send(f"Your SteamID64 has been set to {SteamID64}.")
+
+    @setsteamid.error
+    async def setsteamid_error(self, ctx, error):
+        if isinstance(error, DiscordException):
+            await ctx.send("SteamID64 must be a 17 digits number")
+        else:
+            await ctx.send(error)
+            logger.error(error)
+
 bot.add_cog(Applications())
 bot.add_cog(RCon())
 bot.add_cog(General())
