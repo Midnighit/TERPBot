@@ -583,7 +583,7 @@ class General(commands.Cog, name="General commands"):
         delta = timedelta(seconds = 5)
         filtered_messages = []
         async for message in config.CHANNEL['applications'].history(limit=9999):
-            if message.author != appbot
+            if message.author != appbot:
                 continue
             if not last_message_date or last_message_date - message.created_at >= delta:
                 filtered_messages.append(message.content)
