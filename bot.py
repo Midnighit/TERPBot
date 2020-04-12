@@ -193,6 +193,14 @@ async def is_private(ctx):
 async def is_not_bot(ctx):
     return ctx.author != bot.user
 
+def has_role_greater_or_equal(check_role: str):
+    async def predicate(ctx):
+        for author_role in ctx.author.roles:
+            if author_role >= config.ROLE[check_role]:
+                return True
+        raise DiscordException(f"Role needs to be equal or higher than {check_role}.")
+    return commands.check(predicate)
+
 ##############
 ''' Events '''
 ##############
