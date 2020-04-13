@@ -239,18 +239,20 @@ async def is_not_bot(ctx):
 
 def has_role_greater_or_equal(check_role: str):
     async def predicate(ctx):
-        for author_role in ctx.author.roles:
+        member = config.GUILD.get_member(ctx.author.id)
+        for author_role in member.roles:
             if author_role >= config.ROLE[check_role]:
                 return True
-        raise DiscordException(f"Role needs to be equal or higher than {check_role}.")
+        return False
     return commands.check(predicate)
 
 def has_role_greater(check_role: str):
     async def predicate(ctx):
-        for author_role in ctx.author.roles:
+        member = config.GUILD.get_member(ctx.author.id)
+        for author_role in member.roles:
             if author_role > config.ROLE[check_role]:
                 return True
-        raise DiscordException(f"Role needs to be higher than {check_role}.")
+        return False
     return commands.check(predicate)
 
 ##############
@@ -637,8 +639,8 @@ class General(commands.Cog, name="General commands"):
 
     @setsteamid.error
     async def setsteamid_error(self, ctx, error):
-        if isinstance(error, DiscordException):
-            await ctx.send("SteamID64 must be a 17 digits number")
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("You do not have the permission to use this command")
         else:
             await ctx.send(error)
             logger.error(error)
