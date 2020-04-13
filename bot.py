@@ -137,7 +137,7 @@ async def find_last_applicant(ctx):
     return None
 
 async def roll_dice(dice):
-    dice = dice.replace(' ','').split('+')
+    dice = dice.replace(" ","").split("+")
     val = 0
     lst = []
     for die in dice:
@@ -149,10 +149,10 @@ async def roll_dice(dice):
             except Exception:
                 return None
             lst += [random.randint(1, limit) for r in range(rolls)]
-    result = ', '.join([str(r) for r in lst])
-    result = rreplace(result, ',', ' and', 1)
-    result = result + " + " + str(val) if val > 0 else result
-    result = f"{result} (total: {sum(lst) + val})" if len(lst) > 1 or val > 0 else result
+    result = "**" + "**, **".join([str(r) for r in lst]) + "**"
+    result = rreplace(result, ",", " and", 1)
+    result = result + " + **" + str(val) + "**" if val > 0 else result
+    result = f"{result} (total: **{sum(lst) + val}**)" if len(lst) > 1 or val > 0 else result
     return result
 
 def find_steamID64(author):
@@ -619,7 +619,7 @@ class General(commands.Cog, name="General commands"):
         result = await roll_dice(dice)
         if not result:
             await ctx.send("Format needs to be in XdY+Z format. (e.g. 1d20 + 3d4 + 4)" )
-        await ctx.send(f"{ctx.author.mention} **rolled:** " + result)
+        await ctx.send(f"{ctx.author.mention} rolled: " + result)
 
     @roll.error
     async def roll_error(self, ctx, error):
@@ -681,6 +681,8 @@ class General(commands.Cog, name="General commands"):
 
     @whois.error
     async def whois_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("You do not have the permission to use this command")
         await ctx.send(error)
         logger.error(error)
 
