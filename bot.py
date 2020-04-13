@@ -6,7 +6,7 @@ import config
 import logging
 import discord
 from logging.handlers import RotatingFileHandler
-from sqlalchemy import create_engine, Column, Integer, String, or_
+from sqlalchemy import create_engine, or_, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
@@ -18,18 +18,12 @@ from google_api import sheets
 
 bot = commands.Bot(config.PREFIX)
 logger = logging.getLogger(__name__)
-engine = create_engine('sqlite:///users.db')
-Session = sessionmaker(bind=engine)
-session = Session()
-Base = declarative_base()
-Base.metadata.create_all(engine)
 
 ################
 ''' SQlite '''
 ################
 
-# setup the classes
-engine = create_engine('sqlite:///users.db')
+# setup the metadata
 Base = declarative_base()
 
 class User(Base):
@@ -41,8 +35,33 @@ class User(Base):
     def __repr__(self):
         return f"<User(SteamID64='{self.SteamID64}', disc_user='{self.disc_user}')>"
 
-# create the table
-Base.metadata.create_all(engine)
+# create the User table
+engineUser = create_engine('sqlite:///users.db')
+Base.metadata.create_all(engineUser)
+
+# create the User table session
+SessionUser = sessionmaker(bind=engineUser)
+sessionUser = SessionUser()
+
+class Characters(Base):
+    __tablename__ = 'characters'
+    playerId = Column(String, primary_key=True)
+    id = Column(Integer, nullable=False)
+    char_name = Column(String, nullable=False)
+    level = Column(Integer)
+    rank = Column(Integer)
+    guild = Column(Integer)
+    isAlive = Column(Boolean)
+    killerName = Column(String)
+    lastTimeOnline = Column(Integer)
+    killerId = Column(String)
+    lastServerTimeOnline = Column(Float)
+
+    def __repr__(self):
+        return f"<Characters(playerId='{self.playerId}', id='{self.id}', char_name='{self.char_name}', level='{self.level}', rank='{self.rank}', guild='{self.guild}', isAlive='{self.isAlive}', killerName='{self.killerName}', lastTimeOnline='{self.lastTimeOnline}', killerId='{self.killerId}', lastServerTimeOnline='{self.lastServerTimeOnline}')>"
+
+engineGame = create_engine(config.GAME_DB_PATH)
+SessionGame = sessionmaker(bind=engineGame)
 
 ########################
 ''' Helper functions '''
@@ -81,10 +100,10 @@ async def whitelist_player(SteamID64, player, channel):
         success = True if msg == f"Player {SteamID64} added to whitelist." else False
         if success:
             # If either SteamID64 or disc_user already exist, delete them first
-            session.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(player))).delete()
+            sessionUser.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(player))).delete()
             # Store SteamID64 <-> Discord Name link in db
-            session.add(User(SteamID64=SteamID64, disc_user=str(player)))
-            session.commit()
+            sessionUser.add(User(SteamID64=SteamID64, disc_user=str(player)))
+            sessionUser.commit()
             print(msg)
             await channel.send(msg)
             logger.info(msg)
@@ -136,6 +155,36 @@ async def roll_dice(dice):
     result = f"{result} (total: {sum(lst) + val})" if len(lst) > 1 or val > 0 else result
     return result
 
+def find_steamID64(author):
+    result = re.search(r'(7\d{16})', config.APL[author]['answers'][config.STEAMID_QUESTION])
+    result = result.group(1) if result else None
+    return result
+
+def get_char(SteamID64):
+    sessionGame = SessionGame()
+    results = sessionGame.query(Characters.playerId, Characters.char_name, Characters.lastTimeOnline).filter(Characters.playerId.like(SteamID64 + '%')).order_by(Characters.playerId).all()
+    sessionGame.close()
+    lst = []
+    for row in results:
+        slot = str(row[0])[17] if len(str(row[0])) == 18 else 'active'
+        lst.append({'name': str(row[1]), 'slot': slot, 'lastLogin': datetime.utcfromtimestamp(row[2]).strftime("%d-%b-%Y %H:%M:%S UTC")})
+    return lst
+
+def get_disc_user(SteamID64):
+        result = sessionUser.query(User.disc_user).filter_by(SteamID64=SteamID64).first()
+        return result[0] if result else None
+
+def get_steamID64(arg):
+    if type(arg) is Member:
+        result = sessionUser.query(User.SteamID64).filter_by(disc_user=str(arg)).first()
+        return result[0] if result else None
+    else:
+        sessionGame = SessionGame()
+        result = sessionGame.query(Characters.playerId).filter_by(char_name=arg).first()
+        sessionGame.close()
+        if result:
+            return result[0] if len(result[0]) == 17 else result[0][:-1]
+
 def update_questions():
     config.QUESTIONS = [value[0] for value in sheets.read(config.SPREADSHEET_ID, config.QUESTIONS_RANGE)]
     config.GREETING = sheets.read(config.SPREADSHEET_ID, config.GREETING_RANGE)[0][0]
@@ -171,11 +220,6 @@ def parse(author, msg):
 def rreplace(s, old, new, occurrence):
     li = s.rsplit(old, occurrence)
     return new.join(li)
-
-def get_steam64Id(author):
-    result = re.search(r'(7\d{16})', config.APL[author]['answers'][config.STEAMID_QUESTION])
-    result = result.group(1) if result else None
-    return result
 
 ##############
 ''' Checks '''
@@ -395,7 +439,7 @@ class Applications(commands.Cog, name="Application commands"):
             new_roles.remove(config.ROLE[config.NOT_APPLIED_ROLE])
             await applicant.edit(roles=new_roles)
         # Whitelist applicant
-        SteamID64 = get_steam64Id(applicant)
+        SteamID64 = find_steamID64(applicant)
         if SteamID64:
             result = await whitelist_player(SteamID64, applicant, config.CHANNEL[config.APPLICATIONS])
         else:
@@ -576,9 +620,9 @@ class General(commands.Cog, name="General commands"):
     async def setsteamid(self, ctx, SteamID64: str):
         if not SteamID64.isnumeric() or len(SteamID64) != 17:
             raise DiscordException("SteamID64 must be a 17 digits number")
-        session.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(ctx.author))).delete()
-        session.add(User(SteamID64=SteamID64, disc_user=str(ctx.author)))
-        session.commit()
+        sessionUser.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(ctx.author))).delete()
+        sessionUser.add(User(SteamID64=SteamID64, disc_user=str(ctx.author)))
+        sessionUser.commit()
         logger.info(f"Player {ctx.author} set their SteamID64 to {SteamID64}.")
         await ctx.channel.send(f"Your SteamID64 has been set to {SteamID64}.")
 
@@ -589,6 +633,45 @@ class General(commands.Cog, name="General commands"):
         else:
             await ctx.send(error)
             logger.error(error)
+
+    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
+    @has_role_greater_or_equal(config.SUPPORT_ROLE)
+    async def whois(self, ctx, *, arg):
+        try:
+            disc_user = await commands.MemberConverter().convert(ctx, arg)
+        except:
+            disc_user = None
+        msg = f"The characters belonging to the discord nick **{disc_user}** are:\n"
+        if disc_user:
+            SteamID64 = get_steamID64(disc_user)
+            if SteamID64:
+                characters = get_char(SteamID64)
+                if characters:
+                    for char in characters:
+                        if char['slot'] == 'active':
+                            msg += f"**{char['name']}** on active slot (last login: {char['lastLogin']})\n"
+                        else:
+                            msg += f"**{char['name']}** on slot {char['slot']} (last login: {char['lastLogin']})\n"
+                else:
+                    msg = "No character belonging to that discord nick has been found."
+            else:
+                msg = "No character belonging to that discord nick has been found."
+        else:
+            SteamID64 = get_steamID64(arg)
+            if SteamID64:
+                disc_user = get_disc_user(SteamID64)
+                if disc_user:
+                    msg = f"The discord nick of the player of {arg} is **{disc_user}**"
+                else:
+                    msg = f"No discord nick associated with that character has been found"
+            else:
+                msg = f"No character named {arg} has been found"
+        await ctx.channel.send(msg)
+
+    @whois.error
+    async def whois_error(self, ctx, error):
+        await ctx.send(error)
+        logger.error(error)
 
 bot.add_cog(Applications())
 bot.add_cog(RCon())
