@@ -592,14 +592,16 @@ class RCon(commands.Cog, name="RCon commands"):
         num = len(names)
         if num == 0:
             await ctx.send("Nobody is currently online")
-        else:
+        elif num < 20:
             await ctx.send(f"__**Players online:**__ {len(names)}\n" + '\n'.join(names))
+        else:
+            await ctx.send(rreplace(f"__**Players online:**__ {len(names)}\n" + ', '.join(names), ",", " and", 1))
 
     @listplayers.error
     async def listplayers_error(self, ctx, error):
-        await ctx.send(error)
+        await ctx.send("Error: something went wrong with the command. Please try again later or contact an administrator.")
         logger.error(error)
-
+        
     @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
     @commands.has_role(config.ADMIN_ROLE)
     async def whitelist(self, ctx, player: Member, SteamID64: int):
