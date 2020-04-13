@@ -237,6 +237,12 @@ async def is_private(ctx):
 async def is_not_bot(ctx):
     return ctx.author != bot.user
 
+def has_not_role(check_role: str):
+    async def predicate(ctx):
+        member = config.GUILD.get_member(ctx.author.id)
+        return not config.ROLE[check_role] in member.roles
+    return commands.check(predicate)
+
 def has_role_greater_or_equal(check_role: str):
     async def predicate(ctx):
         member = config.GUILD.get_member(ctx.author.id)
@@ -601,7 +607,7 @@ class RCon(commands.Cog, name="RCon commands"):
     async def listplayers_error(self, ctx, error):
         await ctx.send("Error: something went wrong with the command. Please try again later or contact an administrator.")
         logger.error(error)
-        
+
     @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
     @commands.has_role(config.ADMIN_ROLE)
     async def whitelist(self, ctx, player: Member, SteamID64: int):
@@ -629,7 +635,7 @@ class General(commands.Cog, name="General commands"):
         logger.error(error)
 
     @command(name="setsteamid", help="Set your 17 digit SteamID64 (the one used to whitelist you)")
-    @has_role_greater(config.NOT_APPLIED_ROLE)
+    @has_not_role(config.NOT_APPLIED_ROLE)
     async def setsteamid(self, ctx, SteamID64: str):
         if not SteamID64.isnumeric() or len(SteamID64) != 17:
             raise DiscordException("SteamID64 must be a 17 digits number")
