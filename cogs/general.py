@@ -42,13 +42,21 @@ class General(commands.Cog, name="General commands"):
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
     @has_role_greater_or_equal(cfg.SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
-        try:
-            disc_user = await commands.MemberConverter().convert(ctx, arg)
-        except:
-            disc_user = None
+        SteamID64 = None
+        if len(arg) > 5 and arg[-5] == '#':
+            result = sessionUser.query(User.SteamID64).filter(func.lower(User.disc_user)==arg.lower()).first()
+            disc_user = SteamID64 = result[0] if result else None
+        elif arg[:3] == "<@!" and arg[-1] == '>':
+            try:
+                disc_user = await commands.MemberConverter().convert(ctx, arg)
+            except:
+                disc_user = None
+        else:
+            result = sessionUser.query(User.SteamID64).filter(func.lower(User.disc_user).like(arg.lower() + "#____")).first()
+            disc_user = SteamID64 = result[0] if result else None
         msg = f"The characters belonging to the discord nick **{disc_user}** are:\n"
         if disc_user:
-            SteamID64 = get_steamID64(disc_user)
+            SteamID64 = SteamID64 or get_steamID64(disc_user)
             if SteamID64:
                 characters = get_char(SteamID64)
                 if characters:
