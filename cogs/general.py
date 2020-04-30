@@ -42,18 +42,18 @@ class General(commands.Cog, name="General commands"):
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
     @has_role_greater_or_equal(cfg.SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
-        SteamID64 = None
         if len(arg) > 5 and arg[-5] == '#':
-            result = sessionUser.query(User.SteamID64).filter(func.lower(User.disc_user)==arg.lower()).first()
-            disc_user = SteamID64 = result[0] if result else None
+            result = sessionUser.query(User.SteamID64, User.disc_user).filter(func.lower(User.disc_user)==arg.lower()).first()
+            SteamID64, disc_user = result if result else (None, None)
         elif arg[:3] == "<@!" and arg[-1] == '>':
             try:
+                SteamID64 = None
                 disc_user = await commands.MemberConverter().convert(ctx, arg)
             except:
                 disc_user = None
         else:
-            result = sessionUser.query(User.SteamID64).filter(func.lower(User.disc_user).like(arg.lower() + "#____")).first()
-            disc_user = SteamID64 = result[0] if result else None
+            result = sessionUser.query(User.SteamID64, User.disc_user).filter(func.lower(User.disc_user).like(arg.lower() + "#____")).first()
+            SteamID64, disc_user = result if result else (None, None)
         msg = f"The characters belonging to the discord nick **{disc_user}** are:\n"
         if disc_user:
             SteamID64 = SteamID64 or get_steamID64(disc_user)
