@@ -1,12 +1,11 @@
-from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from datetime import datetime
 import config as cfg
 from logger import logger
-from checks import is_not_applicant, is_applicant, has_role
-from exceptions import NotNumberError, NumberNotInRangeError
 from google_api import sheets
+from exceptions import *
+from checks import *
 from helpers import *
 
 class Applications(commands.Cog, name="Application commands"):

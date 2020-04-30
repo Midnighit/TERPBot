@@ -1,11 +1,10 @@
-from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 import config as cfg
 from logger import logger
 from db import sessionUser, User
-from checks import has_not_role, has_role_greater_or_equal
-from exceptions import NotSteamIdError, IsGabesIDError
+from exceptions import *
+from checks import *
 from helpers import *
 
 class General(commands.Cog, name="General commands"):

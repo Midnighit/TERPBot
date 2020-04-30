@@ -4,10 +4,9 @@ from discord.ext.commands import command
 from valve import rcon
 import config as cfg
 from logger import logger
-from checks import has_role
-from exceptions import RConConnectionError, NotSteamIdError, IsGabesIDError
+from exceptions import *
+from checks import *
 from helpers import *
-
 
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):

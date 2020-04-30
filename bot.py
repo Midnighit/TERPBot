@@ -4,7 +4,6 @@ import random
 import discord
 from discord import ChannelType
 from discord.ext import commands
-from datetime import datetime
 from valve import rcon
 import config as cfg
 from logger import logger
