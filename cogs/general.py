@@ -42,20 +42,29 @@ class General(commands.Cog, name="General commands"):
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
     @has_role_greater_or_equal(cfg.SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
+        msg = None
         if len(arg) > 5 and arg[-5] == '#':
-            result = sessionUser.query(User.SteamID64, User.disc_user).filter(func.lower(User.disc_user)==arg.lower()).first()
-            SteamID64, disc_user = result if result else (None, None)
+            result = sessionUser.query(User.SteamID64, User.disc_user) \
+                                .filter(func.lower(User.disc_user)==arg.lower()) \
+                                .first()
+            if not result:
+                msg, disc_user = ("No character belonging to that discord nick has been found.", None)
+            else:
+                SteamID64, disc_user = result
         elif arg[:3] == "<@!" and arg[-1] == '>':
             try:
-                SteamID64 = None
-                disc_user = await commands.MemberConverter().convert(ctx, arg)
+                SteamID64, disc_user = (None, await commands.MemberConverter().convert(ctx, arg))
             except:
-                disc_user = None
+                msg, disc_user = ("No character belonging to that discord nick has been found.", None)
         else:
-            result = sessionUser.query(User.SteamID64, User.disc_user).filter(func.lower(User.disc_user).like(arg.lower() + "#____")).first()
+            result = sessionUser.query(User.SteamID64, User.disc_user) \
+                                .filter(func.lower(User.disc_user) \
+                                .like(arg.lower() + "#____")) \
+                                .first()
             SteamID64, disc_user = result if result else (None, None)
-        msg = f"The characters belonging to the discord nick **{disc_user}** are:\n"
-        if disc_user:
+
+        if disc_user and not msg:
+            msg = f"The characters belonging to the discord nick **{disc_user}** are:\n"
             SteamID64 = SteamID64 or get_steamID64(disc_user)
             if SteamID64:
                 characters = get_char(SteamID64)
@@ -69,14 +78,14 @@ class General(commands.Cog, name="General commands"):
                     msg = "No character belonging to that discord nick has been found."
             else:
                 msg = "No character belonging to that discord nick has been found."
-        else:
+        elif not msg:
             SteamID64 = get_steamID64(arg)
             if SteamID64:
                 disc_user = get_disc_user(SteamID64)
                 if disc_user:
                     msg = f"The discord nick of the player of {arg} is **{disc_user}**"
                 else:
-                    msg = f"No discord nick associated with that character has been found"
+                    msg = "No discord nick associated with that character has been found"
             else:
                 msg = f"No character named {arg} has been found"
         await ctx.channel.send(msg)
