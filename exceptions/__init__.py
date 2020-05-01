@@ -50,13 +50,13 @@ class RoleTooLowError(CustomError):
 class NotSteamIdError(CustomError):
     def __init__(self, msg=None):
         if msg is None:
-            msg = "Whitelisting failed. SteamID64 must be a 17 digits number."
+            msg = "SteamID64 must be a 17 digits number."
         super().__init__(msg)
 
 class IsGabesIDError(CustomError):
     def __init__(self, msg=None):
         if msg is None:
-            msg = "Whitelisting failed. This is Gabe Newell's SteamID64. You probably got it as an example of how a SteamID64 is supposed to look like. Please try again with the correct SteamID."
+            msg = "This is Gabe Newell's SteamID64. You probably got it as an example of how a SteamID64 is supposed to look like. Please try again with the correct SteamID."
         super().__init__(msg)
 
 class NotNumberError(CustomError):
