@@ -197,7 +197,7 @@ class Applications(commands.Cog, name="Application commands"):
             elif cfg.APL[Applicant]['open']:
                 await ctx.channel.send("Can't access application while it's still being worked on.")
             else:
-                await send_overview(ctx.author, submitted=True)
+                await send_overview(Applicant, submitted=True)
             return
         else:
             msg = "" if len(cfg.APL) > 0 else "No open applications right now."
