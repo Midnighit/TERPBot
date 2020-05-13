@@ -49,7 +49,7 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='overview', help="Display all questions that have already been answered")
     @is_applicant()
     async def overview(self, ctx):
-        await send_overview(ctx.author)
+        await send_overview(ctx.author, ctx=ctx)
 
     @command(name='submit', help="Submit your application and send it to the admins")
     @is_applicant()
@@ -64,9 +64,10 @@ class Applications(commands.Cog, name="Application commands"):
         application.status = 'submitted'
         sessionSupp.commit()
         await ctx.author.dm_channel.send(parse(ctx.author, cfg.COMMITED))
+        submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
-        msg = f"{ctx.author.mention} has filled out the application. You can now either \n`{cfg.PREFIX}accept <applicant> <message>`, `{cfg.PREFIX}reject <applicant> <message>` or `{cfg.PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
+        msg = f"{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{cfg.PREFIX}accept <applicant> <message>`, `{cfg.PREFIX}reject <applicant> <message>` or `{cfg.PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
         await send_overview(ctx.author, msg=msg, channel=cfg.CHANNEL[cfg.APPLICATIONS])
 
     @command(name='cancel', help="Cancel your application")
@@ -231,18 +232,20 @@ class Applications(commands.Cog, name="Application commands"):
             elif await can_edit_questions(application):
                 await ctx.channel.send("Can't access application while it's still being worked on.")
             else:
-                await send_overview(applicant, channel=ctx.channel)
+                submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
+                msg = f"Overview of {ctx.author.mention}'s application. ({submission_date})"
+                await send_overview(applicant, msg=msg, channel=ctx.channel)
             return
         else:
             applications = sessionSupp.query(Apps).filter(Apps.status.in_(['open', 'submitted', 'review', 'finished']))
             msg = "" if applications.count() > 0 else "No open applications right now."
             for application in applications:
                 applicant, address = await convert_user(ctx, application.applicant)
+                open_date = application.open_date.strftime("%d-%b-%Y %H:%M UTC")
                 if await can_edit_questions(application):
-                    open_date = application.open_date.strftime("%d-%b-%Y %H:%M:%S UTC")
                     msg += f"Applicant {address} is still working on their application. ({open_date})\n"
                 else:
-                    msg += f"Applicant {address} is **waiting for admin approval**.\n"
+                    msg += f"Applicant {address} is **waiting for admin approval**. ({open_date})\n"
             if applications.count() > 0:
                 msg += f"You can view a specific application by entering `{cfg.PREFIX}showapp <applicant>`."
             await ctx.channel.send(msg)

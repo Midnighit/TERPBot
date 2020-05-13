@@ -52,10 +52,13 @@ async def send_question(author, id, msg=''):
     num = len(questions)
     await author.dm_channel.send(f"{msg}\n__**Question {id} of {num}:**__\n> {parse(author, txt)}")
 
-async def send_overview(applicant, msg='', channel=None):
+async def send_overview(applicant, msg='', channel=None, ctx=None):
     # if channel is given, send to that channel otherwise to applicants dm channel
     if not channel:
-        channel = applicant.dm_channel
+        if ctx and ctx.channel:
+            channel = ctx.channel
+        else:
+            channel = applicant.dm_channel
     give_overview = False
     questions = await get_questions(applicant=applicant)
     for q in questions:
