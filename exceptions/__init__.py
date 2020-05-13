@@ -11,6 +11,10 @@ class CustomError(cmds.CommandError):
 class IsBotError(CustomError):
     pass
 
+class ConversionError(CustomError):
+    def __init__(self, msg="Couldn't determine discord user account."):
+        super().__init__(msg)
+
 class NotApplicantError(CustomError):
     def __init__(self, msg=None):
         if msg is None:

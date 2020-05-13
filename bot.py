@@ -21,7 +21,6 @@ async def on_ready():
     rcon.RCONMessage.ENCODING = "utf-8"
     print(f"{bot.user.name} has connected to Discord.")
     logger.info(f"{bot.user.name} has connected to Discord.")
-    cfg.APL = {}
     cfg.caught = False
     # determine discord server
     cfg.GUILD = discord.utils.get(bot.guilds, name=cfg.DISCORD_NAME)
@@ -62,8 +61,20 @@ async def on_member_join(member):
     await cfg.CHANNEL[cfg.WELCOME].send(parse(member, cfg.GREETING))
 
 @bot.event
+async def on_member_remove(member):
+    application = await get_application(member)
+    if application and not application.status in ['rejeted' or 'approved']:
+        await delete_application(application)
+        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member.mention} just left discord. Ongoing application was cancelled")
+        logger.info(f"{member} just left discord. Ongoing application was cancelled")
+    else:
+        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member.mention} just left discord.")
+        logger.info(f"{member} just left discord.")
+
+@bot.event
 async def on_message(message):
-    if not message.channel.type == ChannelType.private or not message.author in cfg.APL:
+    application = await get_application(message.author)
+    if not message.channel.type == ChannelType.private or not application:
         await bot.process_commands(message)
         return
     if message.content[0] == cfg.PREFIX:
@@ -72,19 +83,22 @@ async def on_message(message):
             if cmd.name == word:
                 await bot.process_commands(message)
                 return
-    if not cfg.APL[message.author]['open']:
+    if not application or not await can_edit_questions(application):
         await message.author.dm_channel.send(parse(message.author, cfg.APP_CLOSED))
         return
-    if cfg.APL[message.author]['questionId'] < 0:
+    if application.current_question < 0:
         return
-    cfg.APL[message.author]['answers'][cfg.APL[message.author]['questionId']] = message.content
-    questionId = find_next_unanswered(message.author)
-    if questionId >= 0:
+    questions = await get_questions(application)
+    questions[application.current_question - 1].answer = message.content
+    sessionSupp.commit()
+    questionId = await get_next_unanswered(application)
+    if questionId > 0:
         await send_question(message.author, questionId)
-    elif not cfg.APL[message.author]['finished']:
-        cfg.APL[message.author]['finished'] = True
+    elif not application.status == 'finished':
+        application.status = 'finished'
         await message.author.dm_channel.send(parse(message.author, cfg.FINISHED))
-    cfg.APL[message.author]['questionId'] = questionId
+    application.current_question = questionId
+    sessionSupp.commit()
 
 @bot.event
 async def on_command_error(ctx, error):

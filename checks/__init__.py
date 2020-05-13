@@ -1,5 +1,6 @@
 import exceptions as exc
 import config as cfg
+from db import sessionSupp, Apps
 from discord.ext.commands import check, BadArgument, MissingRequiredArgument
 
 ##############
@@ -8,14 +9,14 @@ from discord.ext.commands import check, BadArgument, MissingRequiredArgument
 
 def is_applicant():
     async def predicate(ctx):
-        if not ctx.author in cfg.APL:
+        if not sessionSupp.query(Apps).filter_by(applicant=str(ctx.author)).first():
             raise exc.NotApplicantError()
         return True
     return check(predicate)
 
 def is_not_applicant():
     async def predicate(ctx):
-        if ctx.author in cfg.APL:
+        if sessionSupp.query(Apps).filter_by(applicant=str(ctx.author)).first():
             raise exc.ApplicantError()
         return True
     return check(predicate)

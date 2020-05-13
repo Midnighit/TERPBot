@@ -3,31 +3,80 @@ import random
 import config as cfg
 from sqlalchemy import func, or_
 from datetime import datetime
-from db import SessionGame, sessionUser, User, Characters
+from db import SessionGame, sessionSupp, Users, Characters, Apps, BaseQuestions, Questions
 from discord import Member
-from exceptions import NoDiceFormatError
+from discord.ext import commands
+from exceptions import NoDiceFormatError, ConversionError
 from valve import rcon
 from google_api import sheets
 
-async def send_question(author, id, msg=''):
-    await author.dm_channel.send(f"{msg}\n__**Question {id + 1} of {len(cfg.QUESTIONS)}:**__\n> {parse(author, cfg.QUESTIONS[id])}")
+async def get_application(applicant):
+    return sessionSupp.query(Apps).filter_by(applicant=str(applicant)).first()
 
-async def send_overview(author, msg='', submitted=False):
-    channel = cfg.CHANNEL[cfg.APPLICATIONS] if submitted else author.dm_channel
-    if len(cfg.APL[author]['answers']) == 0:
+async def get_questions(application=None, applicant=None):
+    if not application:
+        application = await get_application(applicant)
+    return application.questions if application else None
+
+async def get_next_unanswered(application=None, applicant=None):
+    questions = await get_questions(application, applicant)
+    if questions:
+        for q in questions:
+            if q.answer == '':
+                return q.id
+    return -1
+
+async def get_num_questions(application=None, applicant=None):
+    questions = await get_questions(application, applicant)
+    return len(questions) if questions else 0
+
+async def can_edit_questions(application=None, applicant=None):
+    if not application:
+        application = await get_application(applicant)
+    if not application:
+        return False
+    status = application.status
+    return status == 'open' or status == 'finished' or status == 'review'
+
+async def delete_application(application=None, applicant=None):
+    if not application:
+        application = await get_application(applicant)
+    if not application:
+        return None
+    sessionSupp.delete(application)
+    sessionSupp.commit()
+
+async def send_question(author, id, msg=''):
+    questions = await get_questions(applicant=author)
+    txt = questions[id - 1].question
+    num = len(questions)
+    await author.dm_channel.send(f"{msg}\n__**Question {id} of {num}:**__\n> {parse(author, txt)}")
+
+async def send_overview(applicant, msg='', channel=None):
+    # if channel is given, send to that channel otherwise to applicants dm channel
+    if not channel:
+        channel = applicant.dm_channel
+    give_overview = False
+    questions = await get_questions(applicant=applicant)
+    for q in questions:
+        if q.answer != '':
+            give_overview = True
+            break
+    if not give_overview:
         await channel.send("No questions answered yet!" + msg)
         return
     buffer = ''
-    for id in range(len(cfg.QUESTIONS)):
-        if id in cfg.APL[author]['answers']:
-            if len(buffer) + 21 + len(parse(author, cfg.QUESTIONS[id])) > 2000:
+    num_questions = len(questions)
+    for id in range(num_questions):
+        if questions[id].answer != '':
+            if len(buffer) + 21 + len(parse(applicant, questions[id].question)) > 2000:
                 await channel.send(buffer)
                 buffer = ''
-            buffer += f"__**Question {id + 1}:**__\n> {parse(author, cfg.QUESTIONS[id])}\n"
-            if len(buffer) + len(cfg.APL[author]['answers'][id]) > 2000:
+            buffer += f"__**Question {id + 1}:**__\n> {parse(applicant, questions[id].question)}\n"
+            if len(buffer) + len(questions[id].answer) > 2000:
                 await channel.send(buffer)
                 buffer = ''
-            buffer += cfg.APL[author]['answers'][id] + "\n"
+            buffer += questions[id].answer + "\n"
     if msg and len(buffer) + len(msg) > 2000:
         await channel.send(buffer)
         await channel.send(msg)
@@ -54,17 +103,17 @@ async def whitelist_player(ctx, SteamID64, player):
     success = True if msg == f"Player {SteamID64} added to whitelist." else False
     if success:
         # If either SteamID64 or disc_user already exist, delete them first
-        sessionUser.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(player))).delete()
+        sessionSupp.query(Users).filter(or_(Users.SteamID64==SteamID64, Users.disc_user==str(player))).delete()
         # Store SteamID64 <-> Discord Name link in db
-        sessionUser.add(User(SteamID64=SteamID64, disc_user=str(player)))
-        sessionUser.commit()
+        sessionSupp.add(Users(SteamID64=SteamID64, disc_user=str(player)))
+        sessionSupp.commit()
         return msg
     elif msg.find("Invalid argument") >= 0:
         return f"FailedError|{msg}"
     else:
         return msg
 
-async def find_last_Applicant(ctx, user):
+async def find_last_applicant(ctx, user):
     async for message in ctx.channel.history(limit=100):
         if message.author == user:
             pos_end = message.content.find(" has filled out the application. You can now either")
@@ -95,10 +144,31 @@ async def roll_dice(dice):
     result = f"{result} (total: **{sum(lst) + val}**)" if len(lst) > 1 or val > 0 else result
     return result
 
-def find_steamID64(author):
-    result = re.search(r'(7\d{16})', cfg.APL[author]['answers'][cfg.STEAMID_QUESTION])
-    result = result.group(1) if result else None
-    return result
+async def convert_user(ctx, user):
+    if user is None:
+        raise ConversionError("Missing argument user.")
+    try:
+        user = await commands.MemberConverter().convert(ctx, user)
+        return (user, user.mention)
+    except:
+        try:
+            user = await commands.MemberConverter().convert(ctx, user.capitalize())
+            return (user, user.mention)
+        except:
+            pass
+    user = str(user)
+    if len(user) > 5 and user[-5] == '#':
+        return (user, user)
+    raise ConversionError(f"Couldn't determine discord account of {user}")
+
+async def find_steamID64(author):
+    application = get_application(author)
+    questions = await get_questions(application)
+    if questions:
+        questions[application.steamID_row - 1].answer
+        result = re.search(r'(7\d{16})', questions[application.steamID_row - 1].answer)
+        result = result.group(1) if result else None
+        return result
 
 def get_char(SteamID64):
     sessionGame = SessionGame()
@@ -111,12 +181,12 @@ def get_char(SteamID64):
     return lst
 
 def get_disc_user(SteamID64):
-        result = sessionUser.query(User.disc_user).filter_by(SteamID64=SteamID64).first()
+        result = sessionSupp.query(Users.disc_user).filter_by(SteamID64=SteamID64).first()
         return result[0] if result else None
 
 def get_steamID64(arg):
     if type(arg) is Member:
-        result = sessionUser.query(User.SteamID64).filter_by(disc_user=str(arg)).first()
+        result = sessionSupp.query(Users.SteamID64).filter_by(disc_user=str(arg)).first()
         return result[0] if result else None
     else:
         sessionGame = SessionGame()
@@ -126,7 +196,6 @@ def get_steamID64(arg):
             return result[0] if len(result[0]) == 17 else result[0][:-1]
 
 def update_questions():
-    cfg.QUESTIONS = [value[0] for value in sheets.read(cfg.SPREADSHEET_ID, cfg.QUESTIONS_RANGE)]
     cfg.GREETING = sheets.read(cfg.SPREADSHEET_ID, cfg.GREETING_RANGE)[0][0]
     cfg.APPLIED = sheets.read(cfg.SPREADSHEET_ID, cfg.APPLIED_RANGE)[0][0]
     cfg.FINISHED =sheets.read(cfg.SPREADSHEET_ID, cfg.FINISHED_RANGE)[0][0]
@@ -138,13 +207,14 @@ def update_questions():
     cfg.WHITELISTING_SUCCEEDED = sheets.read(cfg.SPREADSHEET_ID, cfg.WHITELISTING_SUCCEEDED_RANGE)[0][0]
     cfg.APP_CLOSED = sheets.read(cfg.SPREADSHEET_ID, cfg.APP_CLOSED_RANGE)[0][0]
 
-def find_next_unanswered(author):
-    if len(cfg.APL[author]['answers']) >= len(cfg.QUESTIONS):
-        return -1
-    for id in range(len(cfg.QUESTIONS)):
-        if id not in cfg.APL[author]['answers']:
-            return id
-    return -1
+def create_application(applicant):
+    new_app = Apps(applicant=str(applicant), status='open', steamID_row=None, current_question=1)
+    sessionSupp.add(new_app)
+    for q in sessionSupp.query(BaseQuestions).all():
+        if q.has_steamID:
+            new_app.steamID_row=q.id
+        sessionSupp.add(Questions(qnum=q.id, question=q.txt, answer='', application=new_app))
+    sessionSupp.commit()
 
 def parse(author, msg):
     msg = str(msg).replace('{PREFIX}', cfg.PREFIX) \

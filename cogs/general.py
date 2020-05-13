@@ -2,7 +2,7 @@ from discord.ext import commands
 from discord.ext.commands import command
 import config as cfg
 from logger import logger
-from db import sessionUser, User
+from db import sessionSupp, Users
 from exceptions import *
 from checks import *
 from helpers import *
@@ -23,9 +23,9 @@ class General(commands.Cog, name="General commands"):
             raise NotSteamIdError()
         elif SteamID64 == "76561197960287930":
             raise IsGabesIDError()
-        sessionUser.query(User).filter(or_(User.SteamID64==SteamID64, User.disc_user==str(ctx.author))).delete()
-        sessionUser.add(User(SteamID64=SteamID64, disc_user=str(ctx.author)))
-        sessionUser.commit()
+        sessionSupp.query(Users).filter(or_(Users.SteamID64==SteamID64, Users.disc_user==str(ctx.author))).delete()
+        sessionSupp.add(Users(SteamID64=SteamID64, disc_user=str(ctx.author)))
+        sessionSupp.commit()
         logger.info(f"Player {ctx.author} set their SteamID64 to {SteamID64}.")
         await ctx.channel.send(f"Your SteamID64 has been set to {SteamID64}.")
 
@@ -44,8 +44,8 @@ class General(commands.Cog, name="General commands"):
     async def whois(self, ctx, *, arg):
         msg = None
         if len(arg) > 5 and arg[-5] == '#':
-            result = sessionUser.query(User.SteamID64, User.disc_user) \
-                                .filter(func.lower(User.disc_user)==arg.lower()) \
+            result = sessionSupp.query(Users.SteamID64, Users.disc_user) \
+                                .filter(func.lower(Users.disc_user)==arg.lower()) \
                                 .first()
             if not result:
                 msg, disc_user = ("No character belonging to that discord nick has been found.", None)
@@ -57,8 +57,8 @@ class General(commands.Cog, name="General commands"):
             except:
                 msg, disc_user = ("No character belonging to that discord nick has been found.", None)
         else:
-            result = sessionUser.query(User.SteamID64, User.disc_user) \
-                                .filter(func.lower(User.disc_user) \
+            result = sessionSupp.query(Users.SteamID64, Users.disc_user) \
+                                .filter(func.lower(Users.disc_user) \
                                 .like(arg.lower() + "#____")) \
                                 .first()
             SteamID64, disc_user = result if result else (None, None)
