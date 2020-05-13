@@ -208,7 +208,11 @@ def update_questions():
     cfg.APP_CLOSED = sheets.read(cfg.SPREADSHEET_ID, cfg.APP_CLOSED_RANGE)[0][0]
 
 def create_application(applicant):
-    new_app = Apps(applicant=str(applicant), status='open', steamID_row=None, current_question=1)
+    new_app = Apps(applicant=str(applicant),
+                   status='open',
+                   steamID_row=None,
+                   current_question=1,
+                   open_date=datetime.utcnow())
     sessionSupp.add(new_app)
     for q in sessionSupp.query(BaseQuestions).all():
         if q.has_steamID:

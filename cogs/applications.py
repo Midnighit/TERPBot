@@ -239,7 +239,8 @@ class Applications(commands.Cog, name="Application commands"):
             for application in applications:
                 applicant, address = await convert_user(ctx, application.applicant)
                 if await can_edit_questions(application):
-                    msg += f"Applicant {address} is still working on their application.\n"
+                    open_date = application.open_date.strftime("%d-%b-%Y %H:%M:%S UTC")
+                    msg += f"Applicant {address} is still working on their application. ({open_date})\n"
                 else:
                     msg += f"Applicant {address} is **waiting for admin approval**.\n"
             if applications.count() > 0:

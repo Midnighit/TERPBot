@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, ForeignKey, Integer, String, Float, Boolean
+from sqlalchemy import create_engine, Column, ForeignKey, Integer, String, Float, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, relationship, backref
 from sqlalchemy.ext.declarative import declarative_base
 import config as cfg
@@ -22,6 +22,7 @@ class Apps(Base):
     status = Column(String, nullable=False)
     steamID_row = Column(Integer)
     current_question = Column(Integer)
+    open_date = Column(DateTime)
 
     def __repr__(self):
         return f"<Apps(id='{self.id}', applicant='{self.applicant}', status='{self.status}')>"
