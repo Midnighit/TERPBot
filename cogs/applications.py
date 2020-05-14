@@ -233,7 +233,7 @@ class Applications(commands.Cog, name="Application commands"):
                 await ctx.channel.send("Can't access application while it's still being worked on.")
             else:
                 submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
-                msg = f"Overview of {ctx.author.mention}'s application. ({submission_date})"
+                msg = f"Overview of {address}'s application. ({submission_date})"
                 await send_overview(applicant, msg=msg, channel=ctx.channel)
             return
         else:
