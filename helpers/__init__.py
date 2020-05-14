@@ -46,6 +46,18 @@ async def delete_application(application=None, applicant=None):
     sessionSupp.delete(application)
     sessionSupp.commit()
 
+async def find_steamID64(application=None, applicant=None):
+    if not application:
+        application = await get_application(applicant)
+    if not application:
+        return None
+    questions = await get_questions(application)
+    if questions:
+        questions[application.steamID_row - 1].answer
+        result = re.search(r'(7\d{16})', questions[application.steamID_row - 1].answer)
+        result = result.group(1) if result else None
+        return result
+
 async def send_question(author, id, msg=''):
     questions = await get_questions(applicant=author)
     txt = questions[id - 1].question
@@ -119,7 +131,7 @@ async def whitelist_player(ctx, SteamID64, player):
 async def find_last_applicant(ctx, user):
     async for message in ctx.channel.history(limit=100):
         if message.author == user:
-            pos_end = message.content.find(" has filled out the application. You can now either")
+            pos_end = message.content.find(" has filled out the application.")
             if pos_end < 0:
                 continue
             pos_start = message.content.rfind("\n", 0, pos_end) + 1
@@ -163,15 +175,6 @@ async def convert_user(ctx, user):
     if len(user) > 5 and user[-5] == '#':
         return (user, user)
     raise ConversionError(f"Couldn't determine discord account of {user}")
-
-async def find_steamID64(author):
-    application = get_application(author)
-    questions = await get_questions(application)
-    if questions:
-        questions[application.steamID_row - 1].answer
-        result = re.search(r'(7\d{16})', questions[application.steamID_row - 1].answer)
-        result = result.group(1) if result else None
-        return result
 
 def get_char(SteamID64):
     sessionGame = SessionGame()

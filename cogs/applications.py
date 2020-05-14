@@ -112,7 +112,7 @@ class Applications(commands.Cog, name="Application commands"):
             await applicant.edit(roles=new_roles)
 
         # Whitelist Applicant
-        SteamID64 = await find_steamID64(applicant)
+        SteamID64 = await find_steamID64(application)
         if SteamID64:
             result = await whitelist_player(ctx, SteamID64, applicant)
         else:
@@ -122,29 +122,29 @@ class Applications(commands.Cog, name="Application commands"):
         if not message:
             message = parse(ctx.author, cfg.ACCEPTED)
         await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{address}'s application has been accepted.")
-        await applicant.dm_channel.send("Your application was accepted:\n" + message)
+        await applicant.send("Your application was accepted:\n" + message)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been accepted.")
 
         # Send feedback about whitelisting success
         info = parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUESTS}.")
         if result == "NoSteamIDinAnswer":
-            await applicant.dm_channel.send("Whitelisting failed, you have given no valid SteamID64 your answer. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
+            await applicant.send("Whitelisting failed, you have given no valid SteamID64 your answer. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Whitelisting {address} failed. No valid SteamID64 found in answer:\n> {questions[application.steamID_row - 1].answer}\n{info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
         elif result == "IsGabesIDError" :
-            await applicant.dm_channel.send("Whitelisting failed, you have given the example SteamID64 of Gabe Newell instead of your own. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
+            await applicant.send("Whitelisting failed, you have given the example SteamID64 of Gabe Newell instead of your own. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Whitelisting {address} failed. Applicant gave Gabe Newells SteamID64. {info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. IsGabesIDError")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. IsGabesIDError")
         elif result.find("FailedError") >= 0:
             result = result[12:]
-            await applicant.dm_channel.send("Whitelisting failed. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
+            await applicant.send("Whitelisting failed. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Whitelisting {applicant.metion} failed (error message: {result}). {info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
         else:
-            await applicant.dm_channel.send(parse(ctx.author, cfg.WHITELISTING_SUCCEEDED))
+            await applicant.send(parse(ctx.author, cfg.WHITELISTING_SUCCEEDED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(result)
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
@@ -178,9 +178,9 @@ class Applications(commands.Cog, name="Application commands"):
         # Send feedback to applications channel and to Applicant
         await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{address}'s application has been rejected.")
         if not message:
-            await applicant.dm_channel.send(parse(ctx.author, "Your application was rejected:\n" + cfg.REJECTED))
+            await applicant.send(parse(ctx.author, "Your application was rejected:\n" + cfg.REJECTED))
         else:
-            await applicant.dm_channel.send("Your application was rejected:\n" + " ".join(message))
+            await applicant.send("Your application was rejected:\n" + " ".join(message))
         # remove application from list of open applications
         application.status = "rejected"
         sessionSupp.commit()
@@ -265,7 +265,7 @@ class Applications(commands.Cog, name="Application commands"):
         if message:
             message = " ".join(message)
         await ctx.channel.send(f"Application for {address} has been cancelled.")
-        await applicant.dm_channel.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
+        await applicant.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
 
