@@ -65,10 +65,10 @@ async def on_member_remove(member):
     application = await get_application(member)
     if application and not application.status in ['rejeted' or 'approved']:
         await delete_application(application)
-        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member.mention} just left discord. Ongoing application was cancelled")
+        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member} just left discord. Ongoing application was cancelled")
         logger.info(f"{member} just left discord. Ongoing application was cancelled")
     else:
-        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member.mention} just left discord.")
+        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{member} just left discord.")
         logger.info(f"{member} just left discord.")
 
 @bot.event
