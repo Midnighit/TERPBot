@@ -133,7 +133,9 @@ async def find_last_applicant(ctx, user):
         if message.author == user:
             pos_end = message.content.find(" has filled out the application.")
             if pos_end < 0:
-                continue
+                pos_end = message.content.find("'s application overview.")
+                if pos_end < 0:
+                    continue
             pos_start = message.content.rfind("\n", 0, pos_end) + 1
             return message.content[pos_start:pos_end]
     return None
