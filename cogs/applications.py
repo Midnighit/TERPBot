@@ -128,6 +128,7 @@ class Applications(commands.Cog, name="Application commands"):
         # Send feedback about whitelisting success
         info = parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUESTS}.")
         if result == "NoSteamIDinAnswer":
+            questions = await get_questions(application)
             await applicant.send("Whitelisting failed, you have given no valid SteamID64 your answer. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Whitelisting {address} failed. No valid SteamID64 found in answer:\n> {questions[application.steamID_row - 1].answer}\n{info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
