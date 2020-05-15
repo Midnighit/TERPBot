@@ -23,7 +23,7 @@ async def get_next_unanswered(application=None, applicant=None):
     if questions:
         for q in questions:
             if q.answer == '':
-                return q.id
+                return q.qnum
     return -1
 
 async def get_num_questions(application=None, applicant=None):
