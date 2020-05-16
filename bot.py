@@ -73,9 +73,9 @@ async def on_member_remove(member):
 async def on_message(message):
     application = await get_application(message.author)
     if not message.channel.type == ChannelType.private or not application:
+        if message.content in cfg.IGNORE_CMDS:
+            return
         await bot.process_commands(message)
-        return
-    if message.content in cfg.IGNORE_CMDS:
         return
     if message.content[0] == cfg.PREFIX:
         word = message.content.split(None, 1)[0][1:]
