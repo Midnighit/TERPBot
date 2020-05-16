@@ -1,10 +1,11 @@
 import re
 import random
 import config as cfg
+from logger import logger
 from sqlalchemy import func, or_
 from datetime import datetime
 from db import SessionGame, sessionSupp, Users, Characters, Apps, BaseQuestions, Questions
-from discord import Member
+from discord import Member, TextChannel
 from discord.ext import commands
 from exceptions import NoDiceFormatError, ConversionError
 from valve import rcon
@@ -17,6 +18,14 @@ async def get_questions(application=None, applicant=None):
     if not application:
         application = await get_application(applicant)
     return application.questions if application else None
+
+async def get_question(application=None, applicant=None, id=1, msg=''):
+    if not application and not applicant:
+        return None
+    questions = await get_questions(application, applicant)
+    txt = questions[id - 1].question
+    num = len(questions)
+    return f"{msg}\n__**Question {id} of {num}:**__\n> {parse(author, txt)}"
 
 async def get_next_unanswered(application=None, applicant=None):
     questions = await get_questions(application, applicant)
@@ -36,7 +45,7 @@ async def can_edit_questions(application=None, applicant=None):
     if not application:
         return False
     status = application.status
-    return status == 'open' or status == 'finished' or status == 'review'
+    return application.status in ('open', 'finished', 'review')
 
 async def delete_application(application=None, applicant=None):
     if not application:
@@ -58,49 +67,42 @@ async def find_steamID64(application=None, applicant=None):
         result = result.group(1) if result else None
         return result
 
-async def send_question(author, id, msg=''):
-    questions = await get_questions(applicant=author)
-    txt = questions[id - 1].question
-    num = len(questions)
-    await author.dm_channel.send(f"{msg}\n__**Question {id} of {num}:**__\n> {parse(author, txt)}")
-
-async def send_overview(applicant, msg='', channel=None, ctx=None):
-    # if channel is given, send to that channel otherwise to applicants dm channel
-    if not channel:
-        if ctx and ctx.channel:
-            channel = ctx.channel
-        else:
-            channel = applicant.dm_channel
+async def get_overview(application=None, applicant=None, msg=''):
+    if not application:
+        application = await get_application(applicant)
+    if not application:
+        return None
     give_overview = False
-    questions = await get_questions(applicant=applicant)
+    questions = await get_questions(application, applicant)
     for q in questions:
         if q.answer != '':
             give_overview = True
             break
     if not give_overview:
-        await channel.send("No questions answered yet!" + msg)
-        return
+        return ["No questions answered yet!" + msg]
     buffer = ''
     num_questions = len(questions)
+    overview = []
     for id in range(num_questions):
         if questions[id].answer != '':
             if len(buffer) + 21 + len(parse(applicant, questions[id].question)) > 2000:
-                await channel.send(buffer)
+                overview.append(buffer)
                 buffer = ''
             buffer += f"__**Question {id + 1}:**__\n> {parse(applicant, questions[id].question)}\n"
             if len(buffer) + len(questions[id].answer) > 2000:
-                await channel.send(buffer)
+                overview.append(buffer)
                 buffer = ''
             buffer += questions[id].answer + "\n"
     if msg and len(buffer) + len(msg) > 2000:
-        await channel.send(buffer)
-        await channel.send(msg)
+        overview.append(buffer)
+        overview.append(msg)
     elif msg:
-        await channel.send(buffer + msg)
+        overview.append(buffer + msg)
     else:
-        await channel.send(buffer)
+        overview.append(buffer)
+    return overview
 
-async def whitelist_player(ctx, SteamID64, player):
+async def whitelist_player(SteamID64, player):
     SteamID64 = str(SteamID64)
     if len(SteamID64) != 17 or not SteamID64.isnumeric():
         return "NotSteamIdError"
@@ -227,6 +229,7 @@ def create_application(applicant):
             new_app.steamID_row=q.id
         sessionSupp.add(Questions(qnum=q.id, question=q.txt, answer='', application=new_app))
     sessionSupp.commit()
+    return new_app
 
 def parse(author, msg):
     msg = str(msg).replace('{PREFIX}', cfg.PREFIX) \

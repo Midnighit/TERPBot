@@ -91,7 +91,8 @@ async def on_message(message):
     sessionSupp.commit()
     questionId = await get_next_unanswered(application)
     if questionId > 0:
-        await send_question(message.author, questionId)
+        question = await get_question(application, id=questionId)
+        await message.author.dm_channel.send(question)
     elif not application.status == 'finished':
         application.status = 'finished'
         await message.author.dm_channel.send(parse(message.author, cfg.FINISHED))

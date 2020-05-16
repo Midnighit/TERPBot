@@ -17,8 +17,9 @@ class Applications(commands.Cog, name="Application commands"):
     @is_not_applicant()
     async def apply(self, ctx):
         await ctx.author.create_dm()
-        create_application(ctx.author)
-        await send_question(ctx.author, 1, msg=parse(ctx.author, cfg.APPLIED))
+        application = create_application(ctx.author)
+        question = await get_question(application, id=1, msg=parse(ctx.author, cfg.APPLIED))
+        await ctx.author.dm_channel.send(question)
         await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{ctx.author.mention} has started an application.")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
@@ -35,21 +36,25 @@ class Applications(commands.Cog, name="Application commands"):
             if application.status != "open":
                 await ctx.author.dm_channel.send(parse(ctx.author, cfg.FINISHED))
                 return
-            await send_question(ctx.author, application.current_question)
+            question = await get_question(application, id=application.current_question)
+            ctx.author.dm_channel.send(question)
             return
         num_questions = await get_num_questions(application)
         if not Number.isnumeric():
             raise NotNumberError(f"Argument must be a number between 1 and {num_questions}.")
         if not Number.isnumeric() or int(Number) < 1 or int(Number) > num_questions:
             raise NumberNotInRangeError(f"Number must be between 1 and {num_questions}.")
-        await send_question(ctx.author, int(Number))
+        question = await get_question(application, id=int(Number))
+        ctx.author.dm_channel.(question)
         application.current_question = int(Number)
         sessionSupp.commit()
 
     @command(name='overview', help="Display all questions that have already been answered")
     @is_applicant()
     async def overview(self, ctx):
-        await send_overview(ctx.author, ctx=ctx)
+        overview = await get_overview(applicant=ctx.author)
+        for part in overview:
+            ctx.send(part)
 
     @command(name='submit', help="Submit your application and send it to the admins")
     @is_applicant()
@@ -68,14 +73,16 @@ class Applications(commands.Cog, name="Application commands"):
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         msg = f"{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{cfg.PREFIX}accept <applicant> <message>`, `{cfg.PREFIX}reject <applicant> <message>` or `{cfg.PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
-        await send_overview(ctx.author, msg=msg, channel=cfg.CHANNEL[cfg.APPLICATIONS])
+        overview = await get_overview(application, msg=msg)
+        for part in overview:
+            channel=cfg.CHANNEL[cfg.APPLICATIONS].send(part)
 
     @command(name='cancel', help="Cancel your application")
     @is_applicant()
     async def cancel(self, ctx):
         # can't cancel an application that's already approved or rejected
         application = await get_application(applicant=ctx.author)
-        if application.status in ['rejected', 'approved']:
+        if application.status in ('rejected', 'approved'):
             return
         await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{ctx.author.mention} has canceled their application.")
         await ctx.author.dm_channel.send("Your application has been canceled.")
@@ -98,10 +105,10 @@ class Applications(commands.Cog, name="Application commands"):
         applicant, address = await convert_user(ctx, applicant)
         application = await get_application(applicant)
         if not application:
-            await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
+            await ctx.send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
             return
         elif await can_edit_questions(application):
-            await cfg.CHANNEL[cfg.APPLICATIONS].send("Can't accept application while it's still being worked on.")
+            await ctx.send("Can't accept application while it's still being worked on.")
             return
         # remove Not Applied role
         if message:
@@ -114,14 +121,24 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist Applicant
         SteamID64 = await find_steamID64(application)
         if SteamID64:
-            result = await whitelist_player(ctx, SteamID64, applicant)
+            result = await whitelist_player(SteamID64, applicant)
         else:
             result = "NoSteamIDinAnswer"
 
-        # Send feedback about accepting the application
+        # remove application from list of open applications
+        application.status = 'approved'
+        sessionSupp.commit()
+
+        # Try to send feedback about accepting the application
+        if not type(applicant) == Member:
+            ctx.send(f"{address} couldn't be reached to send the accept message. Application has still been set to accepted.")
+            print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the accept message. Application has still been set to accepted. Admin has been informed.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the accept message. Application has still been set to accepted. Admin has been informed.")
+            return
+
         if not message:
             message = parse(ctx.author, cfg.ACCEPTED)
-        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{address}'s application has been accepted.")
+        await ctx.send(f"{address}'s application has been accepted.")
         await applicant.send("Your application was accepted:\n" + message)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been accepted.")
 
@@ -150,9 +167,6 @@ class Applications(commands.Cog, name="Application commands"):
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
 
-        # remove application from list of open applications
-        application.status = 'approved'
-        sessionSupp.commit()
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been accepted.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been accepted.")
 
@@ -171,20 +185,28 @@ class Applications(commands.Cog, name="Application commands"):
         # confirm that there is a closed application for that Applicant
         application = await get_application(applicant)
         if not application:
-            await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
+            await ctx.send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
             return
         elif await can_edit_questions(application):
-            await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Can't reject application while it's still being worked on. Try {cfg.PREFIX}cancelapp <applicant> <message> instead.")
+            await ctx.send(f"Can't reject application while it's still being worked on. Try {cfg.PREFIX}cancelapp <applicant> <message> instead.")
             return
-        # Send feedback to applications channel and to Applicant
-        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{address}'s application has been rejected.")
+
+        # remove application from list of open applications
+        application.status = "rejected"
+        sessionSupp.commit()
+
+        # Try to send feedback to applications channel and to Applicant
+        if not type(applicant) == Member:
+            ctx.send(f"{address} couldn't be reached to send the rejection message. Application has still been set to rejected.")
+            print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the rejection message. Application has still been set to rejected. Admin has been informed.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the rejection message. Application has still been set to rejected. Admin has been informed.")
+            return
+
+        await ctx.send(f"{address}'s application has been rejected.")
         if not message:
             await applicant.send(parse(ctx.author, "Your application was rejected:\n" + cfg.REJECTED))
         else:
             await applicant.send("Your application was rejected:\n" + " ".join(message))
-        # remove application from list of open applications
-        application.status = "rejected"
-        sessionSupp.commit()
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been rejected.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been rejected.")
 
@@ -197,27 +219,39 @@ class Applications(commands.Cog, name="Application commands"):
         if applicant is None:
             applicant = await find_last_applicant(ctx, self.bot.user)
             if applicant is None:
-                await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{cfg.PREFIX}review <applicant> <message>`.")
+                await ctx.send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{cfg.PREFIX}review <applicant> <message>`.")
                 return
         applicant, address = await convert_user(ctx, applicant)
         # confirm that there is a closed application for that Applicant
         application = await get_application(applicant)
         if not application:
-            await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
+            await ctx.send(f"Couldn't find a submitted application for {address}. Please verify that the name is written correctly and try again.")
             return
         elif await can_edit_questions(application):
-            await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Can't return application for review while it's still being worked on.")
+            await ctx.send(f"Can't return application for review while it's still being worked on.")
             return
-        # Send feedback to applications channel and to Applicant
-        await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{address}'s application has been returned.")
-        explanation = f"\nYou can change the answer to any question by going to that question with `{cfg.PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{cfg.PREFIX}overview`."
-        if not message:
-            await send_overview(applicant, "Your application was returned to you for review:\n" + cfg.REVIEWED + explanation)
-        else:
-            await send_overview(applicant, "Your application was returned to you for review:\n" + " ".join(message) + explanation)
+
         # remove application from list of open applications
         application.status = "review"
         sessionSupp.commit()
+
+        # Try to send feedback to applications channel and to Applicant
+        if not type(applicant) == Member:
+            ctx.send(f"{address} couldn't be reached to send the return message. Application has still been set to review. You can now either inform them manually or cancel the application with `!cancelapp {address}`.")
+            print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the return message. Application has still been set to review. Admin has been informed.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the return message. Application has still been set to review. Admin has been informed.")
+            return
+
+        await ctx.send(f"{address}'s application has been returned.")
+        explanation = f"\nYou can change the answer to any question by going to that question with `{cfg.PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{cfg.PREFIX}overview`."
+        if not message:
+            msg = "Your application was returned to you for review:\n" + cfg.REVIEWED + explanation
+            overview = await get_overview(application, msg=msg)
+        else:
+            msg = "Your application was returned to you for review:\n" + " ".join(message) + explanation
+            overview = await get_overview(application, msg=msg)
+        for part in overview:
+            applicant.dm_channel.send(part)
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
 
@@ -229,13 +263,15 @@ class Applications(commands.Cog, name="Application commands"):
             applicant, address = await convert_user(ctx, applicant)
             application = await get_application(applicant)
             if not application:
-                await ctx.channel.send(f"No application for {applicant} found")
+                await ctx.send(f"No application for {applicant} found")
             elif await can_edit_questions(application):
-                await ctx.channel.send("Can't access application while it's still being worked on.")
+                await ctx.send("Can't access application while it's still being worked on.")
             else:
                 submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
                 msg = f"{address}'s application overview. ({submission_date})"
-                await send_overview(applicant, msg=msg, channel=ctx.channel)
+                overview = await get_overview(application, msg=msg)
+                for part in overview:
+                    ctx.send(part)
             return
         else:
             applications = sessionSupp.query(Apps).filter(Apps.status.in_(['open', 'submitted', 'review', 'finished']))
@@ -260,13 +296,14 @@ class Applications(commands.Cog, name="Application commands"):
         applicant, address = await convert_user(ctx, applicant)
         application = await get_application(applicant)
         if not application:
-            await ctx.channel.send(f"Applicant {address} couldn't be found.")
+            await ctx.send(f"Applicant {address} couldn't be found.")
             return
         await delete_application(application)
         if message:
             message = " ".join(message)
-        await ctx.channel.send(f"Application for {address} has been cancelled.")
-        await applicant.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
+        await ctx.send(f"Application for {address} has been cancelled.")
+        if type(applicant) == Member:
+            await applicant.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
 
