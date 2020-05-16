@@ -67,7 +67,7 @@ async def find_steamID64(application=None, applicant=None):
         result = result.group(1) if result else None
         return result
 
-async def get_overview(application=None, applicant=None, msg=''):
+async def get_overview(application, applicant, msg=''):
     if not application:
         application = await get_application(applicant)
     if not application:
@@ -83,6 +83,7 @@ async def get_overview(application=None, applicant=None, msg=''):
     buffer = ''
     num_questions = len(questions)
     overview = []
+    print(applicant, type(applicant))
     for id in range(num_questions):
         if questions[id].answer != '':
             if len(buffer) + 21 + len(parse(applicant, questions[id].question)) > 2000:
@@ -97,7 +98,7 @@ async def get_overview(application=None, applicant=None, msg=''):
         overview.append(buffer)
         overview.append(msg)
     elif msg:
-        overview.append(buffer + msg)
+        overview.append(buffer) # + msg)
     else:
         overview.append(buffer)
     return overview

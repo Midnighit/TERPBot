@@ -16,7 +16,8 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='apply', help="Starts the application process")
     @is_not_applicant()
     async def apply(self, ctx):
-        await ctx.author.create_dm()
+        if ctx.author.dm_channel is None:
+            await ctx.author.create_dm()
         application = create_application(ctx.author)
         question = await get_question(application, id=1, msg=parse(ctx.author, cfg.APPLIED))
         await ctx.author.dm_channel.send(question)
@@ -28,6 +29,8 @@ class Applications(commands.Cog, name="Application commands"):
     @is_applicant()
     @commands.dm_only()
     async def question(self, ctx, Number=None):
+        if ctx.author.dm_channel is None:
+            await ctx.author.create_dm()
         application = await get_application(ctx.author)
         if not await can_edit_questions(application):
             await ctx.author.dm_channel.send(parse(ctx.author, cfg.APP_CLOSED))
@@ -52,13 +55,16 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='overview', help="Display all questions that have already been answered")
     @is_applicant()
     async def overview(self, ctx):
-        overview = await get_overview(applicant=ctx.author)
+        application = await get_application(ctx.author)
+        overview = await get_overview(application, ctx.author)
         for part in overview:
             await ctx.send(part)
 
     @command(name='submit', help="Submit your application and send it to the admins")
     @is_applicant()
     async def submit(self, ctx):
+        if ctx.author.dm_channel is None:
+            await ctx.author.create_dm()
         application = await get_application(ctx.author)
         if await get_next_unanswered(application) > 0:
             await ctx.author.dm_channel.send("Please answer all questions first.")
@@ -73,9 +79,9 @@ class Applications(commands.Cog, name="Application commands"):
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         msg = f"{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{cfg.PREFIX}accept <applicant> <message>`, `{cfg.PREFIX}reject <applicant> <message>` or `{cfg.PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
-        overview = await get_overview(application, msg=msg)
+        overview = await get_overview(application, ctx.author, msg=msg)
         for part in overview:
-            await channel=cfg.CHANNEL[cfg.APPLICATIONS].send(part)
+            await cfg.CHANNEL[cfg.APPLICATIONS].send(part)
 
     @command(name='cancel', help="Cancel your application")
     @is_applicant()
@@ -246,11 +252,13 @@ class Applications(commands.Cog, name="Application commands"):
         explanation = f"\nYou can change the answer to any question by going to that question with `{cfg.PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{cfg.PREFIX}overview`."
         if not message:
             msg = "Your application was returned to you for review:\n" + cfg.REVIEWED + explanation
-            overview = await get_overview(application, msg=msg)
+            overview = await get_overview(application, applicant, msg=msg)
         else:
             msg = "Your application was returned to you for review:\n" + " ".join(message) + explanation
-            overview = await get_overview(application, msg=msg)
+            overview = await get_overview(application, applicant, msg=msg)
         for part in overview:
+            if applicant.dm_channel is None:
+                await applicant.create_dm()
             await applicant.dm_channel.send(part)
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
@@ -269,7 +277,7 @@ class Applications(commands.Cog, name="Application commands"):
             else:
                 submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
                 msg = f"{address}'s application overview. ({submission_date})"
-                overview = await get_overview(application, msg=msg)
+                overview = await get_overview(application, applicant, msg=msg)
                 for part in overview:
                     await ctx.send(part)
             return
