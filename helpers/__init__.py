@@ -83,7 +83,6 @@ async def get_overview(application, applicant, msg=''):
     buffer = ''
     num_questions = len(questions)
     overview = []
-    print(applicant, type(applicant))
     for id in range(num_questions):
         if questions[id].answer != '':
             if len(buffer) + 21 + len(parse(applicant, questions[id].question)) > 2000:

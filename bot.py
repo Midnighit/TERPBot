@@ -81,6 +81,8 @@ async def on_message(message):
             if cmd.name == word:
                 await bot.process_commands(message)
                 return
+    if application and application.status in ('rejected', 'accepted'):
+        return
     if not application or not await can_edit_questions(application):
         await message.author.dm_channel.send(parse(message.author, cfg.APP_CLOSED))
         return

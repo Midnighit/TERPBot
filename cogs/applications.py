@@ -118,8 +118,6 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send("Can't accept application while it's still being worked on.")
             return
         # remove Not Applied role
-        if message:
-            message = " ".join(message)
         if cfg.ROLE[cfg.NOT_APPLIED_ROLE] in applicant.roles:
             new_roles = applicant.roles
             new_roles.remove(cfg.ROLE[cfg.NOT_APPLIED_ROLE])
@@ -143,7 +141,9 @@ class Applications(commands.Cog, name="Application commands"):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the accept message. Application has still been set to accepted. Admin has been informed.")
             return
 
-        if not message:
+        if message:
+            message = " ".join(message)
+        else:
             message = parse(ctx.author, cfg.ACCEPTED)
         await ctx.send(f"{address}'s application has been accepted.")
         await applicant.send("Your application was accepted:\n" + message)
@@ -213,7 +213,7 @@ class Applications(commands.Cog, name="Application commands"):
         if not message:
             await applicant.send(parse(ctx.author, "Your application was rejected:\n" + cfg.REJECTED))
         else:
-            await applicant.send("Your application was rejected:\n" + " ".join(message))
+            await applicant.send("Your application was rejected:\n> " + " ".join(message))
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been rejected.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been rejected.")
 
@@ -255,7 +255,7 @@ class Applications(commands.Cog, name="Application commands"):
             msg = "Your application was returned to you for review:\n" + cfg.REVIEWED + explanation
             overview = await get_overview(application, applicant, msg=msg)
         else:
-            msg = "Your application was returned to you for review:\n" + " ".join(message) + explanation
+            msg = "Your application was returned to you for review:\n> " + " ".join(message) + explanation
             overview = await get_overview(application, applicant, msg=msg)
         for part in overview:
             if applicant.dm_channel is None:
@@ -308,11 +308,12 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send(f"Applicant {address} couldn't be found.")
             return
         await delete_application(application)
-        if message:
-            message = " ".join(message)
         await ctx.send(f"Application for {address} has been cancelled.")
         if type(applicant) == Member:
-            await applicant.send(f"Your application was cancelled by an administrator.{' Message: ' + message + '.' if len(message) > 0 else ''}")
+            if message:
+                await applicant.send(f"Your application was cancelled by an administrator.\n> {' '.join(message)}")
+            else:
+                await applicant.send(f"Your application was cancelled by an administrator.")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been cancelled.")
 

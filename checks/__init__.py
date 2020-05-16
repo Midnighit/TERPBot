@@ -50,7 +50,7 @@ def has_role_greater_or_equal(check_role: str):
         for author_role in member.roles:
             if author_role >= cfg.ROLE[check_role]:
                 return True
-        raise RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
+        raise exc.RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
     return check(predicate)
 
 def has_role_greater(check_role: str):
@@ -59,7 +59,7 @@ def has_role_greater(check_role: str):
         for author_role in member.roles:
             if author_role > cfg.ROLE[check_role]:
                 return True
-        raise RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
+        raise exc.RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
     return check(predicate)
 
 def number_in_range(min: int, max: int):
