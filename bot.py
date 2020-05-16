@@ -75,6 +75,8 @@ async def on_message(message):
     if not message.channel.type == ChannelType.private or not application:
         await bot.process_commands(message)
         return
+    if message.content[0] in cfg.IGNORE_CMDS:
+        return
     if message.content[0] == cfg.PREFIX:
         word = message.content.split(None, 1)[0][1:]
         for cmd in bot.commands:
