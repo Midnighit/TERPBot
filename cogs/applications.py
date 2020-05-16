@@ -37,7 +37,7 @@ class Applications(commands.Cog, name="Application commands"):
                 await ctx.author.dm_channel.send(parse(ctx.author, cfg.FINISHED))
                 return
             question = await get_question(application, id=application.current_question)
-            ctx.author.dm_channel.send(question)
+            await ctx.author.dm_channel.send(question)
             return
         num_questions = await get_num_questions(application)
         if not Number.isnumeric():
@@ -45,7 +45,7 @@ class Applications(commands.Cog, name="Application commands"):
         if not Number.isnumeric() or int(Number) < 1 or int(Number) > num_questions:
             raise NumberNotInRangeError(f"Number must be between 1 and {num_questions}.")
         question = await get_question(application, id=int(Number))
-        ctx.author.dm_channel.(question)
+        await ctx.author.dm_channel.send(question)
         application.current_question = int(Number)
         sessionSupp.commit()
 
@@ -54,7 +54,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def overview(self, ctx):
         overview = await get_overview(applicant=ctx.author)
         for part in overview:
-            ctx.send(part)
+            await ctx.send(part)
 
     @command(name='submit', help="Submit your application and send it to the admins")
     @is_applicant()
@@ -75,7 +75,7 @@ class Applications(commands.Cog, name="Application commands"):
         msg = f"{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{cfg.PREFIX}accept <applicant> <message>`, `{cfg.PREFIX}reject <applicant> <message>` or `{cfg.PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application."
         overview = await get_overview(application, msg=msg)
         for part in overview:
-            channel=cfg.CHANNEL[cfg.APPLICATIONS].send(part)
+            await channel=cfg.CHANNEL[cfg.APPLICATIONS].send(part)
 
     @command(name='cancel', help="Cancel your application")
     @is_applicant()
@@ -131,7 +131,7 @@ class Applications(commands.Cog, name="Application commands"):
 
         # Try to send feedback about accepting the application
         if not type(applicant) == Member:
-            ctx.send(f"{address} couldn't be reached to send the accept message. Application has still been set to accepted.")
+            await ctx.send(f"{address} couldn't be reached to send the accept message. Application has still been set to accepted.")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the accept message. Application has still been set to accepted. Admin has been informed.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the accept message. Application has still been set to accepted. Admin has been informed.")
             return
@@ -179,7 +179,7 @@ class Applications(commands.Cog, name="Application commands"):
         if applicant is None:
             applicant = await find_last_applicant(ctx, self.bot.user)
             if applicant is None:
-                cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{cfg.PREFIX}reject <applicant> <message>`.")
+                await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{cfg.PREFIX}reject <applicant> <message>`.")
                 return
         applicant, address = await convert_user(ctx, applicant)
         # confirm that there is a closed application for that Applicant
@@ -197,7 +197,7 @@ class Applications(commands.Cog, name="Application commands"):
 
         # Try to send feedback to applications channel and to Applicant
         if not type(applicant) == Member:
-            ctx.send(f"{address} couldn't be reached to send the rejection message. Application has still been set to rejected.")
+            await ctx.send(f"{address} couldn't be reached to send the rejection message. Application has still been set to rejected.")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the rejection message. Application has still been set to rejected. Admin has been informed.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the rejection message. Application has still been set to rejected. Admin has been informed.")
             return
@@ -237,7 +237,7 @@ class Applications(commands.Cog, name="Application commands"):
 
         # Try to send feedback to applications channel and to Applicant
         if not type(applicant) == Member:
-            ctx.send(f"{address} couldn't be reached to send the return message. Application has still been set to review. You can now either inform them manually or cancel the application with `!cancelapp {address}`.")
+            await ctx.send(f"{address} couldn't be reached to send the return message. Application has still been set to review. You can now either inform them manually or cancel the application with `!cancelapp {address}`.")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the return message. Application has still been set to review. Admin has been informed.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant} couldn't be reached to send the return message. Application has still been set to review. Admin has been informed.")
             return
@@ -251,7 +251,7 @@ class Applications(commands.Cog, name="Application commands"):
             msg = "Your application was returned to you for review:\n" + " ".join(message) + explanation
             overview = await get_overview(application, msg=msg)
         for part in overview:
-            applicant.dm_channel.send(part)
+            await applicant.dm_channel.send(part)
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been returned for review.")
 
@@ -271,7 +271,7 @@ class Applications(commands.Cog, name="Application commands"):
                 msg = f"{address}'s application overview. ({submission_date})"
                 overview = await get_overview(application, msg=msg)
                 for part in overview:
-                    ctx.send(part)
+                    await ctx.send(part)
             return
         else:
             applications = sessionSupp.query(Apps).filter(Apps.status.in_(['open', 'submitted', 'review', 'finished']))
