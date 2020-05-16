@@ -45,7 +45,7 @@ class Applications(commands.Cog, name="Application commands"):
         if not Number.isnumeric() or int(Number) < 1 or int(Number) > num_questions:
             raise NumberNotInRangeError(f"Number must be between 1 and {num_questions}.")
         question = await get_question(application, id=int(Number))
-        ctx.author.dm_channel.(question)
+        ctx.author.dm_channel.send(question)
         application.current_question = int(Number)
         sessionSupp.commit()
 
