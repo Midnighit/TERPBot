@@ -18,13 +18,13 @@ class ConversionError(CustomError):
 class NotApplicantError(CustomError):
     def __init__(self, msg=None):
         if msg is None:
-            msg = "Command may not be used without an open application."
+            msg = "Command may not be used when there is no application."
         super().__init__(msg)
 
 class ApplicantError(CustomError):
     def __init__(self, msg=None):
         if msg is None:
-            msg = "Command may not be used with an open application."
+            msg = "Command may not be used when there already is an application."
         super().__init__(msg)
 
 class NotPrivateError(CustomError):

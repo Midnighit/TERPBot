@@ -19,13 +19,13 @@ async def get_questions(application=None, applicant=None):
         application = await get_application(applicant)
     return application.questions if application else None
 
-async def get_question(application=None, applicant=None, id=1, msg=''):
-    if not application and not applicant:
+async def get_question(application, applicant, id=1, msg=''):
+    if not application or not applicant:
         return None
     questions = await get_questions(application, applicant)
     txt = questions[id - 1].question
     num = len(questions)
-    return f"{msg}\n__**Question {id} of {num}:**__\n> {parse(author, txt)}"
+    return f"{msg}\n__**Question {id} of {num}:**__\n> {parse(applicant, txt)}"
 
 async def get_next_unanswered(application=None, applicant=None):
     questions = await get_questions(application, applicant)
@@ -98,7 +98,7 @@ async def get_overview(application, applicant, msg=''):
         overview.append(buffer)
         overview.append(msg)
     elif msg:
-        overview.append(buffer) # + msg)
+        overview.append(buffer + msg)
     else:
         overview.append(buffer)
     return overview
@@ -232,10 +232,10 @@ def create_application(applicant):
     sessionSupp.commit()
     return new_app
 
-def parse(author, msg):
+def parse(user, msg):
     msg = str(msg).replace('{PREFIX}', cfg.PREFIX) \
-                  .replace('{OWNER}', cfg.GUILD.owner.mention) \
-                  .replace('{PLAYER}', author.mention)
+                  .replace('{OWNER}', cfg.GUILD.owner.mention)
+    msg = msg.replace('{PLAYER}', user.mention) if type(user) == Member else msg.replace('{PLAYER}', str(user))
     for name, channel in cfg.CHANNEL.items():
         msg = re.sub("(?i){" + name + "}", channel.mention, msg)
     for name, role in cfg.ROLE.items():

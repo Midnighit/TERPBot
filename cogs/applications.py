@@ -19,7 +19,8 @@ class Applications(commands.Cog, name="Application commands"):
         if ctx.author.dm_channel is None:
             await ctx.author.create_dm()
         application = create_application(ctx.author)
-        question = await get_question(application, id=1, msg=parse(ctx.author, cfg.APPLIED))
+        msg = parse(ctx.author, cfg.APPLIED)
+        question = await get_question(application, ctx.author, id=1, msg=msg)
         await ctx.author.dm_channel.send(question)
         await cfg.CHANNEL[cfg.APPLICATIONS].send(f"{ctx.author.mention} has started an application.")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
@@ -39,7 +40,7 @@ class Applications(commands.Cog, name="Application commands"):
             if application.status != "open":
                 await ctx.author.dm_channel.send(parse(ctx.author, cfg.FINISHED))
                 return
-            question = await get_question(application, id=application.current_question)
+            question = await get_question(application, ctx.author, id=application.current_question)
             await ctx.author.dm_channel.send(question)
             return
         num_questions = await get_num_questions(application)
@@ -47,7 +48,7 @@ class Applications(commands.Cog, name="Application commands"):
             raise NotNumberError(f"Argument must be a number between 1 and {num_questions}.")
         if not Number.isnumeric() or int(Number) < 1 or int(Number) > num_questions:
             raise NumberNotInRangeError(f"Number must be between 1 and {num_questions}.")
-        question = await get_question(application, id=int(Number))
+        question = await get_question(application, ctx.author, id=int(Number))
         await ctx.author.dm_channel.send(question)
         application.current_question = int(Number)
         sessionSupp.commit()
@@ -151,7 +152,7 @@ class Applications(commands.Cog, name="Application commands"):
         # Send feedback about whitelisting success
         info = parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUESTS}.")
         if result == "NoSteamIDinAnswer":
-            questions = await get_questions(application)
+            questions = await get_questions(application, applicant)
             await applicant.send("Whitelisting failed, you have given no valid SteamID64 your answer. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
             await cfg.CHANNEL[cfg.APPLICATIONS].send(f"Whitelisting {address} failed. No valid SteamID64 found in answer:\n> {questions[application.steamID_row - 1].answer}\n{info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
