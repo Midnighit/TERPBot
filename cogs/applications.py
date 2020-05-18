@@ -150,7 +150,7 @@ class Applications(commands.Cog, name="Application commands"):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {applicant}'s application has been accepted.")
 
         # Send feedback about whitelisting success
-        info = parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUESTS}.")
+        info = parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
         if result == "NoSteamIDinAnswer":
             questions = await get_questions(application, applicant)
             await applicant.send("Whitelisting failed, you have given no valid SteamID64 your answer. " + parse(ctx.author, cfg.WHITELISTING_FAILED))
