@@ -19,7 +19,6 @@ class RCon(commands.Cog, name="RCon commands"):
         except Exception as error:
             print("excetion raised", type(error), error.args[1])
             raise RConConnectionError(error.args[1])
-        print("playerlist:", playerlist)
         lines = playerlist.split('\n')
         names = []
         headline = True
@@ -50,8 +49,37 @@ class RCon(commands.Cog, name="RCon commands"):
             raise commands.BadArgument(result[12:])
         else:
             await ctx.send(result)
-            print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-            logger.info(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+            print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+
+    @command(name='gettime', help="Tells the current time on the server")
+    async def gettime(self, ctx):
+        try:
+            time = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, "TERPO getTime")
+        except Exception as error:
+            print("excetion raised", type(error), error.args[1])
+            raise RConConnectionError(error.args[1])
+        await ctx.send(f"It's currently {time[:-3]} on the server.")
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
+
+    @command(name='settime', help="Sets the time on the server")
+    @has_role(cfg.ADMIN_ROLE)
+    async def settime(self, ctx, Time):
+        time = await is_time_format(Time)
+        if not time:
+            await ctx.send("Bad time format. Please enter time in HH[:MM[:SS]] 24h format.")
+            return
+        try:
+            msg = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTime {time}")
+        except Exception as error:
+            print("excetion raised", type(error), error.args[1])
+            raise RConConnectionError(error.args[1])
+        if len(Time) <= 5:
+            time = time[:-3]
+        await ctx.send(f"Time on the server has been set to {time}.")
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. . Current server time was set to {time} by {ctx.author}.")
 
 def setup(bot):
     bot.add_cog(RCon(bot))
