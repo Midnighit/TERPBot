@@ -44,7 +44,10 @@ async def on_ready():
     # create channel and category if necessary
     for channel in cfg.DISCORD_CHANNELS:
         if not channel[0] in cfg.CHANNEL:
-            cfg.CHANNEL[channel[0]] = await cfg.GUILD.create_text_channel(channel[0], category=channel[1])
+            if channel[1] and not channel[1] in cfg.CATEGORY:
+                cfg.CATEGORY[channel[1]] = await cfg.GUILD.create_category(channel[1])
+            category = cfg.CATEGORY[channel[1]] if channel[1] else None
+            cfg.CHANNEL[channel[0]] = await cfg.GUILD.create_text_channel(channel[0], category=category)
             print(f"{channel[0]} channel was created (id = {cfg.CHANNEL[channel[0]].id})")
     # read questions from google sheet
     update_questions()
@@ -63,6 +66,25 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
+    if message.channel == cfg.CHANNEL[cfg.STATUS]:
+        if message.content.startswith(cfg.SHUTDOWN_MSG):
+            print("Trying to get the time")
+            try:
+                time = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, "TERPO getTimeDecimal")
+                print(f"Time read successfully: {time}")
+            except Exception as error:
+                print("excetion raised", type(error), error.args[1])
+                raise RConConnectionError(error.args[1])
+            cfg.LAST_RESTART_TIME = time
+        elif message.content.startswith(cfg.RESTART_MSG):
+            print(f"Trying to reset the time to the previously read time of {cfg.LAST_RESTART_TIME}")
+            try:
+                rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTimeDecimal {cfg.LAST_RESTART_TIME}")
+                print("Time was reset successfully!")
+            except Exception as error:
+                print("excetion raised", type(error), error.args[1])
+                raise RConConnectionError(error.args[1])
+            cfg.LAST_RESTART_TIME = 12.0
     if not message.channel.type == ChannelType.private or not message.author in cfg.APL:
         await bot.process_commands(message)
         return

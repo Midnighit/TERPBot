@@ -36,6 +36,13 @@ async def send_overview(author, msg='', submitted=False):
     else:
         await channel.send(buffer)
 
+async def write_to_whitelist(SteamID64):
+        with open(cfg.WHITELIST_PATH, 'r') as f:
+            lines = f.readlines()
+            line = SteamID64 + "\n" if lines[-1][-1] == "\n" else "\n" + SteamID64 + "\n"
+        with open(cfg.WHITELIST_PATH, 'a') as f:
+            f.write(line)
+
 async def whitelist_player(ctx, SteamID64, player):
     SteamID64 = str(SteamID64)
     if len(SteamID64) != 17 or not SteamID64.isnumeric():
@@ -45,11 +52,10 @@ async def whitelist_player(ctx, SteamID64, player):
     try:
         msg = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"WhitelistPlayer {SteamID64}")
     except:
-        with open(cfg.WHITELIST_PATH, 'r') as f:
-            lines = f.readlines()
-            line = SteamID64 + "\n" if lines[-1][-1] == "\n" else "\n" + SteamID64 + "\n"
-        with open(cfg.WHITELIST_PATH, 'a') as f:
-            f.write(line)
+        await write_to_whitelist(SteamID64)
+        msg = f"Player {SteamID64} added to whitelist."
+    if msg == "Still processing previous command.":
+        await write_to_whitelist(SteamID64)
         msg = f"Player {SteamID64} added to whitelist."
     success = True if msg == f"Player {SteamID64} added to whitelist." else False
     if success:
@@ -94,6 +100,32 @@ async def roll_dice(dice):
     result = result + " + **" + str(val) + "**" if val > 0 else result
     result = f"{result} (total: **{sum(lst) + val}**)" if len(lst) > 1 or val > 0 else result
     return result
+
+async def is_time_format(time):
+    tLst = time.split(':')
+    if not tLst:
+        return False
+
+    if len(tLst) >= 1 and tLst[0].isnumeric() and int(tLst[0]) >= 0:
+        hours = str(int(tLst[0]) % 24)
+    else:
+        return False
+
+    if len(tLst) >= 2 and tLst[1].isnumeric() and int(tLst[1]) >= 0 and int(tLst[1]) < 60:
+        minutes = tLst[1]
+    elif len(tLst) < 2:
+        minutes = '00'
+    else:
+        return False
+
+    if len(tLst) >= 3 and tLst[2].isnumeric() and int(tLst[2]) >= 0 and int(tLst[2]) < 60:
+        seconds = tLst[2]
+    elif len(tLst) < 3:
+        seconds = '00'
+    else:
+        return False
+
+    return ':'.join([hours, minutes, seconds])
 
 def find_steamID64(author):
     result = re.search(r'(7\d{16})', cfg.APL[author]['answers'][cfg.STEAMID_QUESTION])
