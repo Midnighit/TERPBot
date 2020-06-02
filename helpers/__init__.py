@@ -212,11 +212,6 @@ async def is_time_format(time):
 
     return ':'.join([hours, minutes, seconds])
 
-def find_steamID64(author):
-    result = re.search(r'(7\d{16})', cfg.APL[author]['answers'][cfg.STEAMID_QUESTION])
-    result = result.group(1) if result else None
-    return result
-
 def get_char(SteamID64):
     sessionGame = SessionGame()
     results = sessionGame.query(Characters.playerId, Characters.char_name, Characters.lastTimeOnline).filter(Characters.playerId.like(SteamID64 + '%')).order_by(Characters.playerId).all()
