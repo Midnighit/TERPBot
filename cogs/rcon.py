@@ -40,7 +40,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
     @has_role(cfg.ADMIN_ROLE)
     async def whitelist(self, ctx, Player: Member, SteamID64: int):
-        result = await whitelist_player(SteamID64, Player)
+        result = await whitelist_player(ctx, SteamID64, Player)
         if result == "NotSteamIdError":
             raise NotSteamIdError()
         elif result == "IsGabesIDError":

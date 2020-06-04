@@ -126,7 +126,7 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist Applicant
         SteamID64 = await find_steamID64(application)
         if SteamID64:
-            result = await whitelist_player(SteamID64, applicant)
+            result = await whitelist_player(ctx, SteamID64, applicant)
         else:
             result = "NoSteamIDinAnswer"
 
