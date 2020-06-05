@@ -85,7 +85,7 @@ async def on_message(message):
                 raise RConConnectionError(error.args[1])
             cfg.LAST_RESTART_TIME = time
         elif message.content.startswith(cfg.RESTART_MSG):
-            delayed_set_time = Timer(120.0, set_time_decimal)
+            delayed_set_time = Timer(150.0, set_time_decimal)
             delayed_set_time.start()
     application = await get_application(message.author)
     if not message.channel.type == ChannelType.private or not application:
