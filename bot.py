@@ -2,6 +2,7 @@
 import os
 import random
 import discord
+from threading import Timer
 from discord import ChannelType
 from discord.ext import commands
 from valve import rcon
@@ -84,13 +85,8 @@ async def on_message(message):
                 raise RConConnectionError(error.args[1])
             cfg.LAST_RESTART_TIME = time
         elif message.content.startswith(cfg.RESTART_MSG):
-            logger.info(f"Trying to reset the time to the previously read time of {cfg.LAST_RESTART_TIME}")
-            try:
-                rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTimeDecimal {cfg.LAST_RESTART_TIME}")
-                logger.info("Time was reset successfully!")
-            except Exception as error:
-                raise RConConnectionError(error.args[1])
-            cfg.LAST_RESTART_TIME = 12.0
+            delayed_set_time = Timer(120.0, set_time_decimal)
+            delayed_set_time.start()
     application = await get_application(message.author)
     if not message.channel.type == ChannelType.private or not application:
         if message.content in cfg.IGNORE_CMDS:
