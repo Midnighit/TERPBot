@@ -79,7 +79,7 @@ class RCon(commands.Cog, name="RCon commands"):
             time = time[:-3]
         await ctx.send(f"Time on the server has been set to {time}.")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. . Current server time was set to {time} by {ctx.author}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
 
 def setup(bot):
     bot.add_cog(RCon(bot))
