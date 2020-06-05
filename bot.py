@@ -76,21 +76,19 @@ async def on_member_remove(member):
 async def on_message(message):
     if message.channel == cfg.CHANNEL[cfg.STATUS]:
         if message.content.startswith(cfg.SHUTDOWN_MSG):
-            print("Trying to get the time")
+            logger.info("Reading time from game server...")
             try:
                 time = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, "TERPO getTimeDecimal")
-                print(f"Time read successfully: {time}")
+                logger.info(f"Time read successfully: {time}")
             except Exception as error:
-                print("excetion raised", type(error), error.args[1])
                 raise RConConnectionError(error.args[1])
             cfg.LAST_RESTART_TIME = time
         elif message.content.startswith(cfg.RESTART_MSG):
-            print(f"Trying to reset the time to the previously read time of {cfg.LAST_RESTART_TIME}")
+            logger.info(f"Trying to reset the time to the previously read time of {cfg.LAST_RESTART_TIME}")
             try:
                 rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTimeDecimal {cfg.LAST_RESTART_TIME}")
-                print("Time was reset successfully!")
+                logger.info("Time was reset successfully!")
             except Exception as error:
-                print("excetion raised", type(error), error.args[1])
                 raise RConConnectionError(error.args[1])
             cfg.LAST_RESTART_TIME = 12.0
     application = await get_application(message.author)
