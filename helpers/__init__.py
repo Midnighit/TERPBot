@@ -148,25 +148,126 @@ async def find_last_applicant(ctx, user):
             return message.content[pos_start:pos_end]
     return None
 
-async def roll_dice(dice):
-    if dice.find('d') == -1:
+class Die:
+    def __init__(self, num=1, sides=1, sign=1):
+        self.num = num
+        self.sides = sides
+        self.sign = sign
+
+    def __repr__(self):
+        return f"<Die(num={self.num}, sides={self.sides}, sign={self.sign})>"
+
+    @property
+    def sign(self):
+        return self._sign
+
+    @sign.setter
+    def sign(self, value):
+        if type(value) is str:
+            if value == "+":
+                self._sign = 1
+            elif value == "-":
+                self._sign = -1
+        elif type(value) is int:
+            if value >= 0:
+                self._sign = 1
+            else:
+                self._sign = -1
+
+    @property
+    def num(self):
+        return self._num
+
+    @num.setter
+    def num(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._num = value
+
+    @property
+    def sides(self):
+        return self._sides
+
+    @sides.setter
+    def sides(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._sides = value
+
+    def roll(self):
+        sum = 0
+        for i in range(self._num):
+            sum += random.randint(1, self._sides)
+        return sum * self._sign
+
+class Dice(list):
+    def roll(self):
+        sum = 0
+        results = []
+        for d in self:
+            r = d.roll()
+            results.append(r)
+            sum += r
+        return (results, sum)
+
+    def __repr__(self):
+        repr = "<Dice("
+        idx = 0
+        for d in self:
+            repr += f"die{idx}={'-' if d.sign < 0 else ''}{d.num}d{d.sides}, "
+            idx += 1
+        return repr[:-2] + ")>"
+
+async def roll_dice(input):
+    if input.find('d') == -1:
         raise NoDiceFormatError()
-    dice = dice.replace(" ","").split("+")
+    input = input.replace(" ","")
+    dice = Dice()
+    num = ''
+    type = 's'
+    sign = '+'
     val = 0
-    lst = []
-    for die in dice:
-        if die.isnumeric():
-            val += int(die)
-        else:
-            try:
-                rolls, limit = map(int, die.split('d'))
-            except Exception:
+    for c in input:
+        if c in ('+', '-'):
+            if type == 's' and num != '':
+                val = val - int(num) if sign == '-' else val + int(num)
+            elif type == 's' and num == '':
+                pass
+            elif num != '':
+                d.sides = int(num)
+                d.sign = sign
+                dice.append(d)
+            else:
                 raise NoDiceFormatError()
-            lst += [random.randint(1, limit) for r in range(rolls)]
+            num = ''
+            type = 's'
+            sign = c
+        elif c == 'd':
+            d = Die(num=int(num)) if num != '' else Die()
+            num = ''
+            type = 'd'
+        else:
+            if not c.isnumeric():
+                raise NoDiceFormatError()
+            num += c
+    if type == 's' and num != '':
+        val = val - int(num) if sign == '-' else val + int(num)
+    elif num != '':
+        d.sides = int(num)
+        d.sign = sign
+        dice.append(d)
+    else:
+        raise NoDiceFormatError()
+
+    lst, sum = dice.roll()
+
     result = "**" + "**, **".join([str(r) for r in lst]) + "**"
     result = rreplace(result, ",", " and", 1)
-    result = result + " + **" + str(val) + "**" if val > 0 else result
-    result = f"{result} (total: **{sum(lst) + val}**)" if len(lst) > 1 or val > 0 else result
+    if val > 0:
+        result = result + " + **" + str(val) + "**"
+    elif val < 0:
+        result = result + " - **" + str(abs(val)) + "**"
+    result = f"{result} (total: **{str(sum + val)}**)" if len(lst) > 1 or val != 0 else result
     return result
 
 async def convert_user(ctx, user):
