@@ -276,7 +276,7 @@ class Applications(commands.Cog, name="Application commands"):
             elif await can_edit_questions(application):
                 await ctx.send("Can't access application while it's still being worked on.")
             else:
-                submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
+                submission_date = application.open_date.strftime("%d-%b-%Y %H:%M UTC")
                 msg = f"{address}'s application overview. ({submission_date})"
                 overview = await get_overview(application, applicant, msg=msg)
                 for part in overview:
