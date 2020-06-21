@@ -1,4 +1,4 @@
-# bot.py
+# TERPBot v1.0.0
 import os
 import random
 import discord

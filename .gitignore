@@ -139,3 +139,9 @@ config.py
 
 # log folder
 logs/
+
+# batch files
+*.bat
+
+# unittests
+test.py
