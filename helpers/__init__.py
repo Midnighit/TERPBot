@@ -1,18 +1,18 @@
 import re
 import random
-import config as cfg
+import config as saved
+from config import *
 from logger import logger
 from sqlalchemy import func, or_
 from datetime import datetime
-from db import SessionGame, sessionSupp, Users, Characters, Apps, BaseQuestions, Questions
+from exiles_api import session, Users, Characters, Applications, BaseQuestions, Questions
 from discord import Member, TextChannel
 from discord.ext import commands
 from exceptions import NoDiceFormatError, ConversionError
 from valve import rcon
-from google_api import sheets
 
 async def get_application(applicant):
-    return sessionSupp.query(Apps).filter_by(applicant=str(applicant)).first()
+    return session.query(Applications).filter_by(applicant=str(applicant)).first()
 
 async def get_questions(application=None, applicant=None):
     if not application:
@@ -52,18 +52,18 @@ async def delete_application(application=None, applicant=None):
         application = await get_application(applicant)
     if not application:
         return None
-    sessionSupp.delete(application)
-    sessionSupp.commit()
+    session.delete(application)
+    session.commit()
 
-async def find_steamID64(application=None, applicant=None):
+async def find_steam_id_in_answer(application=None, applicant=None):
     if not application:
         application = await get_application(applicant)
     if not application:
         return None
     questions = await get_questions(application)
     if questions:
-        questions[application.steamID_row - 1].answer
-        result = re.search(r'(7\d{16})', questions[application.steamID_row - 1].answer)
+        questions[application.steam_id_row - 1].answer
+        result = re.search(r'(7\d{16})', questions[application.steam_id_row - 1].answer)
         result = result.group(1) if result else None
         return result
 
@@ -103,33 +103,37 @@ async def get_overview(application, applicant, msg=''):
     return overview
 
 async def write_to_whitelist(SteamID64):
-        with open(cfg.WHITELIST_PATH, 'r') as f:
+        with open(WHITELIST_PATH, 'r') as f:
             lines = f.readlines()
             line = SteamID64 + "\n" if lines[-1][-1] == "\n" else "\n" + SteamID64 + "\n"
-        with open(cfg.WHITELIST_PATH, 'a') as f:
+        with open(WHITELIST_PATH, 'a') as f:
             f.write(line)
 
 async def whitelist_player(ctx, SteamID64, player):
-    SteamID64 = str(SteamID64)
-    if len(SteamID64) != 17 or not SteamID64.isnumeric():
+    steam_id = str(SteamID64)
+    if len(steam_id) != 17 or not steam_id.isnumeric():
         return "NotSteamIdError"
-    elif SteamID64 == "76561197960287930":
+    elif steam_id == "76561197960287930":
         return "IsGabesIDError"
     try:
-        msg = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"WhitelistPlayer {SteamID64}")
+        msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {steam_id}")
     except:
-        await write_to_whitelist(SteamID64)
-        msg = f"Player {SteamID64} added to whitelist."
+        await write_to_whitelist(steam_id)
+        msg = f"Player {steam_id} added to whitelist."
     if msg == "Still processing previous command.":
-        await write_to_whitelist(SteamID64)
-        msg = f"Player {SteamID64} added to whitelist."
-    success = True if msg == f"Player {SteamID64} added to whitelist." else False
+        await write_to_whitelist(steam_id)
+        msg = f"Player {steam_id} added to whitelist."
+    success = True if msg == f"Player {steam_id} added to whitelist." else False
     if success:
-        # If either SteamID64 or disc_user already exist, delete them first
-        sessionSupp.query(Users).filter(or_(Users.SteamID64==SteamID64, Users.disc_user==str(player))).delete()
-        # Store SteamID64 <-> Discord Name link in db
-        sessionSupp.add(Users(SteamID64=SteamID64, disc_user=str(player)))
-        sessionSupp.commit()
+        users = session.query(Users).filter((Users.steam_id==steam_id) | (Users.disc_user==str(player))).all()
+        if len(users) > 1:
+            await ctx.send(f"SteamID64 {steam_id} has already been registered by another user. Please make sure this is really yours. If you are sure, please contact an admin for clarification.")
+            return
+        elif len(users) == 1:
+            users[0].steam_id = steam_id
+        else:
+            session.add(Users(steam_id=steam_id, disc_user=str(player)))
+        session.commit()
         return msg
     elif msg.find("Invalid argument") >= 0:
         return f"FailedError|{msg}"
@@ -314,72 +318,35 @@ async def is_time_format(time):
     return ':'.join([hours, minutes, seconds])
 
 def set_time_decimal():
-    logger.info(f"Trying to reset the time to the previously read time of {cfg.LAST_RESTART_TIME}")
+    logger.info(f"Trying to reset the time to the previously read time of {LAST_RESTART_TIME}")
     try:
-        rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTimeDecimal {cfg.LAST_RESTART_TIME}")
+        rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTimeDecimal {LAST_RESTART_TIME}")
         logger.info("Time was reset successfully!")
     except Exception as error:
         raise RConConnectionError(error.args[1])
-    cfg.LAST_RESTART_TIME = 12.0
-
-def get_char(SteamID64):
-    sessionGame = SessionGame()
-    results = sessionGame.query(Characters.playerId, Characters.char_name, Characters.lastTimeOnline).filter(Characters.playerId.like(SteamID64 + '%')).order_by(Characters.playerId).all()
-    sessionGame.close()
-    lst = []
-    for row in results:
-        slot = str(row[0])[17] if len(str(row[0])) == 18 else 'active'
-        lst.append({'name': str(row[1]), 'slot': slot, 'lastLogin': datetime.utcfromtimestamp(row[2]).strftime("%d-%b-%Y %H:%M:%S UTC")})
-    return lst
-
-def get_disc_user(SteamID64):
-        result = sessionSupp.query(Users.disc_user).filter_by(SteamID64=SteamID64).first()
-        return result[0] if result else None
-
-def get_steamID64(arg):
-    if type(arg) is Member:
-        result = sessionSupp.query(Users.SteamID64).filter_by(disc_user=str(arg)).first()
-        return result[0] if result else None
-    else:
-        sessionGame = SessionGame()
-        result = sessionGame.query(Characters.playerId).filter(func.lower(Characters.char_name)==arg.lower()).first()
-        sessionGame.close()
-        if result:
-            return result[0] if len(result[0]) == 17 else result[0][:-1]
-
-def update_questions():
-    cfg.GREETING = sheets.read(cfg.SPREADSHEET_ID, cfg.GREETING_RANGE)[0][0]
-    cfg.APPLIED = sheets.read(cfg.SPREADSHEET_ID, cfg.APPLIED_RANGE)[0][0]
-    cfg.FINISHED =sheets.read(cfg.SPREADSHEET_ID, cfg.FINISHED_RANGE)[0][0]
-    cfg.COMMITED = sheets.read(cfg.SPREADSHEET_ID, cfg.COMMITED_RANGE)[0][0]
-    cfg.ACCEPTED = sheets.read(cfg.SPREADSHEET_ID, cfg.ACCEPTED_RANGE)[0][0]
-    cfg.REJECTED = sheets.read(cfg.SPREADSHEET_ID, cfg.REJECTED_RANGE)[0][0]
-    cfg.REVIEWED = sheets.read(cfg.SPREADSHEET_ID, cfg.REVIEWED_RANGE)[0][0]
-    cfg.WHITELISTING_FAILED = sheets.read(cfg.SPREADSHEET_ID, cfg.WHITELISTING_FAILED_RANGE)[0][0]
-    cfg.WHITELISTING_SUCCEEDED = sheets.read(cfg.SPREADSHEET_ID, cfg.WHITELISTING_SUCCEEDED_RANGE)[0][0]
-    cfg.APP_CLOSED = sheets.read(cfg.SPREADSHEET_ID, cfg.APP_CLOSED_RANGE)[0][0]
+    saved.LAST_RESTART_TIME = 12.0
 
 def create_application(applicant):
-    new_app = Apps(applicant=str(applicant),
-                   status='open',
-                   steamID_row=None,
-                   current_question=1,
-                   open_date=datetime.utcnow())
-    sessionSupp.add(new_app)
-    for q in sessionSupp.query(BaseQuestions).all():
-        if q.has_steamID:
-            new_app.steamID_row=q.id
-        sessionSupp.add(Questions(qnum=q.id, question=q.txt, answer='', application=new_app))
-    sessionSupp.commit()
+    new_app = Applications(applicant=str(applicant),
+                           status='open',
+                           steam_id_row=None,
+                           current_question=1,
+                           open_date=datetime.utcnow())
+    session.add(new_app)
+    for q in session.query(BaseQuestions).all():
+        if q.has_steam_id:
+            new_app.steam_id_row=q.id
+        session.add(Questions(qnum=q.id, question=q.txt, answer='', application=new_app))
+    session.commit()
     return new_app
 
 def parse(user, msg):
-    msg = str(msg).replace('{PREFIX}', cfg.PREFIX) \
-                  .replace('{OWNER}', cfg.GUILD.owner.mention)
+    msg = str(msg).replace('{PREFIX}', PREFIX) \
+                  .replace('{OWNER}', saved.GUILD.owner.mention)
     msg = msg.replace('{PLAYER}', user.mention) if type(user) == Member else msg.replace('{PLAYER}', str(user))
-    for name, channel in cfg.CHANNEL.items():
+    for name, channel in saved.CHANNEL.items():
         msg = re.sub("(?i){" + name + "}", channel.mention, msg)
-    for name, role in cfg.ROLE.items():
+    for name, role in saved.ROLE.items():
         msg = re.sub("(?i){" + name + "}", role.mention, msg)
     return msg
 

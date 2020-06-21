@@ -27,6 +27,12 @@ class ApplicantError(CustomError):
             msg = "Command may not be used when there already is an application."
         super().__init__(msg)
 
+class MemberError(CustomError):
+    def __init__(self, msg=None):
+        if msg is None:
+            msg = "Command may not be used when user already has been accepted."
+        super().__init__(msg)
+
 class NotPrivateError(CustomError):
     def __init__(self, msg=None):
         if msg is None:

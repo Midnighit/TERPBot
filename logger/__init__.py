@@ -1,6 +1,6 @@
 import os
-import config as cfg
 import logging
+from config import LOG_LEVEL
 from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger(__name__)
@@ -13,5 +13,5 @@ err_handler.setLevel(logging.ERROR)
 logger.addHandler(err_handler)
 file_handler = RotatingFileHandler('logs/bot.log', maxBytes=1048576, backupCount=3)
 file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-logger.setLevel(cfg.LOG_LEVEL)
+logger.setLevel(LOG_LEVEL)
 logger.addHandler(file_handler)

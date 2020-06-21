@@ -1,7 +1,8 @@
-import exceptions as exc
-import config as cfg
-from db import sessionSupp, Apps
+import config as saved
+from config import *
+from exceptions import *
 from discord.ext.commands import check, BadArgument, MissingRequiredArgument
+from exiles_api import session, Applications
 
 ##############
 ''' Checks '''
@@ -9,57 +10,60 @@ from discord.ext.commands import check, BadArgument, MissingRequiredArgument
 
 def is_applicant():
     async def predicate(ctx):
-        if not sessionSupp.query(Apps).filter_by(applicant=str(ctx.author)).first():
-            raise exc.NotApplicantError()
+        if not session.query(Applications).filter_by(applicant=str(ctx.author)).first():
+            raise NotApplicantError()
         return True
     return check(predicate)
 
 def is_not_applicant():
     async def predicate(ctx):
-        if sessionSupp.query(Apps).filter_by(applicant=str(ctx.author)).first():
-            raise exc.ApplicantError()
+        if app := session.query(Applications).filter_by(applicant=str(ctx.author)).first():
+            if app.status == 'accepted':
+                raise MemberError()
+            else:
+                raise ApplicantError()
         return True
     return check(predicate)
 
 def is_not_bot():
     async def predicate(ctx):
         if ctx.author == bot.user:
-            raise exc.IsBotError()
+            raise IsBotError()
         return True
     return check(predicate)
 
 def has_not_role(check_role: str):
     async def predicate(ctx):
-        member = cfg.GUILD.get_member(ctx.author.id)
-        if cfg.ROLE[check_role] in member.roles:
+        member = saved.GUILD.get_member(ctx.author.id)
+        if saved.ROLE[check_role] in member.roles:
             raise HasRoleError(f"Command may not used by users with role {check_role}.")
         return True
     return check(predicate)
 
 def has_role(check_role: str):
     async def predicate(ctx):
-        member = cfg.GUILD.get_member(ctx.author.id)
-        if not cfg.ROLE[check_role] in member.roles:
-            raise exc.HasNotRoleError(f"Command may only be used by users with role {check_role}.")
+        member = saved.GUILD.get_member(ctx.author.id)
+        if not saved.ROLE[check_role] in member.roles:
+            raise HasNotRoleError(f"Command may only be used by users with role {check_role}.")
         return True
     return check(predicate)
 
 def has_role_greater_or_equal(check_role: str):
     async def predicate(ctx):
-        member = cfg.GUILD.get_member(ctx.author.id)
+        member = saved.GUILD.get_member(ctx.author.id)
         for author_role in member.roles:
-            if author_role >= cfg.ROLE[check_role]:
+            if author_role >= saved.ROLE[check_role]:
                 return True
-        raise exc.RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
+        raise RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
     return check(predicate)
 
 def has_role_greater(check_role: str):
     async def predicate(ctx):
-        member = cfg.GUILD.get_member(ctx.author.id)
+        member = saved.GUILD.get_member(ctx.author.id)
         for author_role in member.roles:
-            if author_role > cfg.ROLE[check_role]:
+            if author_role > saved.ROLE[check_role]:
                 return True
-        raise exc.RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
+        raise RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
     return check(predicate)
 
 def number_in_range(min: int, max: int):
@@ -69,8 +73,8 @@ def number_in_range(min: int, max: int):
         else:
             raise MissingRequiredArgument(ctx.command)
         if not v[1].isnumeric():
-            raise exc.NotNumberError(f"Command requires a number between {str(min)} and {str(max)} as argument.")
+            raise NotNumberError(f"Command requires a number between {str(min)} and {str(max)} as argument.")
         if int(v[1]) < min or int(v[1]) > max:
-            raise exc.NumberNotInRangeError(f"Number must be between {str(min)} and {str(max)}.")
+            raise NumberNotInRangeError(f"Number must be between {str(min)} and {str(max)}.")
         return True
     return check(predicate)

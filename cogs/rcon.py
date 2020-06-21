@@ -2,7 +2,7 @@ from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from valve import rcon
-import config as cfg
+from config import *
 from logger import logger
 from exceptions import *
 from checks import *
@@ -15,7 +15,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
         try:
-            playerlist = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, "ListPlayers")
+            playerlist = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "ListPlayers")
         except Exception as error:
             print("excetion raised", type(error), error.args[1])
             raise RConConnectionError(error.args[1])
@@ -38,7 +38,7 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send(rreplace(f"__**Players online:**__ {len(names)}\n" + ', '.join(names), ",", " and", 1))
 
     @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
-    @has_role(cfg.ADMIN_ROLE)
+    @has_role(ADMIN_ROLE)
     async def whitelist(self, ctx, Player: Member, SteamID64: int):
         result = await whitelist_player(ctx, SteamID64, Player)
         if result == "NotSteamIdError":
@@ -55,7 +55,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='gettime', help="Tells the current time on the server")
     async def gettime(self, ctx):
         try:
-            time = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, "TERPO getTime")
+            time = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "TERPO getTime")
         except Exception as error:
             print("excetion raised", type(error), error.args[1])
             raise RConConnectionError(error.args[1])
@@ -64,14 +64,14 @@ class RCon(commands.Cog, name="RCon commands"):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
 
     @command(name='settime', help="Sets the time on the server")
-    @has_role(cfg.ADMIN_ROLE)
+    @has_role(ADMIN_ROLE)
     async def settime(self, ctx, Time):
         time = await is_time_format(Time)
         if not time:
             await ctx.send("Bad time format. Please enter time in HH[:MM[:SS]] 24h format.")
             return
         try:
-            msg = rcon.execute((cfg.RCON_IP, cfg.RCON_PORT), cfg.RCON_PASSWORD, f"TERPO setTime {time}")
+            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTime {time}")
         except Exception as error:
             print("excetion raised", type(error), error.args[1])
             raise RConConnectionError(error.args[1])
