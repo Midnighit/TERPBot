@@ -136,8 +136,9 @@ class General(commands.Cog, name="General commands"):
                 await ctx.send("Couldn't link character to your FuncomID. Please notify an admin as this should never happen.")
                 logger.error(f"No account data for player with funcom_id {steam64.funcom_id}, steam_id {steam64.id} and disc_user {ctx.author} was found. This should never be the case, please investigate!")
                 return
-            user.player_id = result[0]
+            user.player_id = result.player_id
             session.commit()
+        # print(f"player_id: {user.player_id} / funcom_id: {user.funcom_id} / steam_id: {steam64.id} / disc_user: {str(ctx.author)}")
         player = Player(id=user.player_id, funcom_id=user.funcom_id, steam_id=steam64.id, disc_user=str(ctx.author))
         msg = f"The characters belonging to your account are:\n"
         for char in player.characters:
