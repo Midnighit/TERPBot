@@ -1,6 +1,7 @@
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
+from threading import Timer
 from valve import rcon
 from config import *
 from logger import logger
@@ -55,10 +56,21 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='gettime', help="Tells the current time on the server")
     async def gettime(self, ctx):
         try:
-            time = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "TERPO getTime")
+            time = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "TERPO getTimeDecimal")
         except Exception as error:
-            print("excetion raised", type(error), error.args[1])
+            print("exception raised", type(error), error.args[1])
             raise RConConnectionError(error.args[1])
+        if time == 'Still processing previous command.':
+            await ctx.send("Still processing previous command. Try again in a few seconds.")
+            return
+        # convert decimal representation to human readable one
+        time = float(time)
+        hours = str(int(time))
+        seconds = (time % 1) * 3600
+        minutes = str(int(seconds / 60)).zfill(2)
+        seconds = str(int(seconds % 60)).zfill(2)
+        time = f"{hours}:{minutes}:{seconds}"
+        # end conversion to human readable representation
         await ctx.send(f"It's currently {time[:-3]} on the server.")
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
