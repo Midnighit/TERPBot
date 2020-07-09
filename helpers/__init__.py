@@ -115,8 +115,30 @@ async def whitelist_player(ctx, SteamID64, player):
         return "NotSteamIdError"
     elif steam_id == "76561197960287930":
         return "IsGabesIDError"
+    # determine discord user to be whitelisted
     try:
-        msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {steam_id}")
+        member = await commands.MemberConverter().convert(ctx, player)
+    except:
+        raise ConversionError
+    # check if discord user is already in db
+    user = session.query(Users).filter_by(disc_id=member.id).first()
+    if not user:
+        user = session.query.(Users).filter_by(disc_user=disc_user).first()
+        if user:
+            user.disc_id = member.id
+            session.commit()
+    # if user is not in db, create a new one
+    if not user:
+        user = Users(steam_id=steam_id, disc_user=str(member), disc_id=member.id)
+        session.add(user)
+        session.commit()
+    # try to link user to funcom_id/player_id
+    # Question: How do I get a funcom_id for a player who hasn't logged into create a character because they're not whitelisted
+    # result = session.query(Steam64.funcom_id).filter_by(id=steam_id).first()
+    # if not result:
+    #     await ctx.send(f"No FuncomID associated with SteamID64 {steam_id} has been found. Did you already claim.")
+    try:
+        msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {user.funcom_id}")
     except:
         await write_to_whitelist(steam_id)
         msg = f"Player {steam_id} added to whitelist."

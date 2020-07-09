@@ -49,25 +49,59 @@ class General(commands.Cog, name="General commands"):
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
+        # try getting disc_user or id by looking at the format of arg and the member converter
         if len(arg) > 5 and arg[-5] == '#':
-            player = Player(disc_user=arg)
-            if not player.characters:
-                char = session.query(Characters).filter_by(name=arg).first()
-                if char:
-                    player = char.player
-        elif arg[:3] == "<@!" and arg[-1] == '>':
+            disc_user = arg
+        elif arg[:3] == "<@!" and arg[-1] == '>' and len(arg) == 22:
+            disc_id = arg[3:-1]
+        # argument was a disc_user
+        if disc_user:
             try:
-                disc_user = await commands.MemberConverter().convert(ctx, arg)
+                member = await commands.MemberConverter().convert(ctx, disc_user)
+                disc_id = member.id
             except:
-                pass
-            if disc_user:
-                player = Player(disc_user=disc_user)
+                member = None
+                disc_id = None
+        # argument was disc_id, incomplete disc_user or character name
         else:
-            player = Player(disc_user=arg)
+            try:
+                member = await commands.MemberConverter().convert(ctx, arg)
+                disc_user = str(member)
+                disc_id = member.id
+            except:
+                member = None
+                disc_user = None
+        # try finding the user with trhe information found so far
+        if disc_user or disc_id:
+            user = session.query(User).filter_by(disc_id=disc_id).first()
+            if user:
+                user.disc_user = disc_user
+            else:
+                user = session.query(User).filter_by(disc_user=disc_user).first()
+                user.disc_id = disc_id
+            
+
+
+        char = session.query(Characters).filter(func.lower(Characters.name).like('%' + arg.lower() + '%')).first()
+        else:
+            try:
+                member = await commands.MemberConverter().convert(ctx, arg)
+                disc_user = str(member)
+            except:
+                member = None
+                disc_user = None
             if not player.characters:
                 char = session.query(Characters).filter(func.lower(Characters.name).like('%' + arg.lower() + '%')).first()
                 if char:
                     player = char.player
+
+        if disc_id:
+            user = session.query(Users).filter_by(disc_id=disc_id).first()
+        if not user:
+            user = session.query(Users).filter_by(disc_user=disc_user).first()
+        if not user:
+            msg = f"No discord user {arg} was found."
+            return
         if not player.characters:
             msg = f"No discord user or character {arg} has been found."
         else:
@@ -79,6 +113,8 @@ class General(commands.Cog, name="General commands"):
                 else:
                     msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
         await ctx.send(msg)
+        if not player.disc_id:
+
 
     @command(name="claim", help="Claim your character to enable character switching. Requires your SteamID64 to be set first.")
     @has_not_role(NOT_APPLIED_ROLE)
