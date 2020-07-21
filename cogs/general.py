@@ -5,185 +5,253 @@ from exiles_api import *
 from config import *
 from exceptions import *
 from checks import *
-from helpers import *
+import random
+
+class Die:
+    def __init__(self, num=1, sides=1, sign=1):
+        self.num = num
+        self.sides = sides
+        self.sign = sign
+
+    def __repr__(self):
+        return f"<Die(num={self.num}, sides={self.sides}, sign={self.sign})>"
+
+    @property
+    def sign(self):
+        return self._sign
+
+    @sign.setter
+    def sign(self, value):
+        if type(value) is str:
+            if value == "+":
+                self._sign = 1
+            elif value == "-":
+                self._sign = -1
+        elif type(value) is int:
+            if value >= 0:
+                self._sign = 1
+            else:
+                self._sign = -1
+
+    @property
+    def num(self):
+        return self._num
+
+    @num.setter
+    def num(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._num = value
+
+    @property
+    def sides(self):
+        return self._sides
+
+    @sides.setter
+    def sides(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._sides = value
+
+    def roll(self):
+        sum = 0
+        for i in range(self._num):
+            sum += random.randint(1, self._sides)
+        return sum * self._sign
+
+class Dice(list):
+    def roll(self):
+        sum = 0
+        results = []
+        for d in self:
+            r = d.roll()
+            results.append(r)
+            sum += r
+        return (results, sum)
+
+    def __repr__(self):
+        repr = "<Dice("
+        idx = 0
+        for d in self:
+            repr += f"die{idx}={'-' if d.sign < 0 else ''}{d.num}d{d.sides}, "
+            idx += 1
+        return repr[:-2] + ")>"
 
 class General(commands.Cog, name="General commands"):
     def __init__(self, bot):
         self.bot = bot
 
-    @command(name='roll', help="Rolls a dice in NdN format")
-    async def roll(self, ctx, *, Dice: str):
-        result = await roll_dice(Dice)
-        await ctx.send(f"{ctx.author.mention} rolled: " + result)
+    @staticmethod
+    async def roll_dice(input):
+        def rreplace(s, old, new, occurrence):
+            li = s.rsplit(old, occurrence)
+            return new.join(li)
 
-    @command(name="setsteamid", help="Set your 17 digit SteamID64 (the one used to whitelist you)")
-    @has_not_role(NOT_APPLIED_ROLE)
-    async def setsteamid(self, ctx, SteamID64: str):
-        steam_id = SteamID64
-        if not steam_id.isnumeric() or len(steam_id) != 17:
-            raise NotSteamIdError()
-        elif steam_id == "76561197960287930":
-            raise IsGabesIDError()
-        users = session.query(Users).filter((Users.steam_id==steam_id) | (Users.disc_user==str(ctx.author))).all()
-        if len(users) > 1:
-            await ctx.send(f"SteamID64 {steam_id} has already been registered by another user. Please make sure this is really yours. If you are sure, please contact an admin for clarification.")
-            return
-        elif len(users) == 1:
-            users[0].steam_id = steam_id
-        else:
-            session.add(Users(steam_id=steam_id, disc_user=str(ctx.author)))
-        session.commit()
-        logger.info(f"Player {ctx.author} set their SteamID64 to {steam_id}.")
-        await ctx.channel.send(f"Your SteamID64 has been set to {steam_id}.")
-
-    @command(name="getsteamid", help="Checks if your SteamID64 has been set.")
-    @has_not_role(NOT_APPLIED_ROLE)
-    async def getsteamid(self, ctx):
-        disc_user = await commands.MemberConverter().convert(ctx, ctx.author.mention)
-        player = Player(disc_user=str(disc_user))
-        if player.steam_id:
-            await ctx.channel.send(f"Your SteamID64 is currently set to {player.steam_id}.")
-        else:
-            await ctx.channel.send(f"Your SteamID64 has not been set yet. You can set it with `{PREFIX}setsteamid <SteamID64>`")
-
-    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
-    @has_role_greater_or_equal(SUPPORT_ROLE)
-    async def whois(self, ctx, *, arg):
-        # try getting disc_user or id by looking at the format of arg and the member converter
-        if len(arg) > 5 and arg[-5] == '#':
-            disc_user = arg
-        elif arg[:3] == "<@!" and arg[-1] == '>' and len(arg) == 22:
-            disc_id = arg[3:-1]
-        # argument was a disc_user
-        if disc_user:
-            try:
-                member = await commands.MemberConverter().convert(ctx, disc_user)
-                disc_id = member.id
-            except:
-                member = None
-                disc_id = None
-        # argument was disc_id, incomplete disc_user or character name
-        else:
-            try:
-                member = await commands.MemberConverter().convert(ctx, arg)
-                disc_user = str(member)
-                disc_id = member.id
-            except:
-                member = None
-                disc_user = None
-        # try finding the user with trhe information found so far
-        if disc_user or disc_id:
-            user = session.query(User).filter_by(disc_id=disc_id).first()
-            if user:
-                user.disc_user = disc_user
+        if input.find('d') == -1:
+            raise NoDiceFormatError()
+        input = input.replace(" ","")
+        dice = Dice()
+        num = ''
+        type = 's'
+        sign = '+'
+        val = 0
+        for c in input:
+            if c in ('+', '-'):
+                if type == 's' and num != '':
+                    val = val - int(num) if sign == '-' else val + int(num)
+                elif type == 's' and num == '':
+                    pass
+                elif num != '':
+                    d.sides = int(num)
+                    d.sign = sign
+                    dice.append(d)
+                else:
+                    raise NoDiceFormatError()
+                num = ''
+                type = 's'
+                sign = c
+            elif c == 'd':
+                d = Die(num=int(num)) if num != '' else Die()
+                num = ''
+                type = 'd'
             else:
-                user = session.query(User).filter_by(disc_user=disc_user).first()
-                user.disc_id = disc_id
-            
-
-
-        char = session.query(Characters).filter(func.lower(Characters.name).like('%' + arg.lower() + '%')).first()
+                if not c.isnumeric():
+                    raise NoDiceFormatError()
+                num += c
+        if type == 's' and num != '':
+            val = val - int(num) if sign == '-' else val + int(num)
+        elif num != '':
+            d.sides = int(num)
+            d.sign = sign
+            dice.append(d)
         else:
+            raise NoDiceFormatError()
+
+        lst, sum = dice.roll()
+
+        result = "**" + "**, **".join([str(r) for r in lst]) + "**"
+        result = rreplace(result, ",", " and", 1)
+        if val > 0:
+            result = result + " + **" + str(val) + "**"
+        elif val < 0:
+            result = result + " - **" + str(abs(val)) + "**"
+        result = f"{result} (total: **{str(sum + val)}**)" if len(lst) > 1 or val != 0 else result
+        return result
+
+    @staticmethod
+    async def get_member(ctx, name):
+        try:
+            return await commands.MemberConverter().convert(ctx, name)
+        except:
             try:
-                member = await commands.MemberConverter().convert(ctx, arg)
-                disc_user = str(member)
+                return await commands.MemberConverter().convert(ctx, name.capitalize())
             except:
-                member = None
-                disc_user = None
-            if not player.characters:
-                char = session.query(Characters).filter(func.lower(Characters.name).like('%' + arg.lower() + '%')).first()
-                if char:
-                    player = char.player
+                return None
 
-        if disc_id:
-            user = session.query(Users).filter_by(disc_id=disc_id).first()
-        if not user:
-            user = session.query(Users).filter_by(disc_user=disc_user).first()
-        if not user:
-            msg = f"No discord user {arg} was found."
-            return
-        if not player.characters:
-            msg = f"No discord user or character {arg} has been found."
-        else:
-            msg = f"The characters belonging to the discord nick **{player.disc_user}** are:\n"
-            for char in player.characters:
+    @staticmethod
+    async def get_user_string(arg, users):
+        if not users:
+            return f"No discord user or chracter named {arg} was found."
+        msg = ''
+        for user in users:
+            msg += f"The characters belonging to the discord nick **{user.disc_user}** are:\n"
+            for char in user.characters:
                 lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
                 if char.slot == 'active':
                     msg += f"**{char.name}** on **active** slot (last login: {lldate})\n"
                 else:
                     msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
-        await ctx.send(msg)
-        if not player.disc_id:
+            msg += '\n'
+        return msg[:-2]
 
+    @command(name='roll', help="Rolls a dice in NdN format")
+    async def roll(self, ctx, *, Dice: str):
+        result = await self.roll_dice(Dice)
+        await ctx.send(f"{ctx.author.mention} rolled: " + result)
 
-    @command(name="claim", help="Claim your character to enable character switching. Requires your SteamID64 to be set first.")
+    @command(name="setfuncomid", help="Set your FuncomID (the one used to whitelist you)")
     @has_not_role(NOT_APPLIED_ROLE)
-    async def claim(self, ctx, Name: str):
-        name = Name
-        user = session.query(Users).filter(Users.disc_user==str(ctx.author)).first()
-        if not user:
-            await ctx.send(f"Please use `{PREFIX}setsteamid <SteamID64>` to set your 17 digit SteamID64 first.")
+    async def setfuncomid(self, ctx, FuncomID: str):
+        funcom_id = FuncomID
+        disc_id = ctx.author.id
+        disc_user = str(ctx.author)
+        users = session.query(Users).filter((Users.funcom_id==funcom_id) | (Users.disc_id==disc_id)).all()
+        if len(users) > 1:
+            await ctx.send(f"Your FuncomID {funcom_id} has already been registered by another user. Please make sure this is really yours. If you are sure, please contact an admin for clarification.")
             return
-        char = session.query(Characters).filter(func.lower(Characters.name)==name.lower()).first()
-        if not char:
-            await ctx.send(f"Couldn't find a character named {name} in the database. Please verify that your spelling is correct and that you have already created this character.")
-            return
-        account = session.query(Account).get(char.pure_player_id)
-        if not account:
-            await ctx.send("Couldn't link character to your account. Please notify an admin of your failed attempt for further investigations.")
-            logger.error(f"No account data for player with player_id {char.pure_player_id} and name {name} was found. This should never be the case, please investigate!")
-            return
-        steam64 = session.query(Steam64).filter_by(funcom_id=account.funcom_id).first()
-        if steam64:
-            if steam64.id == user.steam_id:
-                await ctx.send(f"This character is already linked to your FuncomID. You only need to link your first character, all additional characters will automatically be added. To check which characters are linked to your account please use `{PREFIX}mychars`.")
-                logger.info(f"Player {ctx.author} tried to link character with player_id {char.pure_player_id} and name {name} which were already linked to their FuncomID {account.funcom_id}.")
-                return
-            await ctx.send("The character you were trying to claim has already claimed by someone else. If the character is really yours (and there is no other one with the same name), please notify an admin for further investigations.")
-            logger.info(f"Player {ctx.author} tried to link character with player_id {char.pure_player_id} and name {name} which were already linked to FuncomID {account.funcom_id} belonging to another player.")
-            return
-        user.funcom_id = account.funcom_id
-        user.player_id = char.pure_player_id
-        steam64 = Steam64(id=user.steam_id, funcom_id=account.funcom_id)
-        session.add(steam64)
+        elif len(users) == 1:
+            user = users[0]
+            user.funcom_id = funcom_id
+            user.disc_id = disc_id
+            user.disc_user = disc_user
+            user.player_id = Users.get_player_id(funcom_id) or user.player_id
+        else:
+            player_id = Users.get_player_id(funcom_id)
+            user = Users(disc_user=disc_user, disc_id=disc_id, funcom_id=funcom_id, player_id=player_id)
+            session.add(user)
         session.commit()
-        logger.info(f"Player {ctx.author} linked SteamID64 {user.steam_id} to the funcom_id {account.funcom_id}.")
-        await ctx.channel.send(f"Your character {char.name} has been successfully linked to your FuncomID.")
+        logger.info(f"Player {ctx.author} set their FuncomID to {funcom_id}.")
+        await ctx.channel.send(f"Your FuncomID has been set to {funcom_id}.")
+
+    @command(name="getfuncomid", help="Checks if your FuncomID has been set.")
+    @has_not_role(NOT_APPLIED_ROLE)
+    async def getfuncomid(self, ctx):
+        disc_id = ctx.author.id
+        disc_user = str(ctx.author)
+        user = session.query(Users).filter_by(disc_id=disc_id).first()
+        if user and user.funcom_id:
+            await ctx.channel.send(f"Your FuncomID is currently set to {user.funcom_id}.")
+        else:
+            await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
+        logger.info(f"Player {ctx.author} set read their FuncomID.")
+
+    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def whois(self, ctx, *, arg):
+        disc_id = disc_user = None
+        # try converting the given argument into a member
+        member = await self.get_member(ctx, arg)
+        if member:
+            disc_id = member.id
+            disc_user = str(member)
+        # if conversion failed, check if the format looks like it's supposed to be a discord member
+        else:
+            if len(arg) > 5 and arg[-5] == '#':
+                disc_user = arg
+            elif len(arg) == 18 and arg.isnumeric():
+                disc_id = arg
+            elif arg[:3] == "<@!" and arg[-1] == '>' and len(arg) == 22:
+                disc_id = arg[3:-1]
+        # try to determine the user
+        users = []
+        if disc_id:
+            user = session.query(Users).filter_by(disc_id=disc_id).first()
+            # update disc_user if conversion succeeded and disc_user is different than the one stored in Users
+            if member and user.disc_user != str(member):
+                user.disc_user = str(member)
+                session.commit()
+            users += [user] if user else []
+        elif disc_user:
+            user = session.query(Users).filter_by(disc_user=disc_user).first()
+            users += [user] if user else []
+        if len(users) == 0:
+            users = Users.get_users(arg)
+        if len(users) == 0:
+            users = Characters.get_users(arg)
+        await ctx.send(await self.get_user_string(arg, users))
+        logger.info(f"Player {ctx.author} used the whois command for {arg}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
     @has_not_role(NOT_APPLIED_ROLE)
     async def mychars(self, ctx):
-        user = session.query(Users).filter_by(disc_user=str(ctx.author)).first()
-        if not user or not user.steam_id:
-            await ctx.send(f"SteamID64 has not been set yet. Please use `{PREFIX}setsteamid <SteamID64` to set your SteamID64. Then you can claim your character with `{PREFIX}claim <character name>`.")
-            logger.info(f"Player {ctx.author} tried to check their chars but hasn't set SteamID64 or linked their characters yet.")
-            return
-        steam64 = session.query(Steam64).filter_by(id=user.steam_id).first()
-        if not steam64 or not steam64.funcom_id:
-            await ctx.send(f"You have not linked your FuncomID to your characters yet. Please use the `{PREFIX}claim <character name>` command to do son and enable the character switch feature.")
-            logger.info(f"Player {ctx.author} tried to check their chars but hasn't linked them to their FuncomID yet.")
-            return
-        if not user.funcom_id:
-            user.funcom_id = steam64.funcom_id
+        users = Users.get_users(ctx.author.id)
+        # update disc_user if different than the one stored in Users
+        user = users[0]
+        if user.disc_user != str(ctx.author):
+            user.disc_user = str(ctx.author)
             session.commit()
-        if not user.player_id:
-            result = session.query(Account).filter_by(funcom_id=steam64.funcom_id).first()
-            if not result:
-                await ctx.send("Couldn't link character to your FuncomID. Please notify an admin as this should never happen.")
-                logger.error(f"No account data for player with funcom_id {steam64.funcom_id}, steam_id {steam64.id} and disc_user {ctx.author} was found. This should never be the case, please investigate!")
-                return
-            user.player_id = result.player_id
-            session.commit()
-        # print(f"player_id: {user.player_id} / funcom_id: {user.funcom_id} / steam_id: {steam64.id} / disc_user: {str(ctx.author)}")
-        player = Player(id=user.player_id, funcom_id=user.funcom_id, steam_id=steam64.id, disc_user=str(ctx.author))
-        msg = f"The characters belonging to your account are:\n"
-        for char in player.characters:
-            lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
-            if char.slot == 'active':
-                msg += f"**{char.name}** on **active** slot (last login: {lldate})\n"
-            else:
-                msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
-        await ctx.send(msg)
+        await ctx.send(await self.get_user_string(str(ctx.author), users))
+        logger.info(f"Player {ctx.author} used mychars command.")
 
 def setup(bot):
     bot.add_cog(General(bot))
