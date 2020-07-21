@@ -10,14 +10,14 @@ from exiles_api import session, Applications
 
 def is_applicant():
     async def predicate(ctx):
-        if not session.query(Applications).filter_by(applicant=str(ctx.author)).first():
+        if not session.query(Applications).filter_by(disc_id=ctx.author.id).first():
             raise NotApplicantError()
         return True
     return check(predicate)
 
 def is_not_applicant():
     async def predicate(ctx):
-        if app := session.query(Applications).filter_by(applicant=str(ctx.author)).first():
+        if app := session.query(Applications).filter_by(disc_id=ctx.author.id).first():
             if app.status == 'accepted':
                 raise MemberError()
             else:
