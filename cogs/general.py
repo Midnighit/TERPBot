@@ -7,76 +7,6 @@ from exceptions import *
 from checks import *
 import random
 
-class Die:
-    def __init__(self, num=1, sides=1, sign=1):
-        self.num = num
-        self.sides = sides
-        self.sign = sign
-
-    def __repr__(self):
-        return f"<Die(num={self.num}, sides={self.sides}, sign={self.sign})>"
-
-    @property
-    def sign(self):
-        return self._sign
-
-    @sign.setter
-    def sign(self, value):
-        if type(value) is str:
-            if value == "+":
-                self._sign = 1
-            elif value == "-":
-                self._sign = -1
-        elif type(value) is int:
-            if value >= 0:
-                self._sign = 1
-            else:
-                self._sign = -1
-
-    @property
-    def num(self):
-        return self._num
-
-    @num.setter
-    def num(self, value):
-        if type(value) is int:
-            if value > 0:
-                self._num = value
-
-    @property
-    def sides(self):
-        return self._sides
-
-    @sides.setter
-    def sides(self, value):
-        if type(value) is int:
-            if value > 0:
-                self._sides = value
-
-    def roll(self):
-        sum = 0
-        for i in range(self._num):
-            sum += random.randint(1, self._sides)
-        return sum * self._sign
-
-class Dice(list):
-    def roll(self):
-        sum = 0
-        results = []
-        for d in self:
-            r = d.roll()
-            results.append(r)
-            sum += r
-        return (results, sum)
-
-    def __repr__(self):
-        repr = "<Dice("
-        idx = 0
-        for d in self:
-            repr += f"die{idx}={'-' if d.sign < 0 else ''}{d.num}d{d.sides}, "
-            idx += 1
-        return repr[:-2] + ")>"
-
 class General(commands.Cog, name="General commands"):
     def __init__(self, bot):
         self.bot = bot
@@ -255,3 +185,73 @@ class General(commands.Cog, name="General commands"):
 
 def setup(bot):
     bot.add_cog(General(bot))
+
+class Die:
+    def __init__(self, num=1, sides=1, sign=1):
+        self.num = num
+        self.sides = sides
+        self.sign = sign
+
+    def __repr__(self):
+        return f"<Die(num={self.num}, sides={self.sides}, sign={self.sign})>"
+
+    @property
+    def sign(self):
+        return self._sign
+
+    @sign.setter
+    def sign(self, value):
+        if type(value) is str:
+            if value == "+":
+                self._sign = 1
+            elif value == "-":
+                self._sign = -1
+        elif type(value) is int:
+            if value >= 0:
+                self._sign = 1
+            else:
+                self._sign = -1
+
+    @property
+    def num(self):
+        return self._num
+
+    @num.setter
+    def num(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._num = value
+
+    @property
+    def sides(self):
+        return self._sides
+
+    @sides.setter
+    def sides(self, value):
+        if type(value) is int:
+            if value > 0:
+                self._sides = value
+
+    def roll(self):
+        sum = 0
+        for i in range(self._num):
+            sum += random.randint(1, self._sides)
+        return sum * self._sign
+
+class Dice(list):
+    def roll(self):
+        sum = 0
+        results = []
+        for d in self:
+            r = d.roll()
+            results.append(r)
+            sum += r
+        return (results, sum)
+
+    def __repr__(self):
+        repr = "<Dice("
+        idx = 0
+        for d in self:
+            repr += f"die{idx}={'-' if d.sign < 0 else ''}{d.num}d{d.sides}, "
+            idx += 1
+        return repr[:-2] + ")>"
