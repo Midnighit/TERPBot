@@ -114,10 +114,8 @@ class General(commands.Cog, name="General commands"):
             user.funcom_id = funcom_id
             user.disc_id = disc_id
             user.disc_user = disc_user
-            user.player_id = Users.get_player_id(funcom_id) or user.player_id
         else:
-            player_id = Users.get_player_id(funcom_id)
-            user = Users(disc_user=disc_user, disc_id=disc_id, funcom_id=funcom_id, player_id=player_id)
+            user = Users(disc_user=disc_user, disc_id=disc_id, funcom_id=funcom_id)
             session.add(user)
         session.commit()
         logger.info(f"Player {ctx.author} set their FuncomID to {funcom_id}.")
@@ -157,12 +155,15 @@ class General(commands.Cog, name="General commands"):
         if disc_id:
             user = session.query(Users).filter_by(disc_id=disc_id).first()
             # update disc_user if conversion succeeded and disc_user is different than the one stored in Users
-            if member and user.disc_user != str(member):
+            if member and user and user.disc_user != str(member):
                 user.disc_user = str(member)
                 session.commit()
             users += [user] if user else []
-        elif disc_user:
+        if not user and disc_user:
             user = session.query(Users).filter_by(disc_user=disc_user).first()
+            if member and user and not user.disc_id:
+                user.disc_id = disc_id
+                session.commit()
             users += [user] if user else []
         if len(users) == 0:
             users = Users.get_users(arg)
