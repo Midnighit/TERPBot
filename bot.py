@@ -1,8 +1,5 @@
-# TERPBot v1.1.2
-import os
-import random
-import discord
-import config as saved
+# TERPBot v1.2.0
+import os, random, discord, config as saved
 from threading import Timer
 from discord import ChannelType
 from discord.ext import commands
@@ -10,8 +7,10 @@ from valve import rcon
 from logger import logger
 from checks import has_role
 from config import *
-from helpers import *
 from exiles_api import *
+from cogs.applications import Applications as Apps
+from cogs.applications import General
+from cogs.applications import RCon
 
 bot = commands.Bot(PREFIX)
 
@@ -58,13 +57,14 @@ async def on_ready():
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
     await member.edit(roles=member.roles + [saved.ROLE[NOT_APPLIED_ROLE]])
-    await saved.CHANNEL[WELCOME].send(parse(member, TextBlocks.get('GREETING')))
+    await saved.CHANNEL[WELCOME].send(Apps.parse(member, TextBlocks.get('GREETING')))
 
 @bot.event
 async def on_member_remove(member):
-    application = await get_application(member)
-    if application and not application.status in ['rejeted' or 'approved']:
-        await delete_application(application)
+    app = session.query(Applications).filter_by(disc_id=ctx.author.id).one()
+    if app and not app.status in ('rejected', 'approved'):
+        session.delete(app)
+        session.commit()
         logger.info(f"{member} just left discord. Ongoing application was cancelled")
     else:
         logger.info(f"{member} just left discord.")
@@ -81,10 +81,10 @@ async def on_message(message):
                 raise RConConnectionError(error.args[1])
             saved.LAST_RESTART_TIME = time
         elif message.content.startswith(RESTART_MSG):
-            delayed_set_time = Timer(150.0, set_time_decimal)
+            delayed_set_time = Timer(150.0, RCon.set_time_decimal)
             delayed_set_time.start()
-    application = await get_application(message.author)
-    if not message.channel.type == ChannelType.private or not application:
+    app = session.query(Applications).filter_by(disc_id=message.author.id).first()
+    if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
             return
         await bot.process_commands(message)
@@ -95,24 +95,23 @@ async def on_message(message):
             if cmd.name == word:
                 await bot.process_commands(message)
                 return
-    if application and application.status in ('rejected', 'accepted'):
+    if app and app.status in ('rejected', 'accepted'):
         return
-    if not application or not await can_edit_questions(application):
-        await message.author.dm_channel.send(parse(message.author, TextBlocks.get('APP_CLOSED')))
+    if not app or not app.can_edit_questions():
+        await message.author.dm_channel.send(Apps.parse(message.author, TextBlocks.get('APP_CLOSED')))
         return
-    if application.current_question < 0:
+    if app.current_question < 0:
         return
-    questions = await get_questions(application)
-    questions[application.current_question - 1].answer = message.content
+    questions = app.questions
+    questions[app.current_question-1].answer = message.content
     session.commit()
-    questionId = await get_next_unanswered(application)
-    if questionId > 0:
-        question = await get_question(application, message.author, id=questionId)
+    app.current_question = app.first_unanswered
+    if app.current_question > 0:
+        question = Apps.get_question_msg(questions, message.author, app.current_question)
         await message.author.dm_channel.send(question)
-    elif not application.status == 'finished':
-        application.status = 'finished'
-        await message.author.dm_channel.send(parse(message.author, TextBlocks.get('FINISHED')))
-    application.current_question = questionId
+    elif not app.status == 'finished':
+        app.status = 'finished'
+        await message.author.dm_channel.send(Apps.parse(message.author, TextBlocks.get('FINISHED')))
     session.commit()
 
 @bot.event
