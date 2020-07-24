@@ -10,6 +10,8 @@ from exiles_api import session, TextBlocks, Applications as AppsTable
 from exceptions import *
 from checks import *
 from helpers import *
+from cogs.general import General
+from cogs.rcon import RCon
 
 class Applications(commands.Cog, name="Application commands"):
     def __init__(self, bot):
@@ -70,34 +72,6 @@ class Applications(commands.Cog, name="Application commands"):
             # get all strings consisting only of the letters a-f and digits that's at least 10 characters long
             result = re.search(r'([a-fA-F0-9]{12,})', questions[num].answer)
             return result.group(1) if result else None
-
-    @staticmethod
-    async def get_member(ctx, name):
-        try:
-            return await commands.MemberConverter().convert(ctx, name)
-        except:
-            try:
-                return await commands.MemberConverter().convert(ctx, name.capitalize())
-            except:
-                return None
-
-    @staticmethod
-    def whitelist_player(funcom_id):
-        try:
-            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
-        except:
-            with open(WHITELIST_PATH, 'r') as f:
-                lines = f.readlines()
-            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
-            filtered = set()
-            for line in lines:
-                if line != "\n" and not "INVALID" in line:
-                    filtered.add(line.strip() + "\n")
-            filtered.add(funcom_id + "\n")
-            with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(['INVALID\n'] + list(filtered))
-            msg = f"Player {funcom_id} added to whitelist."
-        return msg
 
     @staticmethod
     async def get_last_applicant(ctx, user):
@@ -211,7 +185,7 @@ class Applications(commands.Cog, name="Application commands"):
             if applicant is None:
                 await saved.CHANNEL[APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}accept <applicant>`.")
                 return
-        member = await self.get_member(ctx, applicant)
+        member = await General.get_member(ctx, applicant)
         if not member:
             await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
         # confirm that there is a closed application for that Applicant
@@ -231,7 +205,7 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist Applicant
         funcom_id = self.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
         if funcom_id:
-            result = self.whitelist_player(funcom_id)
+            result = RCon.whitelist_player(funcom_id)
             user = session.query(Users).filter_by(disc_id=member.id).first()
             if user:
                 user.disc_user = str(member)
@@ -286,7 +260,7 @@ class Applications(commands.Cog, name="Application commands"):
             if applicant is None:
                 await saved.CHANNEL[APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}reject <applicant> <message>`.")
                 return
-        member = await self.get_member(ctx, applicant)
+        member = await General.get_member(ctx, applicant)
         if not member:
             await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
         # confirm that there is a closed application for that Applicant
@@ -321,7 +295,7 @@ class Applications(commands.Cog, name="Application commands"):
             if applicant is None:
                 await ctx.send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}review <applicant> <message>`.")
                 return
-        member = await self.get_member(ctx, applicant)
+        member = await General.get_member(ctx, applicant)
         if not member:
             await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
         # confirm that there is a closed application for that Applicant
@@ -356,7 +330,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def showapp(self, ctx, *, Applicant=None):
         applicant = Applicant
         if applicant:
-            member = await self.get_member(ctx, applicant)
+            member = await General.get_member(ctx, applicant)
             if not member:
                 await ctx.send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp without a name to get a list of all active applications.")
             app = session.query(AppsTable).filter_by(disc_id=member.id).first()
@@ -376,7 +350,7 @@ class Applications(commands.Cog, name="Application commands"):
             apps = session.query(AppsTable).filter(AppsTable.status.in_(display)).all()
             msg = "" if len(apps) > 0 else "No open applications right now."
             for app in apps:
-                member = await self.get_member(ctx, app.disc_id)
+                member = await General.get_member(ctx, app.disc_id)
                 open_date = app.open_date.strftime("%d-%b-%Y %H:%M UTC")
                 if app.can_edit_questions():
                     msg += f"Applicant **{member}** is **still working** on their application. (Application started on {open_date})\n"
@@ -392,7 +366,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def cancelapp(self, ctx, Applicant, *Message):
         applicant = Applicant
         message = Message
-        member = await self.get_member(ctx, applicant)
+        member = await General.get_member(ctx, applicant)
         if not member:
             await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
         # confirm that there is a closed application for that Applicant
