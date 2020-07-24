@@ -1,3 +1,4 @@
+import sys
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
@@ -8,18 +9,69 @@ from logger import logger
 from exceptions import *
 from checks import *
 from helpers import *
+from cogs.general import General
 
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):
         self.bot = bot
 
+    @staticmethod
+    def whitelist_player(funcom_id):
+        try:
+            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
+        except:
+            with open(WHITELIST_PATH, 'r') as f:
+                lines = f.readlines()
+            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+            filtered = set()
+            for line in lines:
+                if line != "\n" and not "INVALID" in line:
+                    filtered.add(line.strip() + "\n")
+            filtered.add(funcom_id + "\n")
+            with open(WHITELIST_PATH, 'w') as f:
+                f.writelines(list(filtered))
+            msg = f"Player {funcom_id} added to whitelist."
+        return msg
+
+    @staticmethod
+    def unwhitelist_player(funcom_id):
+        try:
+            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"UnWhitelistPlayer {funcom_id}")
+        except:
+            with open(WHITELIST_PATH, 'r') as f:
+                lines = f.readlines()
+            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+            filtered = set()
+            for line in lines:
+                if line != "\n" and not "INVALID" in line and not funcom_id in line:
+                    filtered.add(line.strip() + "\n")
+            with open(WHITELIST_PATH, 'w') as f:
+                f.writelines(list(filtered))
+            msg = f"Player {funcom_id} removed from whitelist."
+        return msg
+
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
+        def rreplace(s, old, new, occurrence=1):
+            li = s.rsplit(old, occurrence)
+            return new.join(li)
+
         try:
             playerlist = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "ListPlayers")
-        except Exception as error:
-            print("excetion raised", type(error), error.args[1])
-            raise RConConnectionError(error.args[1])
+        except Exception as err:
+            await ctx.send("RCon error retrieving the playerlist, please try again in a few seconds.")
+            if hasattr(err, "args"):
+                if len(err.args) >= 2:
+                    print("RConError: err.args[1] ==", err.args[1])
+                    logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
+                else:
+                    print("RConError: err.args ==", err.args)
+                    logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
+            else:
+                print("RConError: sys.exc_info() ==", sys.exc_info()[1])
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() == {sys.exc_info()}")
+            return
+            # raise RConConnectionError(sys.exc_info()[0])
         lines = playerlist.split('\n')
         names = []
         headline = True
@@ -36,22 +88,59 @@ class RCon(commands.Cog, name="RCon commands"):
         elif num < 20:
             await ctx.send(f"__**Players online:**__ {len(names)}\n" + '\n'.join(names))
         else:
-            await ctx.send(rreplace(f"__**Players online:**__ {len(names)}\n" + ', '.join(names), ",", " and", 1))
+            await ctx.send(rreplace(f"__**Players online:**__ {len(names)}\n" + ', '.join(names), ",", " and"))
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name='whitelist', help="Whitelists the player with the given discord nick and SteamID64")
-    @has_role(ADMIN_ROLE)
-    async def whitelist(self, ctx, Player: Member, SteamID64: int):
-        result = await whitelist_player(ctx, SteamID64, Player)
-        if result == "NotSteamIdError":
-            raise NotSteamIdError()
-        elif result == "IsGabesIDError":
-            raise IsGabesIDError()
-        elif result.find("FailedError") >= 0:
-            raise commands.BadArgument(result[12:])
+    @command(name='whitelist', help="Whitelists the player using the given FuncomID")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def whitelist(self, ctx, FuncomID, *Player):
+        result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
+        if not result:
+            raise NotFuncomIdError
+        funcom_id = result.group(1)
+        member = await General.get_member(ctx, " ".join(Player))
+        if not member:
+            await ctx.send(f"Couldn't get id for {Player}. Are you sure they are still on this discord server?")
+            return
+        result = self.whitelist_player(funcom_id)
+        user = session.query(Users).filter_by(disc_id=member.id).first()
+        if user:
+            user.disc_user = str(member)
+            user.funcom_id = funcom_id
         else:
-            await ctx.send(result)
-            print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+            new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
+            session.add(new_user)
+        session.commit()
+        await ctx.send(result)
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+
+    @command(name='whitelistme', help="Whitelists you using the given FuncomID")
+    @has_not_role(NOT_APPLIED_ROLE)
+    async def whitelistme(self, ctx, FuncomID):
+        result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
+        if not result:
+            raise NotFuncomIdError
+        funcom_id = result.group(1)
+        result = self.whitelist_player(funcom_id)
+        user = session.query(Users).filter_by(disc_id=ctx.author.id).first()
+        removed = None
+        if user:
+            if user.funcom_id is not None:
+                removed = user.funcom_id
+                self.unwhitelist_player(removed)
+            user.disc_user = str(ctx.author)
+            user.funcom_id = funcom_id
+        else:
+            new_user = Users(disc_user=str(ctx.author), disc_id=ctx.author.id, funcom_id=funcom_id)
+            session.add(new_user)
+        session.commit()
+        result = result + f" FuncomID {removed} removed from whitelist." if removed else result
+        await ctx.send(f"You have been whitelisted with FuncomID {funcom_id}")
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+        session.commit()
 
     @command(name='gettime', help="Tells the current time on the server")
     async def gettime(self, ctx):

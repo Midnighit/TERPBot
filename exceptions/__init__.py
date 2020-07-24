@@ -60,7 +60,7 @@ class RoleTooLowError(CustomError):
 class NotFuncomIdError(CustomError):
     def __init__(self, msg=None):
         if msg is None:
-            msg = "FuncomID must be at least 10 characters long and may only contain the letters a-f and digits."
+            msg = "FuncomID must be at least 12 characters long and may only contain the letters a-f and digits."
         super().__init__(msg)
 
 class NotNumberError(CustomError):
