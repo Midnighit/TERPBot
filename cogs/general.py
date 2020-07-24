@@ -1,3 +1,4 @@
+import random
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
@@ -5,7 +6,6 @@ from exiles_api import *
 from config import *
 from exceptions import *
 from checks import *
-import random
 
 class General(commands.Cog, name="General commands"):
     def __init__(self, bot):
@@ -98,28 +98,6 @@ class General(commands.Cog, name="General commands"):
     async def roll(self, ctx, *, Dice: str):
         result = await self.roll_dice(Dice)
         await ctx.send(f"{ctx.author.mention} rolled: " + result)
-
-    @command(name="setfuncomid", help="Set your FuncomID (the one used to whitelist you)")
-    @has_not_role(NOT_APPLIED_ROLE)
-    async def setfuncomid(self, ctx, FuncomID: str):
-        funcom_id = FuncomID
-        disc_id = ctx.author.id
-        disc_user = str(ctx.author)
-        users = session.query(Users).filter((Users.funcom_id==funcom_id) | (Users.disc_id==disc_id)).all()
-        if len(users) > 1:
-            await ctx.send(f"Your FuncomID {funcom_id} has already been registered by another user. Please make sure this is really yours. If you are sure, please contact an admin for clarification.")
-            return
-        elif len(users) == 1:
-            user = users[0]
-            user.funcom_id = funcom_id
-            user.disc_id = disc_id
-            user.disc_user = disc_user
-        else:
-            user = Users(disc_user=disc_user, disc_id=disc_id, funcom_id=funcom_id)
-            session.add(user)
-        session.commit()
-        logger.info(f"Player {ctx.author} set their FuncomID to {funcom_id}.")
-        await ctx.channel.send(f"Your FuncomID has been set to {funcom_id}.")
 
     @command(name="getfuncomid", help="Checks if your FuncomID has been set.")
     @has_not_role(NOT_APPLIED_ROLE)
