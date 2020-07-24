@@ -1,15 +1,14 @@
-import re
-import config as saved
+import re, config as saved
+from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from valve import rcon
 from datetime import datetime
 from logger import logger
 from config import *
-from exiles_api import session, TextBlocks, Applications as AppsTable
+from exiles_api import session, TextBlocks, Users, Applications as AppsTable
 from exceptions import *
 from checks import *
-from helpers import *
 from cogs.general import General
 from cogs.rcon import RCon
 
@@ -21,7 +20,7 @@ class Applications(commands.Cog, name="Application commands"):
     def parse(user, msg):
         msg = str(msg).replace('{PREFIX}', PREFIX) \
                       .replace('{OWNER}', saved.GUILD.owner.mention)
-        msg = msg.replace('{PLAYER}', user.mention) if type(user) == Member else msg.replace('{PLAYER}', str(user))
+        msg = msg.replace('{PLAYER}', user.mention) if type(user) is Member else msg.replace('{PLAYER}', str(user))
         for name, channel in saved.CHANNEL.items():
             msg = re.sub("(?i){" + name + "}", channel.mention, msg)
         for name, role in saved.ROLE.items():
