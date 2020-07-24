@@ -1,14 +1,14 @@
-import sys
+import sys, re, config as saved
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from threading import Timer
 from valve import rcon
 from config import *
+from exiles_api import *
 from logger import logger
 from exceptions import *
 from checks import *
-from helpers import *
 from cogs.general import General
 
 class RCon(commands.Cog, name="RCon commands"):
@@ -49,6 +49,43 @@ class RCon(commands.Cog, name="RCon commands"):
                 f.writelines(list(filtered))
             msg = f"Player {funcom_id} removed from whitelist."
         return msg
+
+    @staticmethod
+    def is_time_format(time):
+        tLst = time.split(':')
+        if not tLst:
+            return False
+
+        if len(tLst) >= 1 and tLst[0].isnumeric() and int(tLst[0]) >= 0:
+            hours = str(int(tLst[0]) % 24)
+        else:
+            return False
+
+        if len(tLst) >= 2 and tLst[1].isnumeric() and int(tLst[1]) >= 0 and int(tLst[1]) < 60:
+            minutes = tLst[1]
+        elif len(tLst) < 2:
+            minutes = '00'
+        else:
+            return False
+
+        if len(tLst) >= 3 and tLst[2].isnumeric() and int(tLst[2]) >= 0 and int(tLst[2]) < 60:
+            seconds = tLst[2]
+        elif len(tLst) < 3:
+            seconds = '00'
+        else:
+            return False
+
+        return ':'.join([hours, minutes, seconds])
+
+    @staticmethod
+    def set_time_decimal():
+        logger.info(f"Trying to reset the time to the previously read time of {LAST_RESTART_TIME}")
+        try:
+            rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTimeDecimal {LAST_RESTART_TIME}")
+            logger.info("Time was reset successfully!")
+        except Exception as error:
+            raise RConConnectionError(error.args[1])
+        saved.LAST_RESTART_TIME = 12.0
 
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
@@ -167,7 +204,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='settime', help="Sets the time on the server")
     @has_role(ADMIN_ROLE)
     async def settime(self, ctx, Time):
-        time = await is_time_format(Time)
+        time = self.is_time_format(Time)
         if not time:
             await ctx.send("Bad time format. Please enter time in HH[:MM[:SS]] 24h format.")
             return
