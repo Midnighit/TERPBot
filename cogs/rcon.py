@@ -51,6 +51,45 @@ class RCon(commands.Cog, name="RCon commands"):
         return msg
 
     @staticmethod
+    def update_user(funcom_id, member):
+        removed = []
+        # get all users who share either of the three attributes
+        users = session.query(Users).filter(
+            (Users.disc_id==member.id) |
+            (Users.disc_user==str(member)) |
+            (Users.funcom_id==funcom_id)).all()
+        # if none were found, create a new user
+        if len(users) == 0:
+            new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
+            session.add(new_user)
+        # if only one was found, update that user
+        elif len(users) == 1:
+            user = users[0]
+            if user.funcom_id:
+                removed = [user.funcom_id]
+            user.disc_id = member.id
+            user.disc_user = str(member)
+            user.funcom_id = funcom_id
+        # if more than one were found, either consolidate or deny
+        else:
+            # desired funcom_id is already used by another user => deny
+            user = session.query(Users).filter_by(funcom_id=funcom_id).first()
+            if user:
+                return False
+            # disc_user and disc_id are in two separate rows => consolidate
+            user = session.query(Users).filter_by(disc_user=str(member)).first()
+            if user.funcom_id:
+                removed = [user.funcom_id]
+            session.delete(user)
+            user = session.query(Users).filter_by(disc_id=member.id).first()
+            if user.funcom_id:
+                removed += [user.funcom_id]
+            user.disc_user = str(member)
+            user.funcom_id = funcom_id
+        session.commit()
+        return removed if len(removed) > 0 else True
+
+    @staticmethod
     def is_time_format(time):
         tLst = time.split(':')
         if not tLst:
@@ -89,8 +128,8 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
-        def rreplace(s, old, new, occurrence=1):
-            li = s.rsplit(old, occurrence)
+        def rreplace(s, old, new):
+            li = s.rsplit(old, 1)
             return new.join(li)
 
         try:
@@ -132,6 +171,10 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='whitelist', help="Whitelists the player using the given FuncomID")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whitelist(self, ctx, FuncomID, *Player):
+        def rreplace(s, old, new):
+            li = s.rsplit(old, 1)
+            return new.join(li)
+
         result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
         if not result:
             raise NotFuncomIdError
@@ -140,18 +183,21 @@ class RCon(commands.Cog, name="RCon commands"):
         if not member:
             await ctx.send(f"Couldn't get id for {Player}. Are you sure they are still on this discord server?")
             return
-        result = self.whitelist_player(funcom_id)
-        user = session.query(Users).filter_by(disc_id=member.id).first()
-        if user:
-            user.disc_user = str(member)
-            user.funcom_id = funcom_id
-        else:
-            new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
-            session.add(new_user)
-        session.commit()
-        await ctx.send(result)
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+        success = self.update_user(funcom_id, member)
+        if not success:
+            await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
+            return
+        if type(success) is list:
+            removed = success
+            for id in removed:
+                RCon.unwhitelist_player(id)
+        msg = RCon.whitelist_player(funcom_id)
+        if removed:
+            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+            msg += f" Previous {r} removed from whitelist."
+        await ctx.send(msg)
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
     @command(name='whitelistme', help="Whitelists you using the given FuncomID")
     @has_not_role(NOT_APPLIED_ROLE)
@@ -160,24 +206,22 @@ class RCon(commands.Cog, name="RCon commands"):
         if not result:
             raise NotFuncomIdError
         funcom_id = result.group(1)
-        result = self.whitelist_player(funcom_id)
-        user = session.query(Users).filter_by(disc_id=ctx.author.id).first()
-        removed = None
-        if user:
-            if user.funcom_id is not None:
-                removed = user.funcom_id
-                self.unwhitelist_player(removed)
-            user.disc_user = str(ctx.author)
-            user.funcom_id = funcom_id
-        else:
-            new_user = Users(disc_user=str(ctx.author), disc_id=ctx.author.id, funcom_id=funcom_id)
-            session.add(new_user)
-        session.commit()
-        result = result + f" FuncomID {removed} removed from whitelist." if removed else result
-        await ctx.send(f"You have been whitelisted with FuncomID {funcom_id}")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-        session.commit()
+        success = self.update_user(funcom_id, ctx.author)
+        if not success:
+            await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
+            return
+        if type(success) is list:
+            removed = success
+            for id in removed:
+                RCon.unwhitelist_player(id)
+        RCon.whitelist_player(funcom_id)
+        msg = f"You have been whitelisted with FuncomID {funcom_id}."
+        if removed:
+            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+            msg += f" Previous {r} removed from whitelist."
+        await ctx.send(msg)
+        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
     @command(name='gettime', help="Tells the current time on the server")
     async def gettime(self, ctx):
