@@ -19,7 +19,6 @@ class RCon(commands.Cog, name="RCon commands"):
     def whitelist_player(funcom_id):
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
-            print(msg)
         except:
             try:
                 with open(WHITELIST_PATH, 'r') as f:
