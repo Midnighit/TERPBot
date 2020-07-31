@@ -84,14 +84,17 @@ class General(commands.Cog, name="General commands"):
             return f"No discord user or chracter named {arg} was found."
         msg = ''
         for user in users:
-            msg += f"The characters belonging to the discord nick **{user.disc_user}** are:\n"
-            for char in user.characters:
-                lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
-                if char.slot == 'active':
-                    msg += f"**{char.name}** on **active** slot (last login: {lldate})\n"
-                else:
-                    msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
-            msg += '\n'
+            if len(user.characters) == 0:
+                msg += f"No characters linked to discord nick **{user.disc_user}** have been found.\n"
+            else:
+                msg += f"The characters belonging to the discord nick **{user.disc_user}** are:\n"
+                for char in user.characters:
+                    lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
+                    if char.slot == 'active':
+                        msg += f"**{char.name}** on **active** slot (last login: {lldate})\n"
+                    else:
+                        msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
+                msg += '\n'
         return msg[:-2]
 
     @command(name='roll', help="Rolls a dice in NdN format")
@@ -154,6 +157,9 @@ class General(commands.Cog, name="General commands"):
     @has_not_role(NOT_APPLIED_ROLE)
     async def mychars(self, ctx):
         users = Users.get_users(ctx.author.id)
+        if not users:
+            await ctx.send("No characters linked to your discord account have been found. Have you been whitelisted already?")
+            return
         # update disc_user if different than the one stored in Users
         user = users[0]
         if user.disc_user != str(ctx.author):
