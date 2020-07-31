@@ -16,30 +16,27 @@ class RCon(commands.Cog, name="RCon commands"):
         self.bot = bot
 
     @staticmethod
-    def write_to_whitelist(funcom_id):
-        try:
-            with open(WHITELIST_PATH, 'r') as f:
-                lines = f.readlines()
-        except:
-            lines = []
-        # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
-        filtered = set()
-        for line in lines:
-            if line != "\n" and not "INVALID" in line:
-                filtered.add(line.strip() + "\n")
-        filtered.add(funcom_id + "\n")
-        with open(WHITELIST_PATH, 'w+') as f:
-            f.writelines(list(filtered))
-        msg = f"Player {funcom_id} added to whitelist."
-
-    @staticmethod
     def whitelist_player(funcom_id):
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
+            print(msg)
         except:
-            msg = RCon.write_to_whitelist(funcom_id)
-        if msg == "Still processing previous command.":
-            msg = RCon.write_to_whitelist(funcom_id)
+            try:
+                with open(WHITELIST_PATH, 'r') as f:
+                    lines = f.readlines()
+            except:
+                with open(WHITELIST_PATH, 'w') as f:
+                    pass
+                lines = []
+            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+            filtered = set()
+            for line in lines:
+                if line != "\n" and not "INVALID" in line:
+                    filtered.add(line.strip() + "\n")
+            filtered.add(funcom_id + "\n")
+            with open(WHITELIST_PATH, 'w') as f:
+                f.writelines(list(filtered))
+            msg = f"Player {funcom_id} added to whitelist."
         return msg
 
     @staticmethod
@@ -74,7 +71,7 @@ class RCon(commands.Cog, name="RCon commands"):
         # if only one was found, update that user
         elif len(users) == 1:
             user = users[0]
-            if user.funcom_id:
+            if user.funcom_id and user.funcom_id != funcom_id:
                 removed = [user.funcom_id]
             user.disc_id = member.id
             user.disc_user = str(member)
@@ -201,9 +198,12 @@ class RCon(commands.Cog, name="RCon commands"):
             for id in removed:
                 RCon.unwhitelist_player(id)
         msg = RCon.whitelist_player(funcom_id)
-        if removed:
-            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
-            msg += f" Previous {r} removed from whitelist."
+        if not msg.endswith("added to whitelist."):
+            msg = f"Whitelisting failed. Server didn't respond. Please try again later."
+        else:
+            if removed:
+                r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+                msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -224,11 +224,14 @@ class RCon(commands.Cog, name="RCon commands"):
             removed = success
             for id in removed:
                 RCon.unwhitelist_player(id)
-        RCon.whitelist_player(funcom_id)
-        msg = f"You have been whitelisted with FuncomID {funcom_id}."
-        if removed:
-            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
-            msg += f" Previous {r} removed from whitelist."
+        msg = RCon.whitelist_player(funcom_id)
+        if not msg.endswith("added to whitelist."):
+            msg = f"Whitelisting failed. Server didn't respond. Please try again later."
+        else:
+            msg = f"You have been whitelisted with FuncomID {funcom_id}."
+            if removed:
+                r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+                msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
         print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
