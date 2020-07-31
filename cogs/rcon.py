@@ -16,21 +16,30 @@ class RCon(commands.Cog, name="RCon commands"):
         self.bot = bot
 
     @staticmethod
+    def write_to_whitelist(funcom_id):
+        try:
+            with open(WHITELIST_PATH, 'r') as f:
+                lines = f.readlines()
+        except:
+            lines = []
+        # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+        filtered = set()
+        for line in lines:
+            if line != "\n" and not "INVALID" in line:
+                filtered.add(line.strip() + "\n")
+        filtered.add(funcom_id + "\n")
+        with open(WHITELIST_PATH, 'w+') as f:
+            f.writelines(list(filtered))
+        msg = f"Player {funcom_id} added to whitelist."
+
+    @staticmethod
     def whitelist_player(funcom_id):
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
         except:
-            with open(WHITELIST_PATH, 'r') as f:
-                lines = f.readlines()
-            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
-            filtered = set()
-            for line in lines:
-                if line != "\n" and not "INVALID" in line:
-                    filtered.add(line.strip() + "\n")
-            filtered.add(funcom_id + "\n")
-            with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(list(filtered))
-            msg = f"Player {funcom_id} added to whitelist."
+            msg = RCon.write_to_whitelist(funcom_id)
+        if msg == "Still processing previous command.":
+            msg = RCon.write_to_whitelist(funcom_id)
         return msg
 
     @staticmethod
