@@ -212,6 +212,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @has_not_role(NOT_APPLIED_ROLE)
     async def whitelistme(self, ctx, FuncomID):
         result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
+        removed = None
         if not result:
             raise NotFuncomIdError
         funcom_id = result.group(1)
