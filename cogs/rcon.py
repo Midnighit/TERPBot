@@ -118,9 +118,9 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     def set_time_decimal():
-        logger.info(f"Trying to reset the time to the previously read time of {LAST_RESTART_TIME}")
+        logger.info(f"Trying to reset the time to the previously read time of {saved.LAST_RESTART_TIME}")
         try:
-            rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTimeDecimal {LAST_RESTART_TIME}")
+            rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTimeDecimal {saved.LAST_RESTART_TIME}")
             logger.info("Time was reset successfully!")
         except Exception as error:
             raise RConConnectionError(error.args[1])
