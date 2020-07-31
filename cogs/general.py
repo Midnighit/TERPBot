@@ -127,7 +127,7 @@ class General(commands.Cog, name="General commands"):
         else:
             if len(arg) > 5 and arg[-5] == '#':
                 disc_user = arg
-            elif len(arg) == 18 and arg.isnumeric():
+            elif len(arg) >= 17 and arg.isnumeric():
                 disc_id = arg
             elif arg[:3] == "<@!" and arg[-1] == '>' and len(arg) == 22:
                 disc_id = arg[3:-1]
