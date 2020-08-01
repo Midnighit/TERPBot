@@ -117,7 +117,7 @@ class General(commands.Cog, name="General commands"):
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
-        disc_id = disc_user = None
+        disc_id = disc_user = user = None
         # try converting the given argument into a member
         member = await self.get_member(ctx, arg)
         if member:
