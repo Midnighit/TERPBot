@@ -143,13 +143,13 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send("RCon error retrieving the playerlist, please try again in a few seconds.")
             if hasattr(err, "args"):
                 if len(err.args) >= 2:
-                    print("RConError: err.args[1] ==", err.args[1])
+                    print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] ==", err.args[1])
                     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
                 else:
-                    print("RConError: err.args ==", err.args)
+                    print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args ==", err.args)
                     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
             else:
-                print("RConError: sys.exc_info() ==", sys.exc_info()[1])
+                print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() ==", sys.exc_info()[1])
                 logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() == {sys.exc_info()}")
             return
             # raise RConConnectionError(sys.exc_info()[0])
@@ -183,7 +183,8 @@ class RCon(commands.Cog, name="RCon commands"):
         result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
         if not result:
             raise NotFuncomIdError
-        funcom_id = result.group(1)
+        funcom_id = result.group(1).upper()
+        return
         member = await General.get_member(ctx, " ".join(Player))
         if not member:
             await ctx.send(f"Couldn't get id for {Player}. Are you sure they are still on this discord server?")
@@ -214,7 +215,8 @@ class RCon(commands.Cog, name="RCon commands"):
         removed = None
         if not result:
             raise NotFuncomIdError
-        funcom_id = result.group(1)
+        funcom_id = result.group(1).upper()
+        return
         success = self.update_user(funcom_id, ctx.author)
         if not success:
             await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
