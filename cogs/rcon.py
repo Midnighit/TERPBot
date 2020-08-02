@@ -192,6 +192,7 @@ class RCon(commands.Cog, name="RCon commands"):
         if not success:
             await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
             return
+        removed = None
         if type(success) is list:
             removed = success
             for id in removed:
