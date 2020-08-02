@@ -79,15 +79,17 @@ class General(commands.Cog, name="General commands"):
                 return None
 
     @staticmethod
-    async def get_user_string(arg, users):
+    async def get_user_string(arg, users, with_id=False):
         if not users:
             return f"No discord user or chracter named {arg} was found."
         msg = ''
+
         for user in users:
+            id = '(@' + user.disc_id + ') ' if with_id else ''
             if len(user.characters) == 0:
-                msg += f"No characters linked to discord nick **{user.disc_user}** have been found.\n"
+                msg += f"No characters linked to discord nick **{user.disc_user}** {id}have been found.\n"
             else:
-                msg += f"The characters belonging to the discord nick **{user.disc_user}** are:\n"
+                msg += f"The characters belonging to the discord nick **{user.disc_user}** {id} are:\n"
                 for char in user.characters:
                     lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
                     if char.slot == 'active':
@@ -150,7 +152,7 @@ class General(commands.Cog, name="General commands"):
             users = Users.get_users(arg)
         if len(users) == 0:
             users = Characters.get_users(arg)
-        await ctx.send(await self.get_user_string(arg, users))
+        await ctx.send(await self.get_user_string(arg, users, True))
         logger.info(f"Player {ctx.author} used the whois command for {arg}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
