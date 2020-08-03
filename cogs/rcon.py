@@ -1,4 +1,4 @@
-import sys, re, config as saved
+import sys, re
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
@@ -17,9 +17,29 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     def whitelist_player(funcom_id):
+        msg = "Whitelisting failed. Server didn't respond. Please try again later."
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
+            if msg == f"Player {funcom_id} added to whitelist.":
+                return msg
         except:
+            pass
+        # when server is completely down and doesn't react
+        if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
+            write2file = True
+        # before server has really begun starting up, still allows writing to file
+        elif  msg == "Couldn't find the command: WhitelistPlayer. Try \"help\"":
+            write2file = True
+        # server is up but rejected command
+        elif msg == "Still processing previous command.":
+            write2file = False
+        # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+        else:
+            write2file = False
+            print(f"Error: {msg}")
+            logger.error(msg)
+            return msg
+        if write2file:
             try:
                 with open(WHITELIST_PATH, 'r') as f:
                     lines = f.readlines()
@@ -40,11 +60,36 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     def unwhitelist_player(funcom_id):
+        msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"UnWhitelistPlayer {funcom_id}")
+            if msg == f"Player {funcom_id} removed from whitelist.":
+                return msg
         except:
-            with open(WHITELIST_PATH, 'r') as f:
-                lines = f.readlines()
+            pass
+        # when server is completely down and doesn't react
+        if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
+            write2file = True
+        # before server has really begun starting up, still allows writing to file
+        elif  msg == "Couldn't find the command: UnWhitelistPlayer. Try \"help\"":
+            write2file = True
+        # server is up but rejected command
+        elif msg == "Still processing previous command.":
+            write2file = False
+        # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+        else:
+            write2file = False
+            print(f"Error: {msg}")
+            logger.error(msg)
+            return msg
+        if write2file:
+            try:
+                with open(WHITELIST_PATH, 'r') as f:
+                    lines = f.readlines()
+            except:
+                with open(WHITELIST_PATH, 'w') as f:
+                    pass
+                lines = []
             # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
             filtered = set()
             for line in lines:
@@ -184,7 +229,6 @@ class RCon(commands.Cog, name="RCon commands"):
         if not result:
             raise NotFuncomIdError
         funcom_id = result.group(1).upper()
-        return
         member = await General.get_member(ctx, " ".join(Player))
         if not member:
             await ctx.send(f"Couldn't get id for {Player}. Are you sure they are still on this discord server?")
@@ -213,22 +257,21 @@ class RCon(commands.Cog, name="RCon commands"):
     @has_not_role(NOT_APPLIED_ROLE)
     async def whitelistme(self, ctx, FuncomID):
         result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
-        removed = None
         if not result:
             raise NotFuncomIdError
         funcom_id = result.group(1).upper()
-        return
         success = self.update_user(funcom_id, ctx.author)
         if not success:
-            await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
+            await ctx.send(f"Whitelisting failed. FuncomID already in use by another player.")
             return
+        removed = None
         if type(success) is list:
             removed = success
             for id in removed:
                 RCon.unwhitelist_player(id)
         msg = RCon.whitelist_player(funcom_id)
         if not msg.endswith("added to whitelist."):
-            msg = f"Whitelisting failed. Server didn't respond. Please try again later."
+            msg = "Whitelisting failed. Server didn't respond. Please try again later."
         else:
             msg = f"You have been whitelisted with FuncomID {funcom_id}."
             if removed:
