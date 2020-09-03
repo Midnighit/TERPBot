@@ -3,6 +3,7 @@ from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from threading import Timer
+from psutil import process_iter
 from valve import rcon
 from config import *
 from exiles_api import *
@@ -14,6 +15,19 @@ from cogs.general import General
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):
         self.bot = bot
+
+    @staticmethod
+    def is_running(process_name, strict=False):
+        '''Check if there is any running process that contains the given name process_name.'''
+        #Iterate over the all the running process
+        for proc in process_iter():
+            try:
+                # Check if process name contains the given name string.
+                if process_name.lower() in proc.name().lower():
+                    return True
+            except:
+                pass
+        return False
 
     @staticmethod
     def whitelist_player(funcom_id):
@@ -39,7 +53,7 @@ class RCon(commands.Cog, name="RCon commands"):
             print(f"Error: {msg}")
             logger.error(msg)
             return msg
-        if write2file:
+        if write2file and not RCon.is_running('ConanSandboxServer'):
             try:
                 with open(WHITELIST_PATH, 'r') as f:
                     lines = f.readlines()
@@ -49,13 +63,28 @@ class RCon(commands.Cog, name="RCon commands"):
                 lines = []
             # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
             filtered = set()
+            names = {}
             for line in lines:
                 if line != "\n" and not "INVALID" in line:
-                    filtered.add(line.strip() + "\n")
-            filtered.add(funcom_id + "\n")
+                    res = line.split(':')
+                    id = res[0].strip()
+                    if len(res) > 1:
+                        name = res[1].strip()
+                    else:
+                        name = 'Unknown'
+                    filtered.add(id)
+                    if not id in names or names[id] == 'Unknown':
+                        names[id] = name
+            filtered.add(funcom_id)
+            names[funcom_id] = 'Unknown'
+            wlist = []
+            for id in filtered:
+                wlist.append(id + ':' + names[id] + '\n')
             with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(list(filtered))
+                f.writelines(wlist)
             msg = f"Player {funcom_id} added to whitelist."
+        elif write2file and RCon.is_running('ConanSandboxServer'):
+            msg = f"Server is not ready. Please try again later."
         return msg
 
     @staticmethod
@@ -82,7 +111,7 @@ class RCon(commands.Cog, name="RCon commands"):
             print(f"Error: {msg}")
             logger.error(msg)
             return msg
-        if write2file:
+        if write2file and not RCon.is_running('ConanSandboxServer'):
             try:
                 with open(WHITELIST_PATH, 'r') as f:
                     lines = f.readlines()
@@ -92,12 +121,26 @@ class RCon(commands.Cog, name="RCon commands"):
                 lines = []
             # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
             filtered = set()
+            names = {}
             for line in lines:
                 if line != "\n" and not "INVALID" in line and not funcom_id in line:
-                    filtered.add(line.strip() + "\n")
+                    res = line.split(':')
+                    id = res[0].strip()
+                    if len(res) > 1:
+                        name = res[1].strip()
+                    else:
+                        name = 'Unknown'
+                    filtered.add(id)
+                    if not id in names or names[id] == 'Unknown':
+                        names[id] = name
+            wlist = []
+            for id in filtered:
+                wlist.append(id + ':' + names[id] + '\n')
             with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(list(filtered))
+                f.writelines(wlist)
             msg = f"Player {funcom_id} removed from whitelist."
+        elif write2file and RCon.is_running('ConanSandboxServer'):
+            msg = f"Server is not ready. Please try again later."
         return msg
 
     @staticmethod
