@@ -1,4 +1,4 @@
-import sys, re
+import sys, re, itertools
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
@@ -354,9 +354,14 @@ class RCon(commands.Cog, name="RCon commands"):
         # split lines into id and name. Remove duplicates.
         filtered = set()
         names = {}
+        # define regular expression to filter out unprintable characters
+        control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
+        control_char_re = re.compile('[%s]' % re.escape(control_chars))
         for line in lines:
             if line != "\n" and not "INVALID" in line:
-                res = line.split(':')
+                # remove unprintable characters from the line
+                res = control_char_re.sub('', line)
+                res = res.split(':')
                 id = res[0].strip()
                 if len(res) > 1:
                     name = res[1].strip()
