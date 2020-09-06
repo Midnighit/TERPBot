@@ -202,6 +202,8 @@ class Applications(commands.Cog, name="Application commands"):
             await member.edit(roles=new_roles)
 
         # Whitelist Applicant
+        if not hasattr(app, 'questions'):
+            await ctx.send(f"Failed to whitelist because FuncomID for {member} couldn't be determined.")
         funcom_id = self.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
         if funcom_id:
             result = RCon.whitelist_player(funcom_id)
