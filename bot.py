@@ -56,7 +56,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
-    await member.edit(roles=member.roles + [saved.ROLE[NOT_APPLIED_ROLE]])
+    await member.edit(roles=[saved.ROLE[NOT_APPLIED_ROLE]])
     await saved.CHANNEL[WELCOME].send(Apps.parse(member, TextBlocks.get('GREETING')))
 
 @bot.event
