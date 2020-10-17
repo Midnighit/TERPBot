@@ -17,6 +17,10 @@ class RCon(commands.Cog, name="RCon commands"):
         self.bot = bot
 
     @staticmethod
+    def is_hex(s):
+        return all(c in '1234567890ABCDEF' for c in s.upper())
+
+    @staticmethod
     def is_running(process_name, strict=False):
         '''Check if there is any running process that contains the given name process_name.'''
         #Iterate over the all the running process
@@ -31,6 +35,10 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     def whitelist_player(funcom_id):
+        if not RCon.is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
+            return f"{funcom_id} is not a valid FuncomID."
+        elif funcom_id == "8187A5834CD94E58":
+            return f"{funcom_id} is the example FuncomID of Midnight."
         msg = "Whitelisting failed. Server didn't respond. Please try again later."
         try:
             msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
