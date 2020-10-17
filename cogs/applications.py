@@ -69,8 +69,9 @@ class Applications(commands.Cog, name="Application commands"):
         if questions:
             questions[num].answer
             # get all strings consisting only of the letters a-f and digits that's at least 10 characters long
-            result = re.search(r'([a-fA-F0-9]{12,})', questions[num].answer)
-            return result.group(1) if result else None
+            result = re.search(r'([a-fA-F0-9]{14,16})', questions[num].answer)
+            return result.group(1).upper() if result else None
+        return None
 
     @staticmethod
     async def get_last_applicant(ctx, user):
@@ -196,6 +197,7 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send("Can't accept application while it's still being worked on.")
             return
         # remove Not Applied role
+        logger.info(f"saved.ROLE[NOT_APPLIED_ROLE] == {saved.ROLE[NOT_APPLIED_ROLE]}, member == {member}, member.roles == {member.roles}")
         if saved.ROLE[NOT_APPLIED_ROLE] in member.roles:
             new_roles = member.roles
             new_roles.remove(ROLE[NOT_APPLIED_ROLE])
@@ -204,16 +206,20 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist Applicant
         if not hasattr(app, 'questions'):
             await ctx.send(f"Failed to whitelist because FuncomID for {member} couldn't be determined.")
-        funcom_id = self.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
+            return
+
+        funcom_id = Applications.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
         if funcom_id:
+            funcom_id = funcom_id.upper()
             result = RCon.whitelist_player(funcom_id)
-            user = session.query(Users).filter_by(disc_id=member.id).first()
-            if user:
-                user.disc_user = str(member)
-                user.funcom_id = funcom_id
-            else:
-                new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
-                session.add(new_user)
+            if result == f"Player {funcom_id} added to whitelist.":
+                user = session.query(Users).filter_by(disc_id=member.id).first()
+                if user:
+                    user.disc_user = str(member)
+                    user.funcom_id = funcom_id
+                else:
+                    new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
+                    session.add(new_user)
         else:
             result = "NoFuncomIDinAnswer"
 
@@ -232,7 +238,7 @@ class Applications(commands.Cog, name="Application commands"):
         info = self.parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
         if result == "NoFuncomIDinAnswer":
             await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + self.parse(member, TextBlocks.get('WHITELISTING_FAILED')))
-            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {questions[app.funcom_id_row - 1].answer}\n{info}")
+            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
             print(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
         elif result.find("FailedError") >= 0:
