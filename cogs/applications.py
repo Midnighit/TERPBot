@@ -197,11 +197,14 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send("Can't accept application while it's still being worked on.")
             return
         # remove Not Applied role
-        logger.info(f"saved.ROLE[NOT_APPLIED_ROLE] == {saved.ROLE[NOT_APPLIED_ROLE]}, member == {member}, member.roles == {member.roles}")
+        logger.error(f"saved.ROLE[NOT_APPLIED_ROLE] == {saved.ROLE[NOT_APPLIED_ROLE]}, member == {member}, member.roles == {member.roles}")
         if saved.ROLE[NOT_APPLIED_ROLE] in member.roles:
+            logger.error("Not Applied role found, removing it now")
             new_roles = member.roles
             new_roles.remove(ROLE[NOT_APPLIED_ROLE])
+            logger.error(f"new_roles == {new_roles}")
             await member.edit(roles=new_roles)
+            logger.error(f"Member roles after removal == {member.roles}")
 
         # Whitelist Applicant
         if not hasattr(app, 'questions'):
@@ -232,7 +235,6 @@ class Applications(commands.Cog, name="Application commands"):
             message = self.parse(ctx.author, TextBlocks.get('ACCEPTED'))
         await ctx.send(f"{member}'s application has been accepted.")
         await member.send("Your application was accepted:\n" + message)
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
 
         # Send feedback about whitelisting success
         info = self.parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
