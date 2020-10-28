@@ -12,7 +12,9 @@ from cogs.applications import Applications as Apps
 from cogs.applications import General
 from cogs.applications import RCon
 
-bot = commands.Bot(PREFIX)
+intents = discord.Intents.default()
+intents.members = True
+bot = commands.Bot(PREFIX, intents=intents)
 
 ##############
 ''' Events '''
