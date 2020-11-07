@@ -1,4 +1,6 @@
-# TERPBot v1.2.0
+# TERPBot v1.2.1
+import os, random, discord, asyncio, config as saved
+from datetime import datetime, timedelta
 import os, random, discord, config as saved
 from threading import Timer
 from discord import ChannelType
@@ -9,12 +11,40 @@ from checks import has_role
 from config import *
 from exiles_api import *
 from cogs.applications import Applications as Apps
-from cogs.applications import General
-from cogs.applications import RCon
+from cogs.general import General
+from cogs.rcon import RCon
 
 intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(PREFIX, intents=intents)
+
+"""
+def next_weekday(d, weekday):
+    days_ahead = weekday - d.weekday()
+    if days_ahead <= 0: # Target day already happened this week
+        days_ahead += 7
+    return d + datetime.timedelta(days_ahead)
+
+d = datetime.date(2011, 7, 2)
+next_monday = next_weekday(d, 0) # 0 = Monday, 1=Tuesday, 2=Wednesday...
+print(next_monday)
+
+simplify to (day - today) % 7. Negative results in the subtraction will be treated as you expect. For example -1 % 7 gives 6.
+
+"""
+
+async def update_roles():
+    while True:
+        # schedule the next function call
+        now = datetime.utcnow()
+        date = now.date()
+        if now.time() > UPDATE_ROLES:
+            date = now.date() + timedelta(days=1)
+        then = datetime.combine(date, UPDATE_ROLES)
+        await discord.utils.sleep_until(then)
+        # perfom the actual role update
+        for char in session.query(Characters).all():
+            pass
 
 ##############
 ''' Events '''
@@ -58,7 +88,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
-    await member.edit(roles=[saved.ROLE[NOT_APPLIED_ROLE]])
+    await member.add_roles(saved.ROLE[NOT_APPLIED_ROLE])
     await saved.CHANNEL[WELCOME].send(Apps.parse(member, TextBlocks.get('GREETING')))
 
 @bot.event
