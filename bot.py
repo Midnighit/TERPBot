@@ -187,8 +187,9 @@ async def on_ready():
     for filename in os.listdir("cogs"):
         if filename.endswith(".py"):
             bot.load_extension(f"cogs.{filename[:-3]}")
-    update_roles_task = asyncio.create_task(update_roles())
-    update_roles_task.add_done_callback(exception_catching_callback)
+    if UPDATE_ROLES_TIME:
+        update_roles_task = asyncio.create_task(update_roles())
+        update_roles_task.add_done_callback(exception_catching_callback)
 
 @bot.event
 async def on_member_join(member):
