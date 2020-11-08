@@ -1,4 +1,4 @@
-import random
+import random, config, time as saved
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
@@ -10,6 +10,40 @@ from checks import *
 class General(commands.Cog, name="General commands"):
     def __init__(self, bot):
         self.bot = bot
+
+    @staticmethod
+    def print_iter(iter):
+        if type(iter) == dict:
+            print("{")
+            for k, v in iter.items():
+                print(f"    {k}: {v},")
+            print("}")
+        elif type(iter) == list:
+            print("[")
+            for idx in range(len(iter)):
+                print(f"    {idx}: {iter[idx]},")
+            print("]")
+
+    @staticmethod
+    async def get_guild_roles():
+        roles = {}
+        for role in saved.GUILD.roles:
+            roles[role.name] = role
+        return roles
+
+    @staticmethod
+    async def get_guild_categories():
+        categories = {}
+        for category in saved.GUILD.categories:
+            categories[category.name] = categories
+        return categories
+
+    @staticmethod
+    async def get_guild_channels():
+        channels = {}
+        for channel in saved.GUILD.channels:
+            channels[channel.name] = channel
+        return channels
 
     @staticmethod
     async def roll_dice(input):
@@ -169,6 +203,112 @@ class General(commands.Cog, name="General commands"):
             session.commit()
         await ctx.send(await self.get_user_string(str(ctx.author), users))
         logger.info(f"Player {ctx.author} used mychars command.")
+
+    @command(name="reindex")
+    async def reindex(self, ctx):
+        roles = await General.get_guild_roles()
+
+        # clan roles that are required based on the actual Characters table
+        required_clan_roles = {}
+        for char in session.query(Characters):
+            if char.has_guild:
+                guild_name = char.guild.name
+                if guild_name in CLAN_IGNORE_LIST:
+                    continue
+                user = char.user
+                if not user:
+                    print(f"Couldn't find User for char {char.name}")
+                    continue
+                disc_id = user.disc_id
+                if not disc_id:
+                    print(f"Couldn't find DiscordID for {char.name}")
+                    continue
+                member = await self.get_member(ctx, disc_id)
+                if not member:
+                    print(f"Couldn't get member by DiscordID for {char.name}")
+                    continue
+                if not guild_name in required_clan_roles:
+                    required_clan_roles[guild_name] = [member]
+                else:
+                    required_clan_roles[guild_name].append(member)
+
+        # print("required_clan_roles:")
+        # self.print_iter(required_clan_roles)
+
+        # index roles by position
+        roles_by_pos = {}
+        for name, role in roles.items():
+            roles_by_pos[role.position] = role
+
+        # print("roles_by_pos:")
+        # self.print_iter(roles_by_pos)
+
+        roles_idx = []
+        for pos in sorted(roles_by_pos):
+            name = roles_by_pos[pos].name
+            if name == CLAN_START_ROLE:
+                start_pos = len(roles_idx)
+            elif name == CLAN_END_ROLE:
+                end_pos = len(roles_idx)
+            roles_idx.append(name)
+
+        # print("roles_idx:")
+        # self.print_iter(roles_idx)
+
+        before_clan_roles = roles_idx[:end_pos+1]
+        after_clan_roles = roles_idx[start_pos:]
+
+        # print("before_clan_roles:")
+        # self.print_iter(before_clan_roles)
+        # print("after_clan_roles:")
+        # self.print_iter(after_clan_roles)
+
+        # create a slice of only those guilds that are actually required
+        clan_roles = []
+        for name in sorted(roles_idx[end_pos+1:start_pos]):
+            # remove existing roles that are no longer required
+            if not name in required_clan_roles:
+                await roles[name].delete()
+                del roles[name]
+            # create the slice of existing clans otherwise
+            else:
+                clan_roles.append(name)
+
+        # print("clan_roles:")
+        # self.print_iter(clan_roles)
+
+        # add roles and update their members as required
+        for name, members in required_clan_roles.items():
+            # add clan roles not existing yet
+            if not name in roles:
+                clan_roles.append(name)
+                roles[name] = await saved.GUILD.create_role(name=name, hoist=True, mentionable=True)
+                # add all members to that role
+                for member in members:
+                    await member.add_roles(roles[name])
+            # update existing roles
+            else:
+                # add members not alread assigned to the role
+                for member in members:
+                    if not member in roles[name].members:
+                        await member.add_roles(roles[name])
+                # remove members that are assigned to the role but shouldn't be
+                for member in roles[name].members:
+                    if not member in members:
+                        await member.remove_roles(roles[name])
+
+        # create a positions list for the roles
+        reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
+        positions = {}
+        for position in range(1, len(reindexed_roles)):
+            name = reindexed_roles[position]
+            positions[roles[name]] = position
+
+        # print("positions:")
+        # self.print_iter(positions)
+
+        await saved.GUILD.edit_role_positions(positions)
+        await ctx.send(f"Done!")
 
 def setup(bot):
     bot.add_cog(General(bot))

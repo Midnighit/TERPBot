@@ -38,13 +38,116 @@ async def update_roles():
         # schedule the next function call
         now = datetime.utcnow()
         date = now.date()
-        if now.time() > UPDATE_ROLES:
+        if now.time() > UPDATE_ROLES_TIME:
             date = now.date() + timedelta(days=1)
-        then = datetime.combine(date, UPDATE_ROLES)
+        then = datetime.combine(date, UPDATE_ROLES_TIME)
         await discord.utils.sleep_until(then)
         # perfom the actual role update
-        for char in session.query(Characters).all():
-            pass
+        roles = {}
+        for role in saved.GUILD.roles:
+            roles[role.name] = role
+
+        # clan roles that are required based on the actual Characters table
+        print("Starting to reindex discord clan roles.")
+        logger.info("Starting to reindex discord clan roles.")
+
+        guild_members = {}
+        for member in saved.GUILD.members:
+            guild_members[str(member.id)] = member
+        print(guild_members)
+
+        required_clan_roles = {}
+        for char in session.query(Characters):
+            if char.has_guild:
+                guild_name = char.guild.name
+                if guild_name in CLAN_IGNORE_LIST:
+                    continue
+                user = char.user
+                if not user:
+                    print(f"Couldn't find User for char {char.name} for clan roles indexing")
+                    # logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
+                    continue
+                disc_id = user.disc_id
+                if not disc_id:
+                    print(f"Couldn't find DiscordID for {char.name} for clan roles indexing")
+                    # logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
+                    continue
+                if not disc_id in guild_members:
+                    print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
+                    # logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
+                    continue
+                member = guild_members[disc_id]
+                if not guild_name in required_clan_roles:
+                    required_clan_roles[guild_name] = [member]
+                else:
+                    required_clan_roles[guild_name].append(member)
+
+        # index roles by position
+        roles_by_pos = {}
+        for name, role in roles.items():
+            roles_by_pos[role.position] = role
+
+        roles_idx = []
+        for pos in sorted(roles_by_pos):
+            name = roles_by_pos[pos].name
+            if name == CLAN_START_ROLE:
+                start_pos = len(roles_idx)
+            elif name == CLAN_END_ROLE:
+                end_pos = len(roles_idx)
+            roles_idx.append(name)
+
+        before_clan_roles = roles_idx[:end_pos+1]
+        after_clan_roles = roles_idx[start_pos:]
+
+        # create a slice of only those guilds that are actually required
+        clan_roles = []
+        for name in sorted(roles_idx[end_pos+1:start_pos]):
+            # remove existing roles that are no longer required
+            if not name in required_clan_roles:
+                await roles[name].delete()
+                del roles[name]
+            # create the slice of existing clans otherwise
+            else:
+                clan_roles.append(name)
+
+        # add roles and update their members as required
+        for name, members in required_clan_roles.items():
+            # add clan roles not existing yet
+            if not name in roles:
+                clan_roles.append(name)
+                roles[name] = await saved.GUILD.create_role(name=name, hoist=True, mentionable=True)
+                # add all members to that role
+                for member in members:
+                    await member.add_roles(roles[name])
+            # update existing roles
+            else:
+                # add members not alread assigned to the role
+                for member in members:
+                    if not member in roles[name].members:
+                        await member.add_roles(roles[name])
+                # remove members that are assigned to the role but shouldn't be
+                for member in roles[name].members:
+                    if not member in members:
+                        await member.remove_roles(roles[name])
+
+        # create a positions list for the roles
+        reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
+        positions = {}
+        for position in range(1, len(reindexed_roles)):
+            name = reindexed_roles[position]
+            positions[roles[name]] = position
+
+        # reorder the clan roles alphabetically
+        await saved.GUILD.edit_role_positions(positions)
+        print("Finished reindexing discord clan roles.")
+        logger.info("Finished reindexing discord clan roles.")
+
+# errors in tasks raise silently normally so lets make them speak up
+def exception_catching_callback(task):
+    if task.exception():
+        print("Error in task.")
+        logger.error("Error in task.")
+        task.print_stack()
 
 ##############
 ''' Events '''
@@ -84,6 +187,8 @@ async def on_ready():
     for filename in os.listdir("cogs"):
         if filename.endswith(".py"):
             bot.load_extension(f"cogs.{filename[:-3]}")
+    update_roles_task = asyncio.create_task(update_roles())
+    update_roles_task.add_done_callback(exception_catching_callback)
 
 @bot.event
 async def on_member_join(member):
