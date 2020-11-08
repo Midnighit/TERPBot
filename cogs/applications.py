@@ -197,8 +197,9 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.send("Can't accept application while it's still being worked on.")
             return
         # remove Not Applied role
-        if saved.ROLE[NOT_APPLIED_ROLE] in member.roles:
-            await member.remove_roles(saved.ROLE[NOT_APPLIED_ROLE])
+        roles = await General.get_guild_roles()
+        if roles[NOT_APPLIED_ROLE] in member.roles:
+            await member.remove_roles(roles[NOT_APPLIED_ROLE])
 
         # Whitelist Applicant
         if not hasattr(app, 'questions'):
