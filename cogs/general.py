@@ -282,7 +282,9 @@ class General(commands.Cog, name="General commands"):
             # add clan roles not existing yet
             if not name in roles:
                 clan_roles.append(name)
-                roles[name] = await saved.GUILD.create_role(name=name, hoist=True, mentionable=True)
+                hoist = CLAN_ROLE_HOIST
+                mentionable = CLAN_ROLE_MENTIONABLE
+                roles[name] = await saved.GUILD.create_role(name=name, hoist=hoist, mentionable=mentionable)
                 # add all members to that role
                 for member in members:
                     await member.add_roles(roles[name])
