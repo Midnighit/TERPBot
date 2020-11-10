@@ -7,7 +7,7 @@ from config import *
 from exceptions import *
 from checks import *
 
-class General(commands.Cog, name="General commands"):
+class General(commands.Cog, name="General commands."):
     def __init__(self, bot):
         self.bot = bot
 
@@ -133,7 +133,7 @@ class General(commands.Cog, name="General commands"):
                 msg += '\n'
         return msg[:-2]
 
-    @command(name='roll', help="Rolls a dice in NdN format")
+    @command(name='roll', help="Rolls a dice in NdN format.")
     async def roll(self, ctx, *, Dice: str):
         result = await self.roll_dice(Dice)
         await ctx.send(f"{ctx.author.mention} rolled: " + result)
@@ -150,7 +150,7 @@ class General(commands.Cog, name="General commands"):
             await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
         logger.info(f"Player {ctx.author} set read their FuncomID.")
 
-    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa")
+    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whois(self, ctx, *, arg):
         disc_id = disc_user = user = None
@@ -205,6 +205,7 @@ class General(commands.Cog, name="General commands"):
         logger.info(f"Player {ctx.author} used mychars command.")
 
     @command(name="reindex")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
     async def reindex(self, ctx):
         roles = await General.get_guild_roles()
 
