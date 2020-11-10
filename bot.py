@@ -54,7 +54,6 @@ async def update_roles():
         guild_members = {}
         for member in saved.GUILD.members:
             guild_members[str(member.id)] = member
-        print(guild_members)
 
         required_clan_roles = {}
         for char in session.query(Characters):
