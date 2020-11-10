@@ -64,16 +64,16 @@ async def update_roles():
                 user = char.user
                 if not user:
                     print(f"Couldn't find User for char {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
                     continue
                 disc_id = user.disc_id
                 if not disc_id:
                     print(f"Couldn't find DiscordID for {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
                     continue
                 if not disc_id in guild_members:
                     print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
                     continue
                 member = guild_members[disc_id]
                 if not guild_name in required_clan_roles:

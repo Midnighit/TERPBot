@@ -217,15 +217,18 @@ class General(commands.Cog, name="General commands"):
                     continue
                 user = char.user
                 if not user:
-                    print(f"Couldn't find User for char {char.name}")
+                    print(f"Couldn't find User for char {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
                     continue
                 disc_id = user.disc_id
                 if not disc_id:
-                    print(f"Couldn't find DiscordID for {char.name}")
+                    print(f"Couldn't find DiscordID for {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
                     continue
                 member = await self.get_member(ctx, disc_id)
                 if not member:
-                    print(f"Couldn't get member by DiscordID for {char.name}")
+                    print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
                     continue
                 if not guild_name in required_clan_roles:
                     required_clan_roles[guild_name] = [member]
