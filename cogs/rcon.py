@@ -249,13 +249,10 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send("RCon error retrieving the playerlist, please try again in a few seconds.")
             if hasattr(err, "args"):
                 if len(err.args) >= 2:
-                    print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] ==", err.args[1])
                     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
                 else:
-                    print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args ==", err.args)
                     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
             else:
-                print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() ==", sys.exc_info()[1])
                 logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() == {sys.exc_info()}")
             return
             # raise RConConnectionError(sys.exc_info()[0])
@@ -276,7 +273,6 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send(f"__**Players online:**__ {len(names)}\n" + '\n'.join(names))
         else:
             await ctx.send(rreplace(f"__**Players online:**__ {len(names)}\n" + ', '.join(names), ",", " and"))
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name='whitelist', help="Whitelists the player using the given FuncomID")
@@ -311,7 +307,6 @@ class RCon(commands.Cog, name="RCon commands"):
                 r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
                 msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
     @command(name='whitelistme', help="Whitelists you using the given FuncomID")
@@ -339,7 +334,6 @@ class RCon(commands.Cog, name="RCon commands"):
                 r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
                 msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
     @command(name='whitelistall', help="Whitelists everyone who's currently in the supplemental databas. Only works while server is down.")
@@ -416,7 +410,6 @@ class RCon(commands.Cog, name="RCon commands"):
         time = f"{hours}:{minutes}:{seconds}"
         # end conversion to human readable representation
         await ctx.send(f"It's currently {time[:-3]} on the server.")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
 
     @command(name='settime', help="Sets the time on the server")
@@ -434,7 +427,6 @@ class RCon(commands.Cog, name="RCon commands"):
         if len(Time) <= 5:
             time = time[:-3]
         await ctx.send(f"Time on the server has been set to {time}.")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
 
 def setup(bot):
