@@ -148,7 +148,7 @@ class General(commands.Cog, name="General commands."):
             await ctx.channel.send(f"Your FuncomID is currently set to {user.funcom_id}.")
         else:
             await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
-        logger.info(f"Player {ctx.author} set read their FuncomID.")
+        logger.info(f"Player {ctx.author} read their FuncomID.")
 
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
