@@ -13,25 +13,48 @@ from exiles_api import *
 from cogs.applications import Applications as Apps
 from cogs.general import General
 from cogs.rcon import RCon
+from cogs.magic import Mag
 
 intents = discord.Intents.default()
 intents.members = True
-bot = commands.Bot(PREFIX, intents=intents)
+bot = commands.Bot(PREFIX, intents=intents, case_insensitive=True)
 
-"""
-def next_weekday(d, weekday):
-    days_ahead = weekday - d.weekday()
-    if days_ahead <= 0: # Target day already happened this week
-        days_ahead += 7
-    return d + datetime.timedelta(days_ahead)
+async def next_time(d, t):
+    weekdays = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
+    now = datetime.utcnow().replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
+    days_ahead = (weekdays[d] - now.weekday()) % 7
+    if days_ahead == 0 and datetime.utcnow().time() > t:
+        days_ahead = 7
+    return now + timedelta(days=days_ahead)
 
-d = datetime.date(2011, 7, 2)
-next_monday = next_weekday(d, 0) # 0 = Monday, 1=Tuesday, 2=Wednesday...
-print(next_monday)
-
-simplify to (day - today) % 7. Negative results in the subtraction will be treated as you expect. For example -1 % 7 gives 6.
-
-"""
+async def magic_rolls():
+    while True:
+        # schedule the next function call
+        then = await next_time(UPDATE_MAGIC_DAY, UPDATE_MAGIC_TIME)
+        await discord.utils.sleep_until(then)
+        # perform the actual magic rolls
+        mchars = session.query(MagicChars).filter_by(active=True).all()
+        if len(mchars) == 0:
+            await saved.CHANNEL[MAGIC_ROLLS].send("No magic chars registered.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No magic chars registered.")
+            continue
+        longest_name = session.query(func.max(func.length(MagicChars.name))).filter_by(active=True).scalar()
+        hd = ["Character", " MP"]
+        wd = longest_name if longest_name > len(hd[0]) else len(hd[0])
+        await saved.CHANNEL[MAGIC_ROLLS].send(f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:")
+        output = f"```{hd[0]:<{wd}} | {hd[1]:>{len(hd[1])}}"
+        output += '\n' + '-' * (len(output) - 3)
+        for mchar in mchars:
+            mchar.mana = random.randint(MAGIC_ROLL_RANGE[0], MAGIC_ROLL_RANGE[1])
+            chunk = f"\n{mchar.name:<{wd}} | {mchar.mana:>{len(hd[1])}}"
+            # ensure that the whole output isn't longer than 2000 characters
+            if (len(output) + len(chunk)) >= 2000:
+                await saved.CHANNEL[MAGIC_ROLLS].send(output)
+                output = chunk
+            else:
+                output += chunk
+        session.commit()
+        await saved.CHANNEL[MAGIC_ROLLS].send(output + "```")
 
 async def update_roles():
     while True:
@@ -48,7 +71,6 @@ async def update_roles():
             roles[role.name] = role
 
         # clan roles that are required based on the actual Characters table
-        print("Starting to reindex discord clan roles.")
         logger.info("Starting to reindex discord clan roles.")
 
         guild_members = {}
@@ -63,17 +85,14 @@ async def update_roles():
                     continue
                 user = char.user
                 if not user:
-                    print(f"Couldn't find User for char {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
                     continue
                 disc_id = user.disc_id
                 if not disc_id:
-                    print(f"Couldn't find DiscordID for {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
                     continue
                 if not disc_id in guild_members:
-                    print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
-                    # logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
+                    logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
                     continue
                 member = guild_members[disc_id]
                 if not guild_name in required_clan_roles:
@@ -140,13 +159,11 @@ async def update_roles():
 
         # reorder the clan roles alphabetically
         await saved.GUILD.edit_role_positions(positions)
-        print("Finished reindexing discord clan roles.")
         logger.info("Finished reindexing discord clan roles.")
 
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
     if task.exception():
-        print("Error in task.")
         logger.error("Error in task.")
         task.print_stack()
 
@@ -157,7 +174,6 @@ def exception_catching_callback(task):
 @bot.event
 async def on_ready():
     rcon.RCONMessage.ENCODING = "utf-8"
-    print(f"{bot.user.name} has connected to Discord.")
     logger.info(f"{bot.user.name} has connected to Discord.")
     # determine discord server
     saved.GUILD = discord.utils.get(bot.guilds, name=DISCORD_NAME)
@@ -191,6 +207,9 @@ async def on_ready():
     if UPDATE_ROLES_TIME:
         update_roles_task = asyncio.create_task(update_roles())
         update_roles_task.add_done_callback(exception_catching_callback)
+    if ROLL_FOR_MANA:
+        magic_roles_task = asyncio.create_task(magic_rolls())
+        magic_roles_task.add_done_callback(exception_catching_callback)
 
 @bot.event
 async def on_member_join(member):
@@ -271,7 +290,6 @@ async def on_command_error(ctx, error):
                 error = arg
                 f = True
                 break
-    print(f"ERROR: Author: {ctx.author} / Command: {ctx.message.content}. {str(error)}")
     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {str(error)}")
 
 @bot.command(hidden=True)
