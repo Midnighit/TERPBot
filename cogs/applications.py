@@ -98,7 +98,6 @@ class Applications(commands.Cog, name="Application commands"):
         question = self.get_question_msg(new_app.questions, ctx.author, 1, msg)
         await ctx.author.dm_channel.send(question)
         await saved.CHANNEL[APPLICATIONS].send(f"{ctx.author} has started an application.")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
 
     @command(name='question', help="Used to switch to a given question. If no number is given, repeats the current question")
@@ -153,7 +152,6 @@ class Applications(commands.Cog, name="Application commands"):
         session.commit()
         await ctx.author.dm_channel.send(self.parse(ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         msg = f"{ROLE[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
         overview = self.get_overview_msgs(app.questions, ctx.author, msg)
@@ -171,7 +169,6 @@ class Applications(commands.Cog, name="Application commands"):
         session.commit()
         await saved.CHANNEL[APPLICATIONS].send(f"{ctx.author} has canceled their application.")
         await ctx.author.dm_channel.send("Your application has been canceled.")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has canceled their application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has canceled their application.")
 
     @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
@@ -236,21 +233,17 @@ class Applications(commands.Cog, name="Application commands"):
         if result == "NoFuncomIDinAnswer":
             await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + self.parse(member, TextBlocks.get('WHITELISTING_FAILED')))
             await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
-            print(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
         elif result.find("FailedError") >= 0:
             result = result[12:]
             await member.send("Whitelisting failed. " + self.parse(member, TextBlocks.get('WHITELISTING_FAILED')))
             await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
-            print(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
         else:
             await member.send(self.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
             await saved.CHANNEL[APPLICATIONS].send(result)
-            print(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
 
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
 
     @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
@@ -285,7 +278,6 @@ class Applications(commands.Cog, name="Application commands"):
             await member.send(self.parse(ctx.author, "Your application was rejected:\n" + TextBlocks.get('REJECTED')))
         else:
             await member.send("Your application was rejected:\n> " + " ".join(message))
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been rejected.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been rejected.")
 
     @command(name='review', help="Ask the Applicant to review their application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
@@ -326,7 +318,6 @@ class Applications(commands.Cog, name="Application commands"):
             if member.dm_channel is None:
                 await member.create_dm()
             await member.dm_channel.send(part)
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been returned for review.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been returned for review.")
 
     @command(name='showapp', help="Displays the given Applicants application if it has been submitted. When Applicant is omitted, shows all applications.")
@@ -388,7 +379,6 @@ class Applications(commands.Cog, name="Application commands"):
             await member.send(f"Your application was cancelled by an administrator.\n> {' '.join(message)}")
         else:
             await member.send(f"Your application was cancelled by an administrator.")
-        print(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been cancelled.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been cancelled.")
 
 def setup(bot):
