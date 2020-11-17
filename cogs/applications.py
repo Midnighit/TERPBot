@@ -193,15 +193,9 @@ class Applications(commands.Cog, name="Application commands"):
         elif app.can_edit_questions():
             await ctx.send("Can't accept application while it's still being worked on.")
             return
-        # remove Not Applied role
-        roles = await General.get_guild_roles()
-        if roles[NOT_APPLIED_ROLE] in member.roles:
-            await member.remove_roles(roles[NOT_APPLIED_ROLE])
-
         # Whitelist Applicant
         if not hasattr(app, 'questions'):
             await ctx.send(f"Failed to whitelist because FuncomID for {member} couldn't be determined.")
-            return
 
         funcom_id = Applications.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
         if funcom_id:
@@ -221,12 +215,18 @@ class Applications(commands.Cog, name="Application commands"):
         # remove application from list of open applications
         app.status = 'approved'
         session.commit()
+
         if message:
             message = " ".join(message)
         else:
             message = self.parse(ctx.author, TextBlocks.get('ACCEPTED'))
         await ctx.send(f"{member}'s application has been accepted.")
         await member.send("Your application was accepted:\n" + message)
+
+        # remove Not Applied role
+        roles = await General.get_guild_roles()
+        if roles[NOT_APPLIED_ROLE] in member.roles:
+            await member.remove_roles(roles[NOT_APPLIED_ROLE])
 
         # Send feedback about whitelisting success
         info = self.parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
