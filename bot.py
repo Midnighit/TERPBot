@@ -33,7 +33,7 @@ async def magic_rolls():
         then = await next_time(UPDATE_MAGIC_DAY, UPDATE_MAGIC_TIME)
         await discord.utils.sleep_until(then)
         # perform the actual magic rolls
-        mchars = session.query(MagicChars).filter_by(active=True).all()
+        mchars = session.query(MagicChars).filter_by(active=True).order_by(MagicChars.name).all()
         if len(mchars) == 0:
             await saved.CHANNEL[MAGIC_ROLLS].send("No magic chars registered.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No magic chars registered.")
@@ -48,7 +48,7 @@ async def magic_rolls():
             mchar.mana = random.randint(MAGIC_ROLL_RANGE[0], MAGIC_ROLL_RANGE[1])
             chunk = f"\n{mchar.name:<{wd}} | {mchar.mana:>{len(hd[1])}}"
             # ensure that the whole output isn't longer than 2000 characters
-            if (len(output) + len(chunk)) >= 2000:
+            if (len(output) + len(chunk)) > 2000:
                 await saved.CHANNEL[MAGIC_ROLLS].send(output)
                 output = chunk
             else:

@@ -273,7 +273,7 @@ class Mag(Cog, name="Magic commands."):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} has {mchar.mana} {mp} left this week, used mana {mchar.total_uses} {tm} and spent {mchar.total_spent} {sp} that way since registration.")
         # display the stats for all registered users
         else:
-            mchars = session.query(MagicChars).filter_by(active=True).all()
+            mchars = session.query(MagicChars).filter_by(active=True).order_by(MagicChars.name).all()
             if len(mchars) == 0:
                 await ctx.send("No magic chars registered.")
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No magic chars registered.")
