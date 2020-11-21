@@ -116,8 +116,8 @@ class General(commands.Cog, name="General commands."):
     async def get_user_string(arg, users, with_id=False):
         if not users:
             return f"No discord user or chracter named {arg} was found."
-        msg = ''
 
+        msg = ''
         for user in users:
             id = '(@' + user.disc_id + ')' if with_id else ''
             if len(user.characters) == 0:
@@ -132,6 +132,56 @@ class General(commands.Cog, name="General commands."):
                         msg += f"**{char.name}** on slot **{char.slot}** (last login: {lldate})\n"
                 msg += '\n'
         return msg[:-2]
+
+    @staticmethod
+    async def get_clan_string(arg, guilds):
+        if not guilds:
+            return f"No clan named {arg} was found."
+
+        msg = []
+        chunk = ''
+        for guild in guilds:
+            members = guild.members
+            if len(members) == 0:
+                continue
+            mem = 'members' if len(members) > 1 else 'member'
+            chunk += f"Clan **{guild.name}** has **{len(members)}** {mem}:\n"
+            members_by_rank = {}
+            for member in members:
+                rank = 3 if member.rank > 3 else member.rank
+                if rank is None:
+                    rank = -1
+                if not rank in members_by_rank:
+                    members_by_rank[member.rank] = [member]
+                else:
+                    members_by_rank[member.rank] += [member]
+            for rank in range(3, -2, -1):
+                if not rank in members_by_rank:
+                    continue
+                members = members_by_rank[rank]
+                rank_nam = "Undeterminable rank" if rank == -1 else RANKS[rank]
+                for member in members:
+                    mem_msg = ''
+                    lldate = member.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
+                    slot = member.slot
+                    if slot == 'active':
+                        mem_msg += f"**{member.name}** is **{rank_nam}** on **active** slot (last login: {lldate})\n"
+                    else:
+                        mem_msg += f"**{member.name}** is **{rank_nam}** on slot **{slot}** (last login: {lldate})\n"
+
+                    if len(chunk) + len(mem_msg) >= 2000:
+                        msg.append(chunk)
+                        chunk = mem_msg
+                    else:
+                        chunk += mem_msg
+            if len(chunk) >= 1998:
+                msg.append(chunk)
+                chunk = '\n'
+            else:
+                chunk += '\n'
+
+        msg.append(chunk)
+        return msg
 
     @command(name='roll', help="Rolls a dice in NdN format.")
     async def roll(self, ctx, *, Dice: str):
@@ -204,6 +254,15 @@ class General(commands.Cog, name="General commands."):
             session.commit()
         await ctx.send(await self.get_user_string(str(ctx.author), users))
         logger.info(f"Player {ctx.author} used mychars command.")
+
+    @command(name="clanmembers")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def clanmembers(self, ctx, *, arg):
+        guilds = session.query(Guilds).filter(Guilds.name.like('%' + arg + '%')).all()
+        guild_strings = await self.get_clan_string(arg, guilds)
+        for msg in guild_strings:
+            await ctx.send(msg)
+        logger.info(f"Player {ctx.author} used the clanmember command for {arg}.")
 
     @command(name="reindex")
     @has_role_greater_or_equal(SUPPORT_ROLE)
