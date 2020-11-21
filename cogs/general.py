@@ -119,7 +119,7 @@ class General(commands.Cog, name="General commands."):
         msg = ''
 
         for user in users:
-            id = '(@' + user.disc_id + ') ' if with_id else ''
+            id = '(@' + user.disc_id + ')' if with_id else ''
             if len(user.characters) == 0:
                 msg += f"No characters linked to discord nick **{user.disc_user}** {id}have been found.\n"
             else:
@@ -184,8 +184,9 @@ class General(commands.Cog, name="General commands."):
             users += [user] if user else []
         if len(users) == 0:
             users = Users.get_users(arg)
-        if len(users) == 0:
-            users = Characters.get_users(arg)
+        for user in Characters.get_users(arg):
+            if not user in users:
+                users += [user]
         await ctx.send(await self.get_user_string(arg, users, True))
         logger.info(f"Player {ctx.author} used the whois command for {arg}.")
 
