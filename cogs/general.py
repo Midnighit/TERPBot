@@ -127,8 +127,8 @@ class General(commands.Cog, name="General commands."):
                 for char in user.characters:
                     lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
                     guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ''
-                    slot = " **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
-                    msg += f"**{char.name}**{guild} on{slot} (last login: {lldate})\n"
+                    slot = " on **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
+                    msg += f"**{char.name}**{guild}{slot} (last login: {lldate})\n"
                 msg += '\n'
         return msg[:-2]
 
