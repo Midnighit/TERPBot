@@ -135,7 +135,7 @@ class General(commands.Cog, name="General commands."):
     @staticmethod
     async def get_clan_string(arg, guilds):
         if not guilds:
-            return f"No clan named {arg} was found."
+            return [f"No clan named {arg} was found."]
 
         msg = []
         chunk = ''
