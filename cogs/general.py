@@ -182,6 +182,18 @@ class General(commands.Cog, name="General commands."):
         msg.append(chunk)
         return msg
 
+    @staticmethod
+    async def get_owner_string(arg, thralls):
+        if not thralls or len(thralls) == 0:
+            return f"No thralls, pets or mounts with **{arg}** in their name were found."
+
+        msg = f"Thralls, pets and mounts with **{arg}** in their name:\n"
+        for name, owner in thralls.items():
+            owner_name = f" is owned by **{owner.name}**." if owner else " has no owner."
+            msg += f"**{name}**{owner_name}\n"
+
+        return msg[:-1]
+
     @command(name='roll', help="Rolls a dice in NdN format.")
     async def roll(self, ctx, *, Dice: str):
         result = await self.roll_dice(Dice)
@@ -262,6 +274,21 @@ class General(commands.Cog, name="General commands."):
         for msg in guild_strings:
             await ctx.send(msg)
         logger.info(f"Player {ctx.author} used the clanmember command for {arg}.")
+
+    @command(name="whoisowner")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def whoisowner(self, ctx, *, arg):
+        if arg == "":
+            await ctx.send("Name is a required argument that is missing.")
+            logger.info(f"Player {ctx.author} used the whoisowner command with no argument.")
+            return
+        object_ids = Properties.get_thrall_object_ids(name=arg)
+        thralls = {}
+        for object_id in object_ids:
+            ap = session.query(ActorPosition).filter_by(id=object_id).first()
+            if ap:
+                thralls[ap.properties.name] = ap.properties.owner
+        await ctx.send(await General.get_owner_string(arg, thralls))
 
     @command(name="reindex")
     @has_role_greater_or_equal(SUPPORT_ROLE)
