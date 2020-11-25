@@ -198,6 +198,7 @@ class General(commands.Cog, name="General commands."):
     async def roll(self, ctx, *, Dice: str):
         result = await self.roll_dice(Dice)
         await ctx.send(f"{ctx.author.mention} rolled: " + result)
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="getfuncomid", help="Checks if your FuncomID has been set.")
     @has_not_role(NOT_APPLIED_ROLE)
@@ -209,7 +210,7 @@ class General(commands.Cog, name="General commands."):
             await ctx.channel.send(f"Your FuncomID is currently set to {user.funcom_id}.")
         else:
             await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
-        logger.info(f"Player {ctx.author} read their FuncomID.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
@@ -249,7 +250,7 @@ class General(commands.Cog, name="General commands."):
             if not user in users:
                 users += [user]
         await ctx.send(await self.get_user_string(arg, users, True))
-        logger.info(f"Player {ctx.author} used the whois command for {arg}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
     @has_not_role(NOT_APPLIED_ROLE)
@@ -264,7 +265,7 @@ class General(commands.Cog, name="General commands."):
             user.disc_user = str(ctx.author)
             session.commit()
         await ctx.send(await self.get_user_string(str(ctx.author), users))
-        logger.info(f"Player {ctx.author} used mychars command.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="clanmembers")
     @has_role_greater_or_equal(SUPPORT_ROLE)
@@ -273,14 +274,14 @@ class General(commands.Cog, name="General commands."):
         guild_strings = await self.get_clan_string(arg, guilds)
         for msg in guild_strings:
             await ctx.send(msg)
-        logger.info(f"Player {ctx.author} used the clanmember command for {arg}.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whoisowner")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whoisowner(self, ctx, *, arg):
         if arg == "":
             await ctx.send("Name is a required argument that is missing.")
-            logger.info(f"Player {ctx.author} used the whoisowner command with no argument.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
         object_ids = Properties.get_thrall_object_ids(name=arg)
         thralls = {}
@@ -289,6 +290,7 @@ class General(commands.Cog, name="General commands."):
             if ap:
                 thralls[ap.properties.name] = ap.properties.owner
         await ctx.send(await General.get_owner_string(arg, thralls))
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="reindex")
     @has_role_greater_or_equal(SUPPORT_ROLE)
