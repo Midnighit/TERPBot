@@ -184,7 +184,7 @@ class General(commands.Cog, name="General commands."):
         return msg
 
     @staticmethod
-    async def get_owner_string(arg, thralls, tp=False, object_id=False):
+    async def get_owner_string(arg, thralls, loc=False, obj=False):
         if not thralls or len(thralls) == 0:
             return f"No thralls, pets or mounts with **{arg}** in their name were found."
 
@@ -195,15 +195,49 @@ class General(commands.Cog, name="General commands."):
             if owner_name == "":
                 owner_name = "no name"
             msg += f"**{key}** is owned by **{owner_name}**"
-            if object_id:
-                msg += f" with object_id **{thrall['object_id']}**"
-            if tp:
+            if obj:
+                msg += " and" if not loc else ","
+
+                msg += f" has object_id **{thrall['object_id']}**"
+            if loc:
                 ap = session.query(ActorPosition).filter_by(id=thrall['object_id']).first()
-                loc = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
-                msg += f" at location `{loc}`"
+                tp = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
+                msg += f" and is at location `{tp}`"
             msg += ".\n"
 
         return msg[:-1]
+
+    @staticmethod
+    async def get_thralls_string(arg, thralls, loc=False, obj=False):
+        if not thralls or len(thralls) == 0:
+            return f"**{arg}** has no thralls, pets or mounts."
+
+        lines = []
+        msg = f"Thralls, pets and mounts owned by **{arg}**:\n"
+        for key in sorted(thralls):
+            thrall = thralls[key]
+            line = f"**{key}**"
+            if obj:
+                line += f" has object_id **{thrall['object_id']}**"
+            if loc:
+                if obj:
+                    line += " and"
+                ap = session.query(ActorPosition).filter_by(id=thrall['object_id']).first()
+                tp = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
+                line += f" is at location `{tp}`"
+            lines.append(line)
+
+        if len(lines) == 1:
+            msg += lines[0]
+        elif obj or loc:
+            msg += ".\n".join(lines) + "."
+        else:
+            if len(lines) == 2:
+                msg += " and ".join(lines)
+            else:
+                msg += ", ".join(lines[:-1]) + " and " + lines[-1] + "."
+
+        return msg
 
     @command(name='roll', help="Rolls a dice in NdN format.")
     async def roll(self, ctx, *, Dice: str):
@@ -295,26 +329,64 @@ class General(commands.Cog, name="General commands."):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
 
-        tp = False
-        object_id = False
+        loc = obj = strict = False
 
         arg_list = arg.split()
-        if "tp" in arg_list:
-            tp = True
-            arg_list.remove("tp")
-        if "teleport" in arg_list:
-            tp = True
-            arg_list.remove("teleport")
+        if "loc" in arg_list:
+            loc = True
+            arg_list.remove("loc")
         if "obj" in arg_list:
-            object_id = True
+            obj = True
             arg_list.remove("obj")
-        if "object_id" in arg_list:
-            object_id = True
-            arg_list.remove("object_id")
-        name = " ".join(arg_list) if tp or object_id else arg
+        if "strict" in arg_list:
+            strict = True
+            arg_list.remove("strict")
+        name = " ".join(arg_list) if loc or obj or strict else arg
 
-        thralls = Properties.get_thrall_owners(name=name)
-        await ctx.send(await General.get_owner_string(name, thralls, tp, object_id))
+        thralls = Properties.get_thrall_owners(name=name, strict=strict)
+        await ctx.send(await General.get_owner_string(name, thralls, loc, obj))
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @command(name="isownedby")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def isownedby(self, ctx, *, arg):
+        if arg == "":
+            await ctx.send("Name or Id is a required argument that is missing.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+            return
+        loc = obj = False
+
+        arg_list = arg.split()
+        if "loc" in arg_list:
+            loc = True
+            arg_list.remove("loc")
+        if "obj" in arg_list:
+            obj = True
+            arg_list.remove("obj")
+
+        name = " ".join(arg_list) if loc or obj else arg
+        if name.isnumeric():
+            owner_id = name
+        else:
+            fuzzy_name = "%" + name + "%"
+            owners = [g for g in session.query(Guilds).filter(Guilds.name.like(fuzzy_name)).all()]
+            if not owners:
+                owners = [c for c in session.query(Characters).filter(Characters.name.like(fuzzy_name)).all()]
+            if owners and len(owners) > 1:
+                await ctx.send(f"Name **{name}** is ambiguous. Refine the filter or use owner_id.")
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+                return
+            if not owners:
+                if name.isnumeric():
+                    await ctx.send(f"No owner with owner_id **{name}** has been found.")
+                else:
+                    await ctx.send(f"No owner with **{name}** in its name has been found.")
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+                return
+            owner = owners[0]
+
+        thralls = Properties.get_thrall_owners(owner_id=owner.id)
+        await ctx.send(await General.get_thralls_string(owner.name, thralls, loc, obj))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="reindex")
