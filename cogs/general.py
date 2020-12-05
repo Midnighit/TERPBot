@@ -1,4 +1,5 @@
 import random, config, time as saved
+from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
@@ -183,14 +184,24 @@ class General(commands.Cog, name="General commands."):
         return msg
 
     @staticmethod
-    async def get_owner_string(arg, thralls):
+    async def get_owner_string(arg, thralls, tp=False, object_id=False):
         if not thralls or len(thralls) == 0:
             return f"No thralls, pets or mounts with **{arg}** in their name were found."
 
         msg = f"Thralls, pets and mounts with **{arg}** in their name:\n"
-        for name, owner in thralls.items():
-            owner_name = f" is owned by **{owner.name}**." if owner else " has no owner."
-            msg += f"**{name}**{owner_name}\n"
+        for key in sorted(thralls):
+            thrall = thralls[key]
+            owner_name = thrall['owner'].name if thrall['owner'] else "nobody"
+            if owner_name == "":
+                owner_name = "no name"
+            msg += f"**{key}** is owned by **{owner_name}**"
+            if object_id:
+                msg += f" with object_id **{thrall['object_id']}**"
+            if tp:
+                ap = session.query(ActorPosition).filter_by(id=thrall['object_id']).first()
+                loc = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
+                msg += f" at location `{loc}`"
+            msg += ".\n"
 
         return msg[:-1]
 
@@ -283,13 +294,27 @@ class General(commands.Cog, name="General commands."):
             await ctx.send("Name is a required argument that is missing.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
-        object_ids = Properties.get_thrall_object_ids(name=arg)
-        thralls = {}
-        for object_id in object_ids:
-            ap = session.query(ActorPosition).filter_by(id=object_id).first()
-            if ap:
-                thralls[ap.properties.name] = ap.properties.owner
-        await ctx.send(await General.get_owner_string(arg, thralls))
+
+        tp = False
+        object_id = False
+
+        arg_list = arg.split()
+        if "tp" in arg_list:
+            tp = True
+            arg_list.remove("tp")
+        if "teleport" in arg_list:
+            tp = True
+            arg_list.remove("teleport")
+        if "obj" in arg_list:
+            object_id = True
+            arg_list.remove("obj")
+        if "object_id" in arg_list:
+            object_id = True
+            arg_list.remove("object_id")
+        name = " ".join(arg_list) if tp or object_id else arg
+
+        thralls = Properties.get_thrall_owners(name=name)
+        await ctx.send(await General.get_owner_string(name, thralls, tp, object_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="reindex")
