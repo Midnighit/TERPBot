@@ -2,14 +2,9 @@
 import random
 from discord.ext import commands
 from discord.ext.commands import Cog, command, group
-# from discord import Member
-# from threading import Timer
-# from psutil import process_iter
-# from valve import rcon
 from config import *
 from exiles_api import *
 from logger import logger
-# from exceptions import *
 from checks import *
 from cogs.general import General
 
