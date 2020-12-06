@@ -1,10 +1,11 @@
-import sys, re, itertools
+import sys, re, itertools, discord
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from threading import Timer
+from datetime import timedelta
 from psutil import process_iter
-from valve import rcon
+from mcrcon import MCRcon
 from config import *
 from exiles_api import *
 from logger import logger
@@ -17,11 +18,15 @@ class RCon(commands.Cog, name="RCon commands"):
         self.bot = bot
 
     @staticmethod
-    def is_hex(s):
+    async def is_hex(s):
         return all(c in '1234567890ABCDEF' for c in s.upper())
 
     @staticmethod
-    def is_running(process_name, strict=False):
+    async def is_float(s):
+        return re.match(r'^-?\d+(?:\.\d+)?$', s) is not None
+
+    @staticmethod
+    async def is_running(process_name, strict=False):
         '''Check if there is any running process that contains the given name process_name.'''
         #Iterate over the all the running process
         for proc in process_iter():
@@ -34,19 +39,78 @@ class RCon(commands.Cog, name="RCon commands"):
         return False
 
     @staticmethod
-    def whitelist_player(funcom_id):
-        if not RCon.is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
+    async def is_on_whitelist(funcom_id):
+        try:
+            with open(WHITELIST_PATH, 'r') as f:
+                lines = f.readlines()
+        except:
+            return False
+        funcom_id = funcom_id.upper()
+        for line in lines:
+            if funcom_id in line.upper():
+                return True
+        return False
+
+    @staticmethod
+    async def update_whitelist_file(funcom_id, add=True):
+        is_on_whitelist = await is_on_whitelist(funcom_id)
+        if (is_on_whitelist and add) or (not is_on_whitelist and not add):
+            return
+        try:
+            with open(WHITELIST_PATH, 'r') as f:
+                lines = f.readlines()
+        except:
+            with open(WHITELIST_PATH, 'w') as f:
+                pass
+            lines = []
+        # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+        filtered = set()
+        names = {}
+        # define regular expression to filter out unprintable characters
+        control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
+        control_char_re = re.compile('[%s]' % re.escape(control_chars))
+        for line in lines:
+            if line != "\n" and not "INVALID" in line and (add or not funcom_id in line):
+                # remove unprintable characters from the line
+                res = control_char_re.sub('', line)
+                res = res.split(':')
+                id = res[0].strip()
+                if len(res) > 1:
+                    name = res[1].strip()
+                else:
+                    name = 'Unknown'
+                filtered.add(id)
+                if not id in names or names[id] == 'Unknown':
+                    names[id] = name
+        if add:
+            filtered.add(funcom_id)
+        names[funcom_id] = 'Unknown'
+        wlist = []
+        for id in filtered:
+            wlist.append(id + ':' + names[id] + '\n')
+        with open(WHITELIST_PATH, 'w') as f:
+            f.writelines(wlist)
+
+    @staticmethod
+    async def whitelist_player(funcom_id):
+        # intercept obvious wrong cases
+        if not await RCon.is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
             return f"{funcom_id} is not a valid FuncomID."
         elif funcom_id == "8187A5834CD94E58":
             return f"{funcom_id} is the example FuncomID of Midnight."
+
+        # try whitelisting via rcon
         msg = "Whitelisting failed. Server didn't respond. Please try again later."
         try:
-            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"WhitelistPlayer {funcom_id}")
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                msg = mcr.command(f"WhitelistPlayer {funcom_id}")
             if msg == f"Player {funcom_id} added to whitelist.":
                 return msg
         except:
             pass
-        # when server is completely down and doesn't react
+
+        # handle possible failure messages
+        # msg is unchanged if server is completely down and doesn't react
         if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
             write2file = True
         # before server has really begun starting up, still allows writing to file
@@ -58,57 +122,29 @@ class RCon(commands.Cog, name="RCon commands"):
         # unknown? If it ever gets here, take note of msg and see if writing to file is possible
         else:
             write2file = False
-            print(f"Error: {msg}")
-            logger.error(msg)
-            return msg
-        if write2file and not RCon.is_running('ConanSandboxServer'):
-            try:
-                with open(WHITELIST_PATH, 'r') as f:
-                    lines = f.readlines()
-            except:
-                with open(WHITELIST_PATH, 'w') as f:
-                    pass
-                lines = []
-            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
-            filtered = set()
-            names = {}
-            # define regular expression to filter out unprintable characters
-            control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
-            control_char_re = re.compile('[%s]' % re.escape(control_chars))
-            for line in lines:
-                if line != "\n" and not "INVALID" in line:
-                    # remove unprintable characters from the line
-                    res = control_char_re.sub('', line)
-                    res = res.split(':')
-                    id = res[0].strip()
-                    if len(res) > 1:
-                        name = res[1].strip()
-                    else:
-                        name = 'Unknown'
-                    filtered.add(id)
-                    if not id in names or names[id] == 'Unknown':
-                        names[id] = name
-            filtered.add(funcom_id)
-            names[funcom_id] = 'Unknown'
-            wlist = []
-            for id in filtered:
-                wlist.append(id + ':' + names[id] + '\n')
-            with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(wlist)
+            logger.error(f"Unknown RCon error message: {msg}")
+
+        # write funcom_id to file directly
+        if write2file and not await RCon.is_running('ConanSandboxServer'):
+            await RCon.update_whitelist_file(funcom_id)
             msg = f"Player {funcom_id} added to whitelist."
-        elif write2file and RCon.is_running('ConanSandboxServer'):
+        # try again later
+        elif write2file:
             msg = f"Server is not ready. Please try again later."
         return msg
 
     @staticmethod
-    def unwhitelist_player(funcom_id):
+    async def unwhitelist_player(funcom_id):
         msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
         try:
-            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"UnWhitelistPlayer {funcom_id}")
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                msg = mcr.command(f"UnWhitelistPlayer {funcom_id}")
             if msg == f"Player {funcom_id} removed from whitelist.":
                 return msg
         except:
             pass
+
+        # handle possible failure messages
         # when server is completely down and doesn't react
         if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
             write2file = True
@@ -121,48 +157,19 @@ class RCon(commands.Cog, name="RCon commands"):
         # unknown? If it ever gets here, take note of msg and see if writing to file is possible
         else:
             write2file = False
-            print(f"Error: {msg}")
-            logger.error(msg)
-            return msg
-        if write2file and not RCon.is_running('ConanSandboxServer'):
-            try:
-                with open(WHITELIST_PATH, 'r') as f:
-                    lines = f.readlines()
-            except:
-                with open(WHITELIST_PATH, 'w') as f:
-                    pass
-                lines = []
-            # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
-            filtered = set()
-            names = {}
-            # define regular expression to filter out unprintable characters
-            control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
-            control_char_re = re.compile('[%s]' % re.escape(control_chars))
-            for line in lines:
-                if line != "\n" and not "INVALID" in line and not funcom_id in line:
-                    # remove unprintable characters from the line
-                    res = control_char_re.sub('', line)
-                    res = res.split(':')
-                    id = res[0].strip()
-                    if len(res) > 1:
-                        name = res[1].strip()
-                    else:
-                        name = 'Unknown'
-                    filtered.add(id)
-                    if not id in names or names[id] == 'Unknown':
-                        names[id] = name
-            wlist = []
-            for id in filtered:
-                wlist.append(id + ':' + names[id] + '\n')
-            with open(WHITELIST_PATH, 'w') as f:
-                f.writelines(wlist)
+            logger.error(f"Unknown RCon error message: {msg}")
+
+        # remove funcom_id from file directly
+        if write2file and not await RCon.is_running('ConanSandboxServer'):
+            await RCon.update_whitelist_file(funcom_id, add=False)
             msg = f"Player {funcom_id} removed from whitelist."
-        elif write2file and RCon.is_running('ConanSandboxServer'):
+        # try again later
+        elif write2file and await RCon.is_running('ConanSandboxServer'):
             msg = f"Server is not ready. Please try again later."
         return msg
 
     @staticmethod
-    def update_user(funcom_id, member):
+    async def update_user(funcom_id, member):
         removed = []
         # get all users who share either of the three attributes
         users = session.query(Users).filter(
@@ -201,7 +208,7 @@ class RCon(commands.Cog, name="RCon commands"):
         return removed if len(removed) > 0 else True
 
     @staticmethod
-    def is_time_format(time):
+    async def is_time_format(time):
         tLst = time.split(':')
         if not tLst:
             return False
@@ -228,14 +235,42 @@ class RCon(commands.Cog, name="RCon commands"):
         return ':'.join([hours, minutes, seconds])
 
     @staticmethod
-    def set_time_decimal():
-        logger.info(f"Trying to reset the time to the previously read time of {saved.LAST_RESTART_TIME}")
+    async def get_time_decimal():
+        logger.info(f"Trying to read the time from the game server.")
         try:
-            rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTimeDecimal {saved.LAST_RESTART_TIME}")
-            logger.info("Time was reset successfully!")
-        except Exception as error:
-            raise RConConnectionError(error.args[1])
-        saved.LAST_RESTART_TIME = 12.0
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                time = mcr.command(f"TERPO getTimeDecimal")
+                if not await RCon.is_float(time):
+                    logger.info(f"Failed reading time. {time}")
+                    return 2
+                logger.info(f"Time read successfully: {time}")
+                saved.LAST_RESTART_TIME = time
+                return 0
+        except Exception as err:
+            if len(err.args) >= 2:
+                logger.error(f"Failed to read time from game server. RConError: err.args[1] == {err.args[1]}")
+            else:
+                logger.error(f"Failed to read time from game server. RConError: err.args == {err.args}")
+            return 1
+
+    @staticmethod
+    async def set_time_decimal():
+        time = saved.LAST_RESTART_TIME
+        logger.info(f"Trying to reset the time to the previously read time of {time}")
+        try:
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                msg = mcr.command(f"TERPO setTimeDecimal {time}")
+                if not msg.startswith("Time has been set to"):
+                    logger.info(f"Failed setting time. {msg}")
+                    return 2
+                logger.info("Time was reset successfully!")
+                return 0
+        except Exception as err:
+            if len(err.args) >= 2:
+                logger.error(f"Failed to set time {time}. RConError: err.args[1] == {err.args[1]}")
+            else:
+                logger.error(f"Failed to set time {time}. RConError: err.args == {err.args}")
+            return 1
 
     @command(name='listplayers', help="Shows a list of all players online right now")
     async def listplayers(self, ctx):
@@ -244,18 +279,15 @@ class RCon(commands.Cog, name="RCon commands"):
             return new.join(li)
 
         try:
-            playerlist = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "ListPlayers")
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                playerlist = mcr.command("ListPlayers")
         except Exception as err:
             await ctx.send("RCon error retrieving the playerlist, please try again in a few seconds.")
-            if hasattr(err, "args"):
-                if len(err.args) >= 2:
-                    logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
-                else:
-                    logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
+            if len(err.args) >= 2:
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
             else:
-                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: sys.exc_info() == {sys.exc_info()}")
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
             return
-            # raise RConConnectionError(sys.exc_info()[0])
         lines = playerlist.split('\n')
         names = []
         headline = True
@@ -282,24 +314,33 @@ class RCon(commands.Cog, name="RCon commands"):
             li = s.rsplit(old, 1)
             return new.join(li)
 
-        result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
-        if not result:
-            raise NotFuncomIdError
-        funcom_id = result.group(1).upper()
+        funcom_id = await Applications.get_funcom_id_in_text(FuncomID)
+        if not funcom_id:
+            msg = "No valid FuncomID given. ID needs to be 14-16 characters long and consist only of digits and letters A-F."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+            return
+
         member = await General.get_member(ctx, " ".join(Player))
         if not member:
-            await ctx.send(f"Couldn't get id for {Player}. Are you sure they are still on this discord server?")
+            msg = f"Couldn't get id for {Player}. Are you sure they are still on this discord server?"
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
-        success = self.update_user(funcom_id, member)
+        success = await RCon.update_user(funcom_id, member)
         if not success:
-            await ctx.send(f"Failed to whitelist. FuncomID already in use by another player.")
+            msg = f"Failed to whitelist. FuncomID already in use by another player."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         removed = None
         if type(success) is list:
             removed = success
             for id in removed:
-                RCon.unwhitelist_player(id)
-        msg = RCon.whitelist_player(funcom_id)
+                result = await RCon.unwhitelist_player(id)
+                if not result.endswith("removed from whitelist."):
+                    await ctx.send(f"Unwhitelisting former FuncomID {id} failed. Server didn't respond. Please try again later.")
+        msg = await RCon.whitelist_player(funcom_id)
         if not msg.endswith("added to whitelist."):
             msg = f"Whitelisting failed. Server didn't respond. Please try again later."
         else:
@@ -309,37 +350,10 @@ class RCon(commands.Cog, name="RCon commands"):
         await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
-    @command(name='whitelistme', help="Whitelists you using the given FuncomID")
-    @has_not_role(NOT_APPLIED_ROLE)
-    async def whitelistme(self, ctx, FuncomID):
-        result = re.search(r'([a-fA-F0-9]{12,})', FuncomID)
-        if not result:
-            raise NotFuncomIdError
-        funcom_id = result.group(1).upper()
-        success = self.update_user(funcom_id, ctx.author)
-        if not success:
-            await ctx.send(f"Whitelisting failed. FuncomID already in use by another player.")
-            return
-        removed = None
-        if type(success) is list:
-            removed = success
-            for id in removed:
-                RCon.unwhitelist_player(id)
-        msg = RCon.whitelist_player(funcom_id)
-        if not msg.endswith("added to whitelist."):
-            msg = "Whitelisting failed. Server didn't respond. Please try again later."
-        else:
-            msg = f"You have been whitelisted with FuncomID {funcom_id}."
-            if removed:
-                r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
-                msg += f" Previous {r} removed from whitelist."
-        await ctx.send(msg)
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
-
-    @command(name='whitelistall', help="Whitelists everyone who's currently in the supplemental databas. Only works while server is down.")
+    @command(name='whitelistall', help="Whitelists everyone who's currently in the supplemental database. Only works while server is down.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whitelistall(self, ctx):
-        if RCon.is_running("ConanSandboxServer"):
+        if await RCon.is_running("ConanSandboxServer"):
             await ctx.send("Command can only be used while server isn't running.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
@@ -394,36 +408,37 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='gettime', help="Tells the current time on the server")
     async def gettime(self, ctx):
         try:
-            time = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "TERPO getTimeDecimal")
-        except Exception as error:
-            print("exception raised", type(error), error.args[1])
-            raise RConConnectionError(error.args[1])
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                time = mcr.command("TERPO getTime")
+        except Exception as err:
+            if len(err.args) >= 2:
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
+            else:
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
+            return
         if time == 'Still processing previous command.':
             await ctx.send("Still processing previous command. Try again in a few seconds.")
             return
-        # convert decimal representation to human readable one
-        time = float(time)
-        hours = str(int(time))
-        seconds = (time % 1) * 3600
-        minutes = str(int(seconds / 60)).zfill(2)
-        seconds = str(int(seconds % 60)).zfill(2)
-        time = f"{hours}:{minutes}:{seconds}"
         # end conversion to human readable representation
-        await ctx.send(f"It's currently {time[:-3]} on the server.")
+        await ctx.send(f"It's currently {time} on the server.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
 
     @command(name='settime', help="Sets the time on the server")
     @has_role(ADMIN_ROLE)
     async def settime(self, ctx, Time):
-        time = self.is_time_format(Time)
+        time = await RCon.is_time_format(Time)
         if not time:
             await ctx.send("Bad time format. Please enter time in HH[:MM[:SS]] 24h format.")
             return
         try:
-            msg = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, f"TERPO setTime {time}")
-        except Exception as error:
-            print("excetion raised", type(error), error.args[1])
-            raise RConConnectionError(error.args[1])
+            with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
+                time = mcr.command(f"TERPO setTime {time}")
+        except Exception as err:
+            if len(err.args) >= 2:
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args[1] == {err.args[1]}")
+            else:
+                logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. RConError: err.args == {err.args}")
+            return
         if len(Time) <= 5:
             time = time[:-3]
         await ctx.send(f"Time on the server has been set to {time}.")

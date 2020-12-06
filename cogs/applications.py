@@ -2,7 +2,6 @@ import re, config as saved
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
-from valve import rcon
 from datetime import datetime
 from logger import logger
 from config import *
@@ -17,7 +16,7 @@ class Applications(commands.Cog, name="Application commands"):
         self.bot = bot
 
     @staticmethod
-    def parse(user, msg):
+    async def parse(user, msg):
         msg = str(msg).replace('{PREFIX}', PREFIX) \
                       .replace('{OWNER}', saved.GUILD.owner.mention)
         msg = msg.replace('{PLAYER}', user.mention) if type(user) is Member else msg.replace('{PLAYER}', str(user))
@@ -28,13 +27,13 @@ class Applications(commands.Cog, name="Application commands"):
         return msg
 
     @staticmethod
-    def get_question_msg(questions, author, id=1, msg=''):
+    async def get_question_msg(questions, author, id=1, msg=''):
         txt = questions[id-1].question
         num = len(questions)
-        return f"{msg}\n__**Question {id} of {num}:**__\n> {Applications.parse(author, txt)}"
+        return f"{msg}\n__**Question {id} of {num}:**__\n> {await Applications.parse(author, txt)}"
 
     @staticmethod
-    def get_overview_msgs(questions, author, msg=''):
+    async def get_overview_msgs(questions, author, msg=''):
         give_overview = False
         for q in questions:
             if q.answer != '':
@@ -47,10 +46,10 @@ class Applications(commands.Cog, name="Application commands"):
         overview = []
         for id in range(num_questions):
             if questions[id].answer != '':
-                if len(buffer) + 21 + len(Applications.parse(author, questions[id].question)) > 2000:
+                if len(buffer) + 21 + len(await Applications.parse(author, questions[id].question)) > 2000:
                     overview.append(buffer)
                     buffer = ''
-                buffer += f"__**Question {id + 1}:**__\n> {Applications.parse(author, questions[id].question)}\n"
+                buffer += f"__**Question {id + 1}:**__\n> {await Applications.parse(author, questions[id].question)}\n"
                 if len(buffer) + len(questions[id].answer) > 2000:
                     overview.append(buffer)
                     buffer = ''
@@ -65,13 +64,18 @@ class Applications(commands.Cog, name="Application commands"):
         return overview
 
     @staticmethod
-    def get_funcom_id_in_answer(questions, num):
-        if questions:
-            questions[num].answer
-            # get all strings consisting only of the letters a-f and digits that's at least 10 characters long
-            result = re.search(r'([a-fA-F0-9]{14,16})', questions[num].answer)
-            return result.group(1).upper() if result else None
-        return None
+    async def get_funcom_id_in_text(text):
+        # get all strings consisting only of the letters a-f and digits that's at least 10 characters long
+        result = re.search(r'([a-fA-F0-9]{14,16})', text)
+        if not result:
+            return None
+        funcom_id = result.group(1)
+        start = text.find(funcom_id)
+        end = start + len(funcom_id) - 1
+        # if given funcom_id isn't either at the beginning and/or end of the text or delimited by a blank
+        if (start > 0 and text[start-1] != " ") or (end < len(text) - 1 and text[end+1] != " "):
+            return None
+        return funcom_id.upper()
 
     @staticmethod
     async def get_last_applicant(ctx, user):
@@ -86,6 +90,17 @@ class Applications(commands.Cog, name="Application commands"):
                 return message.content[pos_start:pos_end]
         return None
 
+    @staticmethod
+    async def add_new_user(member, funcom_id):
+        user = session.query(Users).filter_by(disc_id=member.id).first()
+        if user:
+            user.disc_user = str(member)
+            user.funcom_id = funcom_id
+        else:
+            new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
+            session.add(new_user)
+        session.commit()
+
     @command(name='apply', help="Starts the application process")
     @is_not_applicant()
     async def apply(self, ctx):
@@ -94,8 +109,8 @@ class Applications(commands.Cog, name="Application commands"):
         new_app = AppsTable(ctx.author.id)
         session.add(new_app)
         session.commit()
-        msg = self.parse(ctx.author, TextBlocks.get('APPLIED'))
-        question = self.get_question_msg(new_app.questions, ctx.author, 1, msg)
+        msg = await Applications.parse(ctx.author, TextBlocks.get('APPLIED'))
+        question = await Applications.get_question_msg(new_app.questions, ctx.author, 1, msg)
         await ctx.author.dm_channel.send(question)
         await saved.CHANNEL[APPLICATIONS].send(f"{ctx.author} has started an application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
@@ -108,13 +123,13 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.author.create_dm()
         app = session.query(AppsTable).filter_by(disc_id=ctx.author.id).one()
         if not app.can_edit_questions():
-            await ctx.author.dm_channel.send(self.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
+            await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
             return
         if Number is None:
             if app.status != "open":
-                await ctx.author.dm_channel.send(self.parse(ctx.author, TextBlocks.get('FINISHED')))
+                await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('FINISHED')))
                 return
-            question = self.get_question_msg(app.questions, ctx.author, app.current_question)
+            question = await Applications.get_question_msg(app.questions, ctx.author, app.current_question)
             await ctx.author.dm_channel.send(question)
             return
         num_questions = len(app.questions)
@@ -122,7 +137,7 @@ class Applications(commands.Cog, name="Application commands"):
             raise NotNumberError(f"Argument must be a number between 1 and {num_questions}.")
         if not Number.isnumeric() or int(Number) < 1 or int(Number) > num_questions:
             raise NumberNotInRangeError(f"Number must be between 1 and {num_questions}.")
-        question = self.get_question_msg(app.questions, ctx.author, int(Number))
+        question = await Applications.get_question_msg(app.questions, ctx.author, int(Number))
         await ctx.author.dm_channel.send(question)
         app.current_question = int(Number)
         session.commit()
@@ -131,7 +146,7 @@ class Applications(commands.Cog, name="Application commands"):
     @is_applicant()
     async def overview(self, ctx):
         app = session.query(AppsTable).filter_by(disc_id=ctx.author.id).one()
-        overview = self.get_overview_msgs(app.questions, ctx.author)
+        overview = await Applications.get_overview_msgs(app.questions, ctx.author)
         for part in overview:
             await ctx.send(part)
 
@@ -145,16 +160,16 @@ class Applications(commands.Cog, name="Application commands"):
             await ctx.author.dm_channel.send("Please answer all questions first.")
             return
         if not app.can_edit_questions():
-            await ctx.author.dm_channel.send(self.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
+            await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
             return
         app.status = 'submitted'
         app.open_date = datetime.utcnow()
         session.commit()
-        await ctx.author.dm_channel.send(self.parse(ctx.author, TextBlocks.get('COMMITED')))
+        await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         msg = f"{ROLE[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
-        overview = self.get_overview_msgs(app.questions, ctx.author, msg)
+        overview = await Applications.get_overview_msgs(app.questions, ctx.author, msg)
         for part in overview:
             await saved.CHANNEL[APPLICATIONS].send(part)
 
@@ -178,20 +193,32 @@ class Applications(commands.Cog, name="Application commands"):
         message = Message
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
-            applicant = await self.get_last_applicant(ctx, self.bot.user)
+            applicant = await Applications.get_last_applicant(ctx, self.bot.user)
             if applicant is None:
-                await saved.CHANNEL[APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}accept <applicant>`.")
+                msg = f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}accept <applicant>`."
+                await ctx.send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
                 return
+
+        # convert applicant to member
         member = await General.get_member(ctx, applicant)
         if not member:
-            await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
+            msg = f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there."
+            await saved.CHANNEL[APPLICATIONS].send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+            return
+
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
-            await ctx.send(f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again.")
+            msg = f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         elif app.can_edit_questions():
-            await ctx.send("Can't accept application while it's still being worked on.")
+            msg = "Can't accept application while it's still being worked on."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
 
         # remove Not Applied role
@@ -199,53 +226,45 @@ class Applications(commands.Cog, name="Application commands"):
         if roles[NOT_APPLIED_ROLE] in member.roles:
             await member.remove_roles(roles[NOT_APPLIED_ROLE])
 
-        # Whitelist Applicant
-        if not hasattr(app, 'questions'):
-            await ctx.send(f"Failed to whitelist because FuncomID for {member} couldn't be determined.")
-
-        funcom_id = Applications.get_funcom_id_in_answer(app.questions, app.funcom_id_row-1)
-        if funcom_id:
-            funcom_id = funcom_id.upper()
-            result = RCon.whitelist_player(funcom_id)
-            if result == f"Player {funcom_id} added to whitelist.":
-                user = session.query(Users).filter_by(disc_id=member.id).first()
-                if user:
-                    user.disc_user = str(member)
-                    user.funcom_id = funcom_id
-                else:
-                    new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
-                    session.add(new_user)
-        else:
-            result = "NoFuncomIDinAnswer"
-
         # remove application from list of open applications
         app.status = 'approved'
         session.commit()
 
-        if message:
-            message = " ".join(message)
-        else:
-            message = self.parse(ctx.author, TextBlocks.get('ACCEPTED'))
-        await ctx.send(f"{member}'s application has been accepted.")
-        await member.send("Your application was accepted:\n" + message)
 
-        # Send feedback about whitelisting success
-        info = self.parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
-        if result == "NoFuncomIDinAnswer":
-            await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + self.parse(member, TextBlocks.get('WHITELISTING_FAILED')))
+        if message:
+            await member.send("Your application was accepted:\n" + " ".join(message))
+        else:
+            message = await Applications.parse(ctx.author, TextBlocks.get('ACCEPTED'))
+            await member.send("Your application was accepted:\n" + message)
+        await ctx.send(f"{member}'s application has been accepted.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
+
+        # Whitelist Applicant
+        text = app.questions[app.funcom_id_row-1].answer
+        funcom_id = await Applications.get_funcom_id_in_text(text)
+        # Send feedback about whitelisting success or failure
+        if funcom_id:
+            funcom_id = funcom_id.upper()
+            result = await RCon.whitelist_player(funcom_id)
+            info = await Applications.parse(ctx.author, "They have been informed to request whitelisting in {SUPPORT-REQUEST}.")
+            if result == f"Player {funcom_id} added to whitelist.":
+                await Applications.add_new_user(member, funcom_id)
+                await member.send(await Applications.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
+                await saved.CHANNEL[APPLICATIONS].send(result)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+            elif result.find("FailedError") >= 0:
+                result = result[12:]
+                await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
+                await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
+            else:
+                await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
+                await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
+        else:
+            await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
             await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
-        elif result.find("FailedError") >= 0:
-            result = result[12:]
-            await member.send("Whitelisting failed. " + self.parse(member, TextBlocks.get('WHITELISTING_FAILED')))
-            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
-        else:
-            await member.send(self.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
-            await saved.CHANNEL[APPLICATIONS].send(result)
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
 
     @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
     @has_role(ADMIN_ROLE)
@@ -254,31 +273,43 @@ class Applications(commands.Cog, name="Application commands"):
         message = Message
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
-            applicant = await self.get_last_applicant(ctx, self.bot.user)
+            applicant = await Applications.get_last_applicant(ctx, self.bot.user)
             if applicant is None:
-                await saved.CHANNEL[APPLICATIONS].send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}reject <applicant> <message>`.")
+                msg = f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}reject <applicant> <message>`."
+                await ctx.send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
                 return
+
+        # convert applicant to member
         member = await General.get_member(ctx, applicant)
         if not member:
-            await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
+            msg = f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there."
+            await saved.CHANNEL[APPLICATIONS].send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+            return
+
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
-            await ctx.send(f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again.")
+            msg = f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         elif app.can_edit_questions():
-            await ctx.send(f"Can't reject application while it's still being worked on. Try {PREFIX}cancelapp <applicant> <message> instead.")
+            msg = f"Can't reject application while it's still being worked on. Try {PREFIX}cancelapp <applicant> <message> instead."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
 
         # remove application from list of open applications
         app.status = "rejected"
         session.commit()
 
-        await ctx.send(f"{member}'s application has been rejected.")
         if not message:
-            await member.send(self.parse(ctx.author, "Your application was rejected:\n" + TextBlocks.get('REJECTED')))
+            await member.send(await Applications.parse(ctx.author, "Your application was rejected:\n" + TextBlocks.get('REJECTED')))
         else:
             await member.send("Your application was rejected:\n> " + " ".join(message))
+        await ctx.send(f"{member}'s application has been rejected.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been rejected.")
 
     @command(name='review', help="Ask the Applicant to review their application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
@@ -288,33 +319,45 @@ class Applications(commands.Cog, name="Application commands"):
         message = Message
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
-            applicant = await self.get_last_applicant(ctx, self.bot.user)
+            applicant = await Applications.get_last_applicant(ctx, self.bot.user)
             if applicant is None:
-                await ctx.send(f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}review <applicant> <message>`.")
+                msg = f"Couldn't find a submitted application within the last 100 messages. Please specify the Applicant via `{PREFIX}review <applicant> <message>`."
+                await ctx.send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
                 return
+
+        # convert applicant to member
         member = await General.get_member(ctx, applicant)
         if not member:
-            await saved.CHANNEL[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
+            msg = f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there."
+            await saved.CHANNEL[APPLICATIONS].send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+            return
+
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
-            await ctx.send(f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again.")
+            msg = f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         elif app.can_edit_questions():
-            await ctx.send(f"Can't return application for review while it's still being worked on.")
+            msg = f"Can't return application for review while it's still being worked on."
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
 
         # remove application from list of open applications
         app.status = "review"
         session.commit()
 
-        await ctx.send(f"{member}'s application has been returned.")
         explanation = f"\nYou can change the answer to any question by going to that question with `{PREFIX}question <number>` and then writing your new answer.\nYou can always review your current answers by entering `{PREFIX}overview`."
         if not message:
             msg = "Your application was returned to you for review:\n" + TextBlocks.get('REVIEWED') + explanation
         else:
             msg = "Your application was returned to you for review:\n> " + " ".join(message) + explanation
-        overview = self.get_overview_msgs(app.questions, member, msg)
+        await ctx.send(f"{member}'s application has been returned.")
+        overview = await Applications.get_overview_msgs(app.questions, member, msg)
         for part in overview:
             if member.dm_channel is None:
                 await member.create_dm()
@@ -337,7 +380,7 @@ class Applications(commands.Cog, name="Application commands"):
             else:
                 submission_date = app.open_date.strftime("%d-%b-%Y %H:%M UTC")
                 msg = f"{member}'s application overview. ({submission_date})"
-                overview = self.get_overview_msgs(app.questions, member, msg)
+                overview = await Applications.get_overview_msgs(app.questions, member, msg)
                 for part in overview:
                     await ctx.send(part)
             return

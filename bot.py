@@ -5,7 +5,6 @@ import os, random, discord, config as saved
 from threading import Timer
 from discord import ChannelType
 from discord.ext import commands
-from valve import rcon
 from logger import logger
 from checks import has_role
 from config import *
@@ -173,7 +172,7 @@ def exception_catching_callback(task):
 
 @bot.event
 async def on_ready():
-    rcon.RCONMessage.ENCODING = "utf-8"
+    # rcon.RCONMessage.ENCODING = "utf-8"
     logger.info(f"{bot.user.name} has connected to Discord.")
     # determine discord server
     saved.GUILD = discord.utils.get(bot.guilds, name=DISCORD_NAME)
@@ -215,7 +214,7 @@ async def on_ready():
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
     await member.add_roles(saved.ROLE[NOT_APPLIED_ROLE])
-    await saved.CHANNEL[WELCOME].send(Apps.parse(member, TextBlocks.get('GREETING')))
+    await saved.CHANNEL[WELCOME].send(await Apps.parse(member, TextBlocks.get('GREETING')))
 
 @bot.event
 async def on_member_remove(member):
@@ -231,16 +230,25 @@ async def on_member_remove(member):
 async def on_message(message):
     if message.channel == saved.CHANNEL[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
-            logger.info("Reading time from game server...")
-            try:
-                time = rcon.execute((RCON_IP, RCON_PORT), RCON_PASSWORD, "TERPO getTimeDecimal")
-                logger.info(f"Time read successfully: {time}")
-            except Exception as error:
-                raise RConConnectionError(error.args[1])
-            saved.LAST_RESTART_TIME = time
+            first_attempt = now = datetime.utcnow()
+            failure = await RCon.get_time_decimal()
+            while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
+                await discord.utils.sleep_until(now + timedelta(seconds=30))
+                failure = await RCon.get_time_decimal()
+                now = datetime.utcnow()
+            saved.LAST_RESTART_TIME = time if not failure else "12.0"
+            return
+
         elif message.content.startswith(RESTART_MSG):
-            delayed_set_time = Timer(150.0, RCon.set_time_decimal)
-            delayed_set_time.start()
+            await discord.utils.sleep_until(now + timedelta(seconds=120))
+            first_attempt = now = datetime.utcnow()
+            failure = await RCon.set_time_decimal()
+            while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
+                await discord.utils.sleep_until(now + timedelta(seconds=30))
+                failure = await RCon.set_time_decimal()
+                now = datetime.utcnow()
+            return
+
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
     if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
@@ -256,7 +264,7 @@ async def on_message(message):
     if app and app.status in ('rejected', 'accepted'):
         return
     if not app or not app.can_edit_questions():
-        await message.author.dm_channel.send(Apps.parse(message.author, TextBlocks.get('APP_CLOSED')))
+        await message.author.dm_channel.send(await Apps.parse(message.author, TextBlocks.get('APP_CLOSED')))
         return
     if app.current_question < 0:
         return
@@ -265,11 +273,11 @@ async def on_message(message):
     session.commit()
     app.current_question = app.first_unanswered
     if app.current_question > 0:
-        question = Apps.get_question_msg(questions, message.author, app.current_question)
+        question = await Apps.get_question_msg(questions, message.author, app.current_question)
         await message.author.dm_channel.send(question)
     elif not app.status == 'finished':
         app.status = 'finished'
-        await message.author.dm_channel.send(Apps.parse(message.author, TextBlocks.get('FINISHED')))
+        await message.author.dm_channel.send(await Apps.parse(message.author, TextBlocks.get('FINISHED')))
     session.commit()
 
 @bot.event
