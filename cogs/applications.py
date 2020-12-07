@@ -65,7 +65,7 @@ class Applications(commands.Cog, name="Application commands"):
 
     @staticmethod
     async def get_funcom_id_in_text(text):
-        # get all strings consisting only of the letters a-f and digits that's at least 10 characters long
+        # get all strings consisting only of the letters a-f and digits that's at least 14 and at most 16 characters long
         result = re.search(r'([a-fA-F0-9]{14,16})', text)
         if not result:
             return None
