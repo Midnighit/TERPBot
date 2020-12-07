@@ -54,7 +54,7 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     async def update_whitelist_file(funcom_id, add=True):
-        is_on_whitelist = await is_on_whitelist(funcom_id)
+        is_on_whitelist = await RCon.is_on_whitelist(funcom_id)
         if (is_on_whitelist and add) or (not is_on_whitelist and not add):
             return
         try:
@@ -89,6 +89,7 @@ class RCon(commands.Cog, name="RCon commands"):
         wlist = []
         for id in filtered:
             wlist.append(id + ':' + names[id] + '\n')
+        wlist.sort()
         with open(WHITELIST_PATH, 'w') as f:
             f.writelines(wlist)
 
@@ -342,12 +343,9 @@ class RCon(commands.Cog, name="RCon commands"):
                 if not result.endswith("removed from whitelist."):
                     await ctx.send(f"Unwhitelisting former FuncomID {id} failed. Server didn't respond. Please try again later.")
         msg = await RCon.whitelist_player(funcom_id)
-        if not msg.endswith("added to whitelist."):
-            msg = f"Whitelisting failed. Server didn't respond. Please try again later."
-        else:
-            if removed:
-                r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
-                msg += f" Previous {r} removed from whitelist."
+        if removed:
+            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+            msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
 
@@ -399,7 +397,7 @@ class RCon(commands.Cog, name="RCon commands"):
         wlist = []
         for id in filtered:
             wlist.append(id + ':' + names[id] + '\n')
-            wlist.sort()
+        wlist.sort()
 
         # overwrite / write the new file with the contenst of wlist
         with open(WHITELIST_PATH, 'w') as f:
