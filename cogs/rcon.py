@@ -12,6 +12,7 @@ from logger import logger
 from exceptions import *
 from checks import *
 from cogs.general import General
+from cogs.applications import Applications
 
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):

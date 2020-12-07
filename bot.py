@@ -240,8 +240,8 @@ async def on_message(message):
             return
 
         elif message.content.startswith(RESTART_MSG):
-            await discord.utils.sleep_until(now + timedelta(seconds=120))
             first_attempt = now = datetime.utcnow()
+            await discord.utils.sleep_until(now + timedelta(seconds=120))
             failure = await RCon.set_time_decimal()
             while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
                 await discord.utils.sleep_until(now + timedelta(seconds=30))

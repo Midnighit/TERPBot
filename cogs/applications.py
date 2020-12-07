@@ -46,15 +46,15 @@ class Applications(commands.Cog, name="Application commands"):
         overview = []
         for id in range(num_questions):
             if questions[id].answer != '':
-                if len(buffer) + 21 + len(await Applications.parse(author, questions[id].question)) > 2000:
+                if len(buffer) + 21 + len(await Applications.parse(author, questions[id].question)) > 1900:
                     overview.append(buffer)
                     buffer = ''
                 buffer += f"__**Question {id + 1}:**__\n> {await Applications.parse(author, questions[id].question)}\n"
-                if len(buffer) + len(questions[id].answer) > 2000:
+                if len(buffer) + len(questions[id].answer) > 1900:
                     overview.append(buffer)
                     buffer = ''
                 buffer += questions[id].answer + "\n"
-        if msg and len(buffer) + len(msg) > 2000:
+        if msg and len(buffer) + len(msg) > 1900:
             overview.append(buffer)
             overview.append(msg)
         elif msg:
@@ -223,13 +223,15 @@ class Applications(commands.Cog, name="Application commands"):
 
         # remove Not Applied role
         roles = await General.get_guild_roles()
+        logger.info(f"member == {member}")
+        logger.info(f"Before removal member.roles == {member.roles} roles[NOT_APPLIED_ROLE].id == {roles[NOT_APPLIED_ROLE].id}")
         if roles[NOT_APPLIED_ROLE] in member.roles:
             await member.remove_roles(roles[NOT_APPLIED_ROLE])
+            logger.info(f"after removal member.roles == {member.roles}")
 
         # remove application from list of open applications
         app.status = 'approved'
         session.commit()
-
 
         if message:
             await member.send("Your application was accepted:\n" + " ".join(message))
