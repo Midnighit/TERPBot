@@ -41,26 +41,27 @@ class Applications(commands.Cog, name="Application commands"):
                 break
         if not give_overview:
             return ["No questions answered yet!" + msg]
-        buffer = ''
-        num_questions = len(questions)
+        chunk = ''
         overview = []
-        for id in range(num_questions):
-            if questions[id].answer != '':
-                if len(buffer) + 21 + len(await Applications.parse(author, questions[id].question)) > 1900:
-                    overview.append(buffer)
-                    buffer = ''
-                buffer += f"__**Question {id + 1}:**__\n> {await Applications.parse(author, questions[id].question)}\n"
-                if len(buffer) + len(questions[id].answer) > 1900:
-                    overview.append(buffer)
-                    buffer = ''
-                buffer += questions[id].answer + "\n"
-        if msg and len(buffer) + len(msg) > 1900:
-            overview.append(buffer)
+        for id in range(len(questions)):
+            answer = questions[id].answer + "\n"
+            question = f"__**Question {id + 1}:**__\n> {await Applications.parse(author, questions[id].question)}\n"
+            if answer != '':
+                if len(chunk) + len(question) >= 2000:
+                    overview.append(chunk)
+                    chunk = ''
+                chunk += question
+                if len(chunk) + len(answer) >= 2000:
+                    overview.append(chunk)
+                    chunk = ''
+                chunk += answer
+        if msg and len(chunk) + len(msg) >= 2000:
+            overview.append(chunk)
             overview.append(msg)
         elif msg:
-            overview.append(buffer + msg)
+            overview.append(chunk + msg)
         else:
-            overview.append(buffer)
+            overview.append(chunk)
         return overview
 
     @staticmethod
@@ -162,8 +163,8 @@ class Applications(commands.Cog, name="Application commands"):
         if not app.can_edit_questions():
             await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
             return
-        app.status = 'submitted'
-        app.open_date = datetime.utcnow()
+        # app.status = 'submitted'
+        # app.open_date = datetime.utcnow()
         session.commit()
         await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
