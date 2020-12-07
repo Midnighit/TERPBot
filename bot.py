@@ -177,7 +177,7 @@ async def on_ready():
     # determine discord server
     saved.GUILD = discord.utils.get(bot.guilds, name=DISCORD_NAME)
     if saved.GUILD:
-        print(f"Discord server {saved.GUILD.name} ({saved.GUILD.id}) was found.")
+        logger.info(f"Discord server {saved.GUILD.name} ({saved.GUILD.id}) was found.")
     else:
         exit(f"{DISCORD_NAME} wasn't found. Please check cfg.py or authorize the bot.")
     # get all categories
@@ -196,7 +196,7 @@ async def on_ready():
                 saved.CATEGORY[channel[1]] = await saved.GUILD.create_category(channel[1])
             category = saved.CATEGORY[channel[1]] if channel[1] else None
             saved.CHANNEL[channel[0]] = await saved.GUILD.create_text_channel(channel[0], category=category)
-            print(f"{channel[0]} channel was created (id = {saved.CHANNEL[channel[0]].id})")
+            logger.info(f"{channel[0]} channel was created (id = {saved.CHANNEL[channel[0]].id})")
     # initialize randomizer
     random.seed()
     # load cogs
