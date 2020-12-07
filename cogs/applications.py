@@ -163,8 +163,8 @@ class Applications(commands.Cog, name="Application commands"):
         if not app.can_edit_questions():
             await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('APP_CLOSED')))
             return
-        # app.status = 'submitted'
-        # app.open_date = datetime.utcnow()
+        app.status = 'submitted'
+        app.open_date = datetime.utcnow()
         session.commit()
         await ctx.author.dm_channel.send(await Applications.parse(ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
