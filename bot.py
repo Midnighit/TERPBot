@@ -18,18 +18,16 @@ intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(PREFIX, intents=intents, case_insensitive=True)
 
-async def next_time(d, t):
-    weekdays = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
-    now = datetime.utcnow().replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
-    days_ahead = (weekdays[d] - now.weekday()) % 7
-    if days_ahead == 0 and datetime.utcnow().time() > t:
-        days_ahead = 7
-    return now + timedelta(days=days_ahead)
-
 async def magic_rolls():
+    weekdays = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
     while True:
         # schedule the next function call
-        then = await next_time(UPDATE_MAGIC_DAY, UPDATE_MAGIC_TIME)
+        t = UPDATE_MAGIC_TIME
+        now = datetime.utcnow().replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
+        days_ahead = (weekdays[UPDATE_MAGIC_DAY] - now.weekday()) % 7
+        if days_ahead == 0 and datetime.utcnow().time() > t:
+            days_ahead = 7
+        then = now + timedelta(days=days_ahead)
         await discord.utils.sleep_until(then)
         # perform the actual magic rolls
         mchars = session.query(MagicChars).filter_by(active=True).order_by(MagicChars.name).all()
@@ -160,6 +158,24 @@ async def update_roles():
         await saved.GUILD.edit_role_positions(positions)
         logger.info("Finished reindexing discord clan roles.")
 
+async def get_time():
+    first_attempt = now = datetime.utcnow()
+    failure = await RCon.get_time_decimal()
+    while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
+        await discord.utils.sleep_until(now + timedelta(seconds=30))
+        failure = await RCon.get_time_decimal()
+        now = datetime.utcnow()
+    return
+
+async def set_time():
+    first_attempt = now = datetime.utcnow()
+    failure = await RCon.set_time_decimal()
+    while failure and now - first_attempt <= timedelta(minutes=5, seconds=10):
+        await discord.utils.sleep_until(now + timedelta(seconds=30))
+        failure = await RCon.set_time_decimal()
+        now = datetime.utcnow()
+    return
+
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
     if task.exception():
@@ -230,24 +246,12 @@ async def on_member_remove(member):
 async def on_message(message):
     if message.channel == saved.CHANNEL[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
-            first_attempt = now = datetime.utcnow()
-            failure = await RCon.get_time_decimal()
-            while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
-                await discord.utils.sleep_until(now + timedelta(seconds=30))
-                failure = await RCon.get_time_decimal()
-                now = datetime.utcnow()
-            saved.LAST_RESTART_TIME = time if not failure else "12.0"
-            return
+            get_time_task = asyncio.create_task(get_time())
+            get_time_task.add_done_callback(exception_catching_callback)
 
         elif message.content.startswith(RESTART_MSG):
-            first_attempt = now = datetime.utcnow()
-            await discord.utils.sleep_until(now + timedelta(seconds=120))
-            failure = await RCon.set_time_decimal()
-            while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
-                await discord.utils.sleep_until(now + timedelta(seconds=30))
-                failure = await RCon.set_time_decimal()
-                now = datetime.utcnow()
-            return
+            set_time_task = asyncio.create_task(set_time())
+            set_time_task.add_done_callback(exception_catching_callback)
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
     if not message.channel.type == ChannelType.private or not app:
