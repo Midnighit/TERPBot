@@ -104,6 +104,7 @@ class Applications(commands.Cog, name="Application commands"):
 
     @staticmethod
     async def whitelist_later(ctx, member, app, funcom_id):
+        info = await Applications.parse(ctx.author, f"They have been informed to request whitelisting in {saved.CHANNEL[SUPPORT]}.")
         if not funcom_id:
             await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
             await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
@@ -111,7 +112,6 @@ class Applications(commands.Cog, name="Application commands"):
             return
 
         result = await RCon.whitelist_player(funcom_id)
-        info = await Applications.parse(ctx.author, f"They have been informed to request whitelisting in {saved.CHANNEL[SUPPORT]}.")
         if result == f"Player {funcom_id} added to whitelist.":
             await Applications.add_new_user(member, funcom_id)
             await member.send(await Applications.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
