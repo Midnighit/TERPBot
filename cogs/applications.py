@@ -103,30 +103,13 @@ class Applications(commands.Cog, name="Application commands"):
         session.commit()
 
     @staticmethod
-    async def whitelist_later(ctx, member, app, funcom_id):
-        info = await Applications.parse(ctx.author, f"They have been informed to request whitelisting in {saved.CHANNEL[SUPPORT]}.")
-        if not funcom_id:
-            await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
-            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
-            return
-
-        result = await RCon.whitelist_player(funcom_id)
-        if result == f"Player {funcom_id} added to whitelist.":
-            await Applications.add_new_user(member, funcom_id)
-            await member.send(await Applications.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
-            await saved.CHANNEL[APPLICATIONS].send(result)
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
-        elif result.find("FailedError") >= 0:
-            result = result[12:]
-            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
-            await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
-        else:
-            await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
-            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
-
+    async def remove_applied_role(member):
+        roles = await General.get_guild_roles()
+        logger.info(f"member == {member}")
+        logger.info(f"Before removal member.roles == {member.roles} roles[NOT_APPLIED_ROLE].id == {roles[NOT_APPLIED_ROLE].id}")
+        if roles[NOT_APPLIED_ROLE] in member.roles:
+            await member.remove_roles(roles[NOT_APPLIED_ROLE])
+            logger.info(f"after removal member.roles == {member.roles}")
 
     @command(name='apply', help="Starts the application process")
     @is_not_applicant()
@@ -249,12 +232,8 @@ class Applications(commands.Cog, name="Application commands"):
             return
 
         # remove Not Applied role
-        roles = await General.get_guild_roles()
-        logger.info(f"member == {member}")
-        logger.info(f"Before removal member.roles == {member.roles} roles[NOT_APPLIED_ROLE].id == {roles[NOT_APPLIED_ROLE].id}")
-        if roles[NOT_APPLIED_ROLE] in member.roles:
-            await member.remove_roles(roles[NOT_APPLIED_ROLE])
-            logger.info(f"after removal member.roles == {member.roles}")
+        remove_applied_role_task = asyncio.create_task(Applications.remove_applied_role(member))
+        remove_applied_role_task.add_done_callback(exception_catching_callback)
 
         # remove application from list of open applications
         app.status = 'approved'
@@ -271,8 +250,27 @@ class Applications(commands.Cog, name="Application commands"):
         # Whitelist Applicant
         text = app.questions[app.funcom_id_row-1].answer
         funcom_id = (await Applications.get_funcom_id_in_text(text)).upper()
-        whitelist_later_task = asyncio.create_task(Applications.whitelist_later(ctx, member, app, funcom_id))
-        whitelist_later_task.add_done_callback(exception_catching_callback)
+        info = await Applications.parse(ctx.author, f"They have been informed to request whitelisting in {saved.CHANNEL[SUPPORT]}.")
+        if funcom_id:
+            result = await RCon.whitelist_player(funcom_id)
+            if result == f"Player {funcom_id} added to whitelist.":
+                await Applications.add_new_user(member, funcom_id)
+                await member.send(await Applications.parse(ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))
+                await saved.CHANNEL[APPLICATIONS].send(result)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}")
+            elif result.find("FailedError") >= 0:
+                result = result[12:]
+                await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
+                await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
+            else:
+                await member.send("Whitelisting failed. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
+                await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed (error message: {result}). {info}")
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. FailedError (error: {result})")
+        else:
+            await member.send("Whitelisting failed, you have given no valid FuncomId your answer. " + (await Applications.parse(member, TextBlocks.get('WHITELISTING_FAILED'))))
+            await saved.CHANNEL[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
 
     @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
     @has_role(ADMIN_ROLE)
