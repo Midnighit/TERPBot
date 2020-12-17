@@ -249,9 +249,10 @@ class Applications(commands.Cog, name="Application commands"):
 
         # Whitelist Applicant
         text = app.questions[app.funcom_id_row-1].answer
-        funcom_id = (await Applications.get_funcom_id_in_text(text)).upper()
+        funcom_id = await Applications.get_funcom_id_in_text(text)
         info = await Applications.parse(ctx.author, f"They have been informed to request whitelisting in {saved.CHANNEL[SUPPORT]}.")
         if funcom_id:
+            funcom_id = funcom_id.upper()
             result = await RCon.whitelist_player(funcom_id)
             if result == f"Player {funcom_id} added to whitelist.":
                 await Applications.add_new_user(member, funcom_id)
