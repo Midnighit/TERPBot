@@ -76,7 +76,10 @@ class Applications(commands.Cog, name="Application commands"):
         # if given funcom_id isn't either at the beginning and/or end of the text or delimited by a blank
         if (start > 0 and text[start-1] != " ") or (end < len(text) - 1 and text[end+1] != " "):
             return None
-        return funcom_id.upper()
+        if funcom_id:
+            return funcom_id.upper()
+        else:
+            return None
 
     @staticmethod
     async def get_last_applicant(ctx, user):
