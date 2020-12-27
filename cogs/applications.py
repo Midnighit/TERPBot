@@ -98,16 +98,16 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='apply', help="Starts the application process")
     @is_not_applicant()
     async def apply(self, ctx):
+        guild = get_guild(self.bot)
+        channels = get_channels(guild)
         if ctx.author.dm_channel is None:
             await ctx.author.create_dm()
         new_app = AppsTable(ctx.author.id)
         session.add(new_app)
         session.commit()
-        guild = get_guild(self.bot)
         msg = parse(guild, ctx.author, TextBlocks.get('APPLIED'))
         question = await self.get_question_msg(guild, new_app.questions, ctx.author, 1, msg)
         await ctx.author.dm_channel.send(question)
-        channels = get_channels(guild)
         await channels[APPLICATIONS].send(f"{ctx.author} has started an application.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has started an application.")
 
@@ -150,6 +150,9 @@ class Applications(commands.Cog, name="Application commands"):
     @command(name='submit', help="Submit your application and send it to the admins")
     @is_applicant()
     async def submit(self, ctx):
+        guild = get_guild(self.bot)
+        roles = get_roles(guild)
+        channels = get_channels(guild)
         if ctx.author.dm_channel is None:
             await ctx.author.create_dm()
         app = session.query(AppsTable).filter_by(disc_id=ctx.author.id).one()
@@ -165,22 +168,21 @@ class Applications(commands.Cog, name="Application commands"):
         await ctx.author.dm_channel.send(parse(guild, ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
-        msg = f"{ROLE[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
+        msg = f"{roles[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
         overview = await self.get_overview_msgs(app.questions, ctx.author, msg)
-        channels = get_channels(guild)
         for part in overview:
             await channels[APPLICATIONS].send(part)
 
     @command(name='cancel', help="Cancel your application")
     @is_applicant()
     async def cancel(self, ctx):
+        channels = get_channels(bot=self.bot)
         app = session.query(AppsTable).filter_by(disc_id=ctx.author.id).one()
         # can't cancel an application that's already approved or rejected
         if app.status in ('rejected', 'approved'):
             return
         session.delete(app)
         session.commit()
-        channels = get_channels(guild)
         await channels[APPLICATIONS].send(f"{ctx.author} has canceled their application.")
         await ctx.author.dm_channel.send("Your application has been canceled.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has canceled their application.")
@@ -190,6 +192,8 @@ class Applications(commands.Cog, name="Application commands"):
     async def accept(self, ctx, Applicant=None, *Message):
         applicant = Applicant
         message = Message
+        guild = get_guild(self.bot)
+        roles = get_roles(guild)
         channels = get_channels(guild)
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
@@ -222,7 +226,6 @@ class Applications(commands.Cog, name="Application commands"):
             return
 
         # remove Not Applied role
-        roles = get_roles(guild)
         logger.info(f"member == {member}")
         logger.info(f"Before removal member.roles == {member.roles} roles[NOT_APPLIED_ROLE].id == {roles[NOT_APPLIED_ROLE].id}")
         if roles[NOT_APPLIED_ROLE] in member.roles:
@@ -272,6 +275,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def reject(self, ctx, Applicant=None, *Message):
         applicant = Applicant
         message = Message
+        guild = get_guild(self.bot)
         channels = get_channels(guild)
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
@@ -319,7 +323,7 @@ class Applications(commands.Cog, name="Application commands"):
     async def review(self, ctx, Applicant=None, *Message):
         applicant = Applicant
         message = Message
-        channels = get_channels(guild)
+        channels = get_channels(bot=self.bot)
         # if no Applicant is given, try to automatically determine one
         if applicant is None:
             applicant = await self.get_last_applicant(self.bot)
@@ -409,7 +413,7 @@ class Applications(commands.Cog, name="Application commands"):
         applicant = Applicant
         message = Message
         member = await get_member(ctx, applicant)
-        channels = get_channels(guild)
+        channels = get_channels(bot=self.bot)
         if not member:
             await channels[APPLICATIONS].send(f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? Users who leave the server while they still have an open application are automatically removed. Use {PREFIX}showapp to check if the app is still there.")
         # confirm that there is a closed application for that Applicant
