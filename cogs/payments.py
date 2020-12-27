@@ -40,10 +40,13 @@ class Payments(commands.Cog, name="Payment commands."):
         # Command pm (1 arg)
         if len(args) == 0:
             owners = await Payments.get_chars(ctx.author)
-            messages = []
-            for owner_id, cat_users in owners.items():
-                messages = await get_user_msg(cat_users, messages)
-            await print_payments_msg(ctx.channel, messages)
+            if len(owners) == 0:
+                await ctx.send("You have no characters or clans on any of the payment lists.")
+            else:
+                messages = []
+                for owner_id, cat_users in owners.items():
+                    messages = await get_user_msg(cat_users, messages)
+                await print_payments_msg(ctx.channel, messages)
 
         # Command pm add <category> <owner> (3+ args)
         elif args[0] == 'add' and len(args) < 3:
