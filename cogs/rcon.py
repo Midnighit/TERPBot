@@ -11,20 +11,13 @@ from exiles_api import *
 from logger import logger
 from exceptions import *
 from checks import *
+from functions import *
 from cogs.general import General
 from cogs.applications import Applications
 
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):
         self.bot = bot
-
-    @staticmethod
-    async def is_hex(s):
-        return all(c in '1234567890ABCDEF' for c in s.upper())
-
-    @staticmethod
-    async def is_float(s):
-        return re.match(r'^-?\d+(?:\.\d+)?$', s) is not None
 
     @staticmethod
     async def is_running(process_name, strict=False):
@@ -96,7 +89,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @staticmethod
     async def whitelist_player(funcom_id):
         # intercept obvious wrong cases
-        if not await RCon.is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
+        if not is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
             return f"{funcom_id} is not a valid FuncomID."
         elif funcom_id == "8187A5834CD94E58":
             return f"{funcom_id} is the example FuncomID of Midnight."
@@ -242,11 +235,11 @@ class RCon(commands.Cog, name="RCon commands"):
         try:
             with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
                 time = mcr.command(f"TERPO getTimeDecimal")
-                if not await RCon.is_float(time):
+                if not is_float(time):
                     logger.info(f"Failed reading time. {time}")
                     return 2
                 logger.info(f"Time read successfully: {time}")
-                saved.LAST_RESTART_TIME = time
+                GlobalVars.set_value('LAST_RESTART_TIME', time)
                 return 0
         except Exception as err:
             if len(err.args) >= 2:
@@ -257,7 +250,7 @@ class RCon(commands.Cog, name="RCon commands"):
 
     @staticmethod
     async def set_time_decimal():
-        time = saved.LAST_RESTART_TIME
+        time = GlobalVars.get_value('LAST_RESTART_TIME')
         logger.info(f"Trying to reset the time to the previously read time of {time}")
         try:
             with MCRcon(RCON_IP, RCON_PASSWORD, port=RCON_PORT) as mcr:
@@ -323,7 +316,7 @@ class RCon(commands.Cog, name="RCon commands"):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
 
-        member = await General.get_member(ctx, " ".join(Player))
+        member = await get_member(ctx, " ".join(Player))
         if not member:
             msg = f"Couldn't get id for {Player}. Are you sure they are still on this discord server?"
             await ctx.send(msg)

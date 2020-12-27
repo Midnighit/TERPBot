@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, codecs
 import logging
 from config import LOG_LEVEL
 from logging.handlers import RotatingFileHandler
@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
+# sys.stdout = codecs.getwriter("utf-8")(sys.stdout)
 prn_handler = logging.StreamHandler(sys.stdout)
 prn_handler.setLevel(LOG_LEVEL)
 logger.addHandler(prn_handler)

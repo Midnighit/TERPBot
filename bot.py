@@ -1,13 +1,13 @@
 # TERPBot v1.2.1
-import os, random, discord, asyncio, config as saved
+import os, random, discord, asyncio
 from datetime import datetime, timedelta
-import os, random, discord, config as saved
 from threading import Timer
 from discord import ChannelType
 from discord.ext import commands
 from logger import logger
-from checks import has_role
+from checks import has_role, init_checks
 from config import *
+from functions import *
 from exiles_api import *
 from cogs.applications import Applications as Apps
 from cogs.general import General
@@ -19,26 +19,27 @@ intents.members = True
 bot = commands.Bot(PREFIX, intents=intents, case_insensitive=True)
 
 async def magic_rolls():
+    channels = get_channels(bot=bot)
     weekdays = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
     while True:
         # schedule the next function call
-        t = UPDATE_MAGIC_TIME
-        now = datetime.utcnow().replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
-        days_ahead = (weekdays[UPDATE_MAGIC_DAY] - now.weekday()) % 7
-        if days_ahead == 0 and datetime.utcnow().time() > t:
+        now = datetime.utcnow()
+        today = datetime.combine(now, UPDATE_MAGIC_TIME)
+        days_ahead = (weekdays[UPDATE_MAGIC_DAY] - today.weekday()) % 7
+        if days_ahead == 0 and now.time() > UPDATE_MAGIC_TIME:
             days_ahead = 7
-        then = now + timedelta(days=days_ahead)
+        then = today + timedelta(days=days_ahead)
         await discord.utils.sleep_until(then)
         # perform the actual magic rolls
         mchars = session.query(MagicChars).filter_by(active=True).order_by(MagicChars.name).all()
         if len(mchars) == 0:
-            await saved.CHANNEL[MAGIC_ROLLS].send("No magic chars registered.")
+            await channels[MAGIC_ROLLS].send("No magic chars registered.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No magic chars registered.")
             continue
         longest_name = session.query(func.max(func.length(MagicChars.name))).filter_by(active=True).scalar()
         hd = ["Character", " MP"]
         wd = longest_name if longest_name > len(hd[0]) else len(hd[0])
-        await saved.CHANNEL[MAGIC_ROLLS].send(f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:")
+        await channels[MAGIC_ROLLS].send(f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:")
         output = f"```{hd[0]:<{wd}} | {hd[1]:>{len(hd[1])}}"
         output += '\n' + '-' * (len(output) - 3)
         for mchar in mchars:
@@ -46,14 +47,15 @@ async def magic_rolls():
             chunk = f"\n{mchar.name:<{wd}} | {mchar.mana:>{len(hd[1])}}"
             # ensure that the whole output isn't longer than 2000 characters
             if (len(output) + len(chunk)) > 2000:
-                await saved.CHANNEL[MAGIC_ROLLS].send(output)
+                await channels[MAGIC_ROLLS].send(output)
                 output = chunk
             else:
                 output += chunk
         session.commit()
-        await saved.CHANNEL[MAGIC_ROLLS].send(output + "```")
+        await channels[MAGIC_ROLLS].send(output + "```")
 
 async def update_roles():
+    guild = get_guild(bot)
     while True:
         # schedule the next function call
         now = datetime.utcnow()
@@ -63,15 +65,13 @@ async def update_roles():
         then = datetime.combine(date, UPDATE_ROLES_TIME)
         await discord.utils.sleep_until(then)
         # perfom the actual role update
-        roles = {}
-        for role in saved.GUILD.roles:
-            roles[role.name] = role
+        roles = get_roles(guild)
 
         # clan roles that are required based on the actual Characters table
         logger.info("Starting to reindex discord clan roles.")
 
         guild_members = {}
-        for member in saved.GUILD.members:
+        for member in guild.members:
             guild_members[str(member.id)] = member
 
         required_clan_roles = {}
@@ -132,7 +132,7 @@ async def update_roles():
                 clan_roles.append(name)
                 hoist = CLAN_ROLE_HOIST
                 mentionable = CLAN_ROLE_MENTIONABLE
-                roles[name] = await saved.GUILD.create_role(name=name, hoist=hoist, mentionable=mentionable)
+                roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
                 # add all members to that role
                 for member in members:
                     await member.add_roles(roles[name])
@@ -155,7 +155,7 @@ async def update_roles():
             positions[roles[name]] = position
 
         # reorder the clan roles alphabetically
-        await saved.GUILD.edit_role_positions(positions)
+        await guild.edit_role_positions(positions)
         logger.info("Finished reindexing discord clan roles.")
 
 async def get_time():
@@ -176,12 +176,6 @@ async def set_time():
         now = datetime.utcnow()
     return
 
-# errors in tasks raise silently normally so lets make them speak up
-def exception_catching_callback(task):
-    if task.exception():
-        logger.error("Error in task.")
-        task.print_stack()
-
 ##############
 ''' Events '''
 ##############
@@ -191,28 +185,27 @@ async def on_ready():
     # rcon.RCONMessage.ENCODING = "utf-8"
     logger.info(f"{bot.user.name} has connected to Discord.")
     # determine discord server
-    saved.GUILD = discord.utils.get(bot.guilds, name=DISCORD_NAME)
-    if saved.GUILD:
-        logger.info(f"Discord server {saved.GUILD.name} ({saved.GUILD.id}) was found.")
+    guild = get_guild(bot)
+    if guild:
+        logger.info(f"Discord server {guild.name} ({guild.id}) was found.")
     else:
         exit(f"{DISCORD_NAME} wasn't found. Please check cfg.py or authorize the bot.")
+    # initialize checks
+    init_checks(guild)
     # get all categories
-    for category in saved.GUILD.categories:
-        saved.CATEGORY[category.name] = category
+    categories = get_categories(guild)
     # get all channels
-    for channel in saved.GUILD.channels:
-        saved.CHANNEL[channel.name] = channel
+    channels = get_channels(guild)
     # get all roles
-    for role in saved.GUILD.roles:
-        saved.ROLE[role.name] = role
+    roles = get_roles(guild)
     # create channel and category if necessary
-    for channel in saved.DISCORD_CHANNELS:
-        if not channel[0] in saved.CHANNEL:
-            if channel[1] and not channel[1] in saved.CATEGORY:
-                saved.CATEGORY[channel[1]] = await saved.GUILD.create_category(channel[1])
-            category = saved.CATEGORY[channel[1]] if channel[1] else None
-            saved.CHANNEL[channel[0]] = await saved.GUILD.create_text_channel(channel[0], category=category)
-            logger.info(f"{channel[0]} channel was created (id = {saved.CHANNEL[channel[0]].id})")
+    for channel in DISCORD_CHANNELS:
+        if not channel[0] in channels:
+            if channel[1] and not channel[1] in categories:
+                categories[channel[1]] = await guild.create_category(channel[1])
+            category = categories[channel[1]] if channel[1] else None
+            channels[channel[0]] = await guild.create_text_channel(channel[0], category=category)
+            logger.info(f"{channel[0]} channel was created (id = {channels[channel[0]].id})")
     # initialize randomizer
     random.seed()
     # load cogs
@@ -225,12 +218,21 @@ async def on_ready():
     if ROLL_FOR_MANA:
         magic_roles_task = asyncio.create_task(magic_rolls())
         magic_roles_task.add_done_callback(exception_catching_callback)
+    for cat_user in session.query(CatUsers).order_by(CatUsers.next_due).all():
+        payments_task = asyncio.create_task(payments(cat_user.id, cat_user.category_id))
+        payments_task.add_done_callback(exception_catching_callback)
+    for category in session.query(Categories).all():
+        payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
+        payments_output_task.add_done_callback(exception_catching_callback)
 
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
-    await member.add_roles(saved.ROLE[NOT_APPLIED_ROLE])
-    await saved.CHANNEL[WELCOME].send(await Apps.parse(member, TextBlocks.get('GREETING')))
+    guild = get_guild(bot)
+    roles = get_roles(guild)
+    channels = get_channels(guild)
+    await member.add_roles(roles[NOT_APPLIED_ROLE])
+    await channels[WELCOME].send(parse(guild, member, TextBlocks.get('GREETING')))
 
 @bot.event
 async def on_member_remove(member):
@@ -244,7 +246,9 @@ async def on_member_remove(member):
 
 @bot.event
 async def on_message(message):
-    if message.channel == saved.CHANNEL[STATUS]:
+    guild = get_guild(bot)
+    channels = get_channels(guild)
+    if message.channel == channels[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
             get_time_task = asyncio.create_task(get_time())
             get_time_task.add_done_callback(exception_catching_callback)
@@ -252,6 +256,10 @@ async def on_message(message):
         elif message.content.startswith(RESTART_MSG):
             set_time_task = asyncio.create_task(set_time())
             set_time_task.add_done_callback(exception_catching_callback)
+
+    for category in session.query(Categories).all():
+        if message.channel.id == int(category.input_channel) and category.alert_message in message.content:
+            await payments_input(category, message)
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
     if not message.channel.type == ChannelType.private or not app:
@@ -268,7 +276,7 @@ async def on_message(message):
     if app and app.status in ('rejected', 'accepted'):
         return
     if not app or not app.can_edit_questions():
-        await message.author.dm_channel.send(await Apps.parse(message.author, TextBlocks.get('APP_CLOSED')))
+        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get('APP_CLOSED')))
         return
     if app.current_question < 0:
         return
@@ -277,18 +285,18 @@ async def on_message(message):
     session.commit()
     app.current_question = app.first_unanswered
     if app.current_question > 0:
-        question = await Apps.get_question_msg(questions, message.author, app.current_question)
+        question = await Apps.get_question_msg(guild, questions, message.author, app.current_question)
         await message.author.dm_channel.send(question)
     elif not app.status == 'finished':
         app.status = 'finished'
-        await message.author.dm_channel.send(await Apps.parse(message.author, TextBlocks.get('FINISHED')))
+        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get('FINISHED')))
     session.commit()
 
 @bot.event
 async def on_command_error(ctx, error):
-    if saved.C_ERR:
-        saved.C_ERR = False
-        return
+    # if save_d.C_ERR:
+    #     save_d.C_ERR = False
+    #     return
     if isinstance(error, commands.BadArgument):
         await ctx.send("Bad argument error.")
     elif isinstance(error, commands.CommandError):

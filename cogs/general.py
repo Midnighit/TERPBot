@@ -1,4 +1,4 @@
-import random, config, time as saved
+import random, config, time
 from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command
@@ -7,6 +7,7 @@ from exiles_api import *
 from config import *
 from exceptions import *
 from checks import *
+from functions import *
 
 class General(commands.Cog, name="General commands."):
     def __init__(self, bot):
@@ -24,27 +25,6 @@ class General(commands.Cog, name="General commands."):
             for idx in range(len(iter)):
                 print(f"    {idx}: {iter[idx]},")
             print("]")
-
-    @staticmethod
-    async def get_guild_roles():
-        roles = {}
-        for role in saved.GUILD.roles:
-            roles[role.name] = role
-        return roles
-
-    @staticmethod
-    async def get_guild_categories():
-        categories = {}
-        for category in saved.GUILD.categories:
-            categories[category.name] = categories
-        return categories
-
-    @staticmethod
-    async def get_guild_channels():
-        channels = {}
-        for channel in saved.GUILD.channels:
-            channels[channel.name] = channel
-        return channels
 
     @staticmethod
     async def roll_dice(input):
@@ -102,16 +82,6 @@ class General(commands.Cog, name="General commands."):
             result = result + " - **" + str(abs(val)) + "**"
         result = f"{result} (total: **{str(sum + val)}**)" if len(lst) > 1 or val != 0 else result
         return result
-
-    @staticmethod
-    async def get_member(ctx, name):
-        try:
-            return await commands.MemberConverter().convert(ctx, name)
-        except:
-            try:
-                return await commands.MemberConverter().convert(ctx, name.capitalize())
-            except:
-                return None
 
     @staticmethod
     async def get_user_string(arg, users, with_id=False):
@@ -262,7 +232,7 @@ class General(commands.Cog, name="General commands."):
     async def whois(self, ctx, *, arg):
         disc_id = disc_user = user = None
         # try converting the given argument into a member
-        member = await self.get_member(ctx, arg)
+        member = await get_member(ctx, arg)
         if member:
             disc_id = member.id
             disc_user = str(member)
@@ -344,7 +314,7 @@ class General(commands.Cog, name="General commands."):
         name = " ".join(arg_list) if loc or obj or strict else arg
 
         thralls = Properties.get_thrall_owners(name=name, strict=strict)
-        await ctx.send(await General.get_owner_string(name, thralls, loc, obj))
+        await ctx.send(await self.get_owner_string(name, thralls, loc, obj))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="isownedby")
@@ -386,13 +356,13 @@ class General(commands.Cog, name="General commands."):
             owner = owners[0]
 
         thralls = Properties.get_thrall_owners(owner_id=owner.id)
-        await ctx.send(await General.get_thralls_string(owner.name, thralls, loc, obj))
+        await ctx.send(await self.get_thralls_string(owner.name, thralls, loc, obj))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="reindex")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def reindex(self, ctx):
-        roles = await General.get_guild_roles()
+        roles = get_roles(guild)
 
         # clan roles that are required based on the actual Characters table
         required_clan_roles = {}
@@ -411,7 +381,7 @@ class General(commands.Cog, name="General commands."):
                     print(f"Couldn't find DiscordID for {char.name} for clan roles indexing")
                     logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
                     continue
-                member = await self.get_member(ctx, disc_id)
+                member = await get_member(ctx, disc_id)
                 if not member:
                     print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
                     logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
@@ -473,7 +443,7 @@ class General(commands.Cog, name="General commands."):
                 clan_roles.append(name)
                 hoist = CLAN_ROLE_HOIST
                 mentionable = CLAN_ROLE_MENTIONABLE
-                roles[name] = await saved.GUILD.create_role(name=name, hoist=hoist, mentionable=mentionable)
+                roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
                 # add all members to that role
                 for member in members:
                     await member.add_roles(roles[name])
@@ -498,7 +468,7 @@ class General(commands.Cog, name="General commands."):
         # print("positions:")
         # self.print_iter(positions)
 
-        await saved.GUILD.edit_role_positions(positions)
+        await guild.edit_role_positions(positions)
         await ctx.send(f"Done!")
 
 def setup(bot):

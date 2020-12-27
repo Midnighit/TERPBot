@@ -1,8 +1,10 @@
-import config as saved
 from config import *
 from exceptions import *
 from discord.ext.commands import check, BadArgument, MissingRequiredArgument
 from exiles_api import session, Applications
+from functions import *
+
+guild = None
 
 ##############
 ''' Checks '''
@@ -34,34 +36,38 @@ def is_not_bot():
 
 def has_not_role(check_role: str):
     async def predicate(ctx):
-        member = saved.GUILD.get_member(ctx.author.id)
-        if saved.ROLE[check_role] in member.roles:
+        member = guild.get_member(ctx.author.id)
+        roles = get_roles(guild)
+        if roles[check_role] in member.roles:
             raise HasRoleError(f"Command may not used by users with role {check_role}.")
         return True
     return check(predicate)
 
 def has_role(check_role: str):
     async def predicate(ctx):
-        member = saved.GUILD.get_member(ctx.author.id)
-        if not saved.ROLE[check_role] in member.roles:
+        member = guild.get_member(ctx.author.id)
+        roles = get_roles(guild)
+        if not roles[check_role] in member.roles:
             raise HasNotRoleError(f"Command may only be used by users with role {check_role}.")
         return True
     return check(predicate)
 
 def has_role_greater_or_equal(check_role: str):
     async def predicate(ctx):
-        member = saved.GUILD.get_member(ctx.author.id)
+        member = guild.get_member(ctx.author.id)
+        roles = get_roles(guild)
         for author_role in member.roles:
-            if author_role >= saved.ROLE[check_role]:
+            if author_role >= roles[check_role]:
                 return True
         raise RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
     return check(predicate)
 
 def has_role_greater(check_role: str):
     async def predicate(ctx):
-        member = saved.GUILD.get_member(ctx.author.id)
+        member = guild.get_member(ctx.author.id)
+        roles = get_roles(guild)
         for author_role in member.roles:
-            if author_role > saved.ROLE[check_role]:
+            if author_role > roles[check_role]:
                 return True
         raise RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
     return check(predicate)
@@ -78,3 +84,7 @@ def number_in_range(min: int, max: int):
             raise NumberNotInRangeError(f"Number must be between {str(min)} and {str(max)}.")
         return True
     return check(predicate)
+
+def init_checks(_guild):
+    global guild
+    guild = _guild

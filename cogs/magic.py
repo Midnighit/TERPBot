@@ -6,6 +6,7 @@ from config import *
 from exiles_api import *
 from logger import logger
 from checks import *
+from functions import *
 from cogs.general import General
 
 class Mag(Cog, name="Magic commands."):
