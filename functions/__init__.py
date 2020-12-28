@@ -1,5 +1,5 @@
 import discord, re
-from datetime import timedelta
+from datetime import timedelta, datetime
 from logger import logger
 from discord import Member
 from discord.ext import commands
@@ -158,8 +158,18 @@ async def payments_output(guilds, id):
             break
         if cat.verbosity == 0:
             break
-        delay = timedelta(seconds=30)
-        next_due = CatUsers._next_due(cat.start) + delay if not next_due else next_due + cat.frequency
+        if cat.frequency > timedelta(days=1):
+            delay = timedelta(days=1)
+        elif cat.frequency >= timedelta(days=1):
+            delay = timedelta(hours=12)
+        elif cat.frequency >= timedelta(hours=1):
+            delay = timedelta(minutes=30)
+        else:
+            break
+
+        next_due = CatUsers._next_due(cat.start) - delay if not next_due else next_due + cat.frequency
+        if next_due <= datetime.utcnow():
+            next_due += cat.frequency
         await discord.utils.sleep_until(next_due)
         for guild in guilds:
             for channel in guild.channels:
