@@ -67,6 +67,8 @@ def is_float(s):
     return re.match(r'^-?\d+(?:\.\d+)?$', s) is not None
 
 async def get_member(ctx, name):
+    if not name is str:
+        name = str(name)
     try:
         return await commands.MemberConverter().convert(ctx, name)
     except:
