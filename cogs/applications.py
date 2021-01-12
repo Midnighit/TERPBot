@@ -171,7 +171,7 @@ class Applications(commands.Cog, name="Application commands"):
         await ctx.author.dm_channel.send(parse(guild, ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
-        msg = f"roles[ADMIN_ROLE].mention\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
+        msg = f"{roles[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
         overview = await self.get_overview_msgs(app.questions, ctx.author, msg)
         for part in overview:
             await channels[APPLICATIONS].send(part)
