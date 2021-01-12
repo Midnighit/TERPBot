@@ -82,13 +82,8 @@ class Applications(commands.Cog, name="Application commands"):
                         continue
                 pos_start = message.content.rfind("\n", 0, pos_end) + 1
                 applicant = message.content[pos_start:pos_end]
-
-        if applicant:
-            member = await get_member(ctx, applicant)
-            if member:
-                async for message in channels[WELCOME].history(limit=100):
-                    if message.author.id == member.id:
-                        return await get_member(ctx, message.author.id)
+                if applicant:
+                    return await get_member(ctx, applicant)
         return None
 
     @staticmethod
