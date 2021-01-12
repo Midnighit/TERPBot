@@ -273,7 +273,8 @@ class Applications(commands.Cog, name="Application commands"):
             await channels[APPLICATIONS].send(f"Whitelisting {member} failed. No valid FuncomID found in answer:\n> {app.questions[app.funcom_id_row - 1].answer}\n{info}")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. NoSteamIDinAnswer")
 
-    @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
+    @command(name='reject', help="Reject the application. If message is omitted a default message will be sent. "
+                                 "If message and Applicant are omitted target the last submitted application.")
     @has_role(ADMIN_ROLE)
     async def reject(self, ctx, Applicant=None, *Message):
         applicant = Applicant
@@ -298,12 +299,14 @@ class Applications(commands.Cog, name="Application commands"):
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
-            msg = f"Couldn't find a submitted application for {member}. Please verify that the name is written correctly and try again."
+            msg = (f"Couldn't find a submitted application for {member}. "
+                    "Please verify that the name is written correctly and try again.")
             await ctx.send(msg)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         elif app.can_edit_questions():
-            msg = f"Can't reject application while it's still being worked on. Try {PREFIX}cancelapp <applicant> <message> instead."
+            msg = ("Can't reject application while it's still being worked on. "
+                  f"Try {PREFIX}cancelapp <applicant> <message> instead.")
             await ctx.send(msg)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
@@ -319,7 +322,9 @@ class Applications(commands.Cog, name="Application commands"):
         await ctx.send(f"{member}'s application has been rejected.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been rejected.")
 
-    @command(name='review', help="Ask the Applicant to review their application. If message is omitted a default message will be sent. If message and Applicant are omitted target the last submitted application.")
+    @command(name='review', help="Ask the applicant to review their application. "
+                                 "If message is omitted a default message will be sent. "
+                                 "If message and Applicant are omitted target the last submitted application.")
     @has_role(ADMIN_ROLE)
     async def review(self, ctx, Applicant=None, *Message):
         applicant = Applicant
@@ -370,7 +375,8 @@ class Applications(commands.Cog, name="Application commands"):
             await member.dm_channel.send(part)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been returned for review.")
 
-    @command(name='showapp', help="Displays the given Applicants application if it has been submitted. When Applicant is omitted, shows all applications.")
+    @command(name='showapp', help="Displays the given Applicants application if it has been submitted. "
+                                  "If applicant is omitted, shows all applications.")
     @has_role(ADMIN_ROLE)
     async def showapp(self, ctx, *, Applicant=None):
         applicant = Applicant
