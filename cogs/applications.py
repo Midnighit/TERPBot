@@ -171,7 +171,7 @@ class Applications(commands.Cog, name="Application commands"):
         await ctx.author.dm_channel.send(parse(guild, ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
-        msg = f"{roles[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
+        msg = f"roles[ADMIN_ROLE].mention\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
         overview = await self.get_overview_msgs(app.questions, ctx.author, msg)
         for part in overview:
             await channels[APPLICATIONS].send(part)
@@ -200,19 +200,26 @@ class Applications(commands.Cog, name="Application commands"):
         roles = get_roles(guild)
         channels = get_channels(guild)
 
-        # convert applicant string to member. If no applicant was given, try to determine them from the channel history
-        member = await self.get_last_applicant(ctx, self.bot, applicant)
-        if not member:
-            if not applicant:
-                msg = ( "Couldn't find a submitted application within the last 100 messages. "
-                       f"Please specify the Applicant via `{PREFIX}accept <applicant> <message>`.")
-            else:
+        # convert applicant string to member.
+        if applicant:
+            member = await get_member(ctx, applicant)
+            if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
                         "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
-            await channels[APPLICATIONS].send(msg)
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
-            return
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
+
+        # If no applicant was given, try to determine them from the channel history
+        else:
+            member = await self.get_last_applicant(ctx, self.bot, applicant)
+            if not member:
+                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                       f"Please specify the Applicant via `{PREFIX}accept <applicant> <message>`.")
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
 
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
@@ -282,19 +289,26 @@ class Applications(commands.Cog, name="Application commands"):
         guild = get_guild(self.bot)
         channels = get_channels(guild)
 
-        # convert applicant string to member. If no applicant was given, try to determine them from the channel history
-        member = await self.get_last_applicant(ctx, self.bot, applicant)
-        if not member:
-            if not applicant:
-                msg = (f"Couldn't find a submitted application within the last 100 messages. "
-                       f"Please specify the Applicant via `{PREFIX}reject <applicant> <message>`.")
-            else:
+        # convert applicant string to member.
+        if applicant:
+            member = await get_member(ctx, applicant)
+            if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
                         "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
-            await channels[APPLICATIONS].send(msg)
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
-            return
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
+
+        # If no applicant was given, try to determine them from the channel history
+        else:
+            member = await self.get_last_applicant(ctx, self.bot, applicant)
+            if not member:
+                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                       f"Please specify the Applicant via `{PREFIX}reject <applicant> <message>`.")
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
 
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
@@ -331,19 +345,26 @@ class Applications(commands.Cog, name="Application commands"):
         message = Message
         channels = get_channels(bot=self.bot)
 
-        # if no Applicant is given, try to automatically determine one
-        member = await self.get_last_applicant(ctx, self.bot, applicant)
-        if not member:
-            if not applicant:
-                msg = (f"Couldn't find a submitted application within the last 100 messages. "
-                       f"Please specify the Applicant via `{PREFIX}review <applicant> <message>`.")
-            else:
+        # convert applicant string to member.
+        if applicant:
+            member = await get_member(ctx, applicant)
+            if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
                         "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
-            await channels[APPLICATIONS].send(msg)
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
-            return
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
+
+        # If no applicant was given, try to determine them from the channel history
+        else:
+            member = await self.get_last_applicant(ctx, self.bot, applicant)
+            if not member:
+                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                       f"Please specify the Applicant via `{PREFIX}review <applicant> <message>`.")
+                await channels[APPLICATIONS].send(msg)
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
+                return
 
         # confirm that there is a closed application for that Applicant
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
