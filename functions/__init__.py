@@ -78,17 +78,19 @@ async def get_member(ctx, name):
             return None
 
 async def get_category_msg(category, messages=[]):
-    owners = [o for o in session.query(CatUsers).filter_by(category_id=category.id).order_by(CatUsers.name).all()]
-    if len(owners) == 0:
+    filter = (CatOwners.group_id == Groups.id) & (Groups.category_id == category.id)
+    groups = [g for g in session.query(Groups).filter_by(category=category).all()]
+    if len(groups) == 0:
         return messages
+    groups.sort(key=lambda owner: owner.name)
     type = "Clans" if category.guild_pay else "Characters"
-    chunk = f"__**{type}** in category **{category.cmd}**:__\n"
+    chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n"
     msgs = []
     if len(messages) > 0:
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
-    for owner in owners:
+    for owner in groups:
         last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
         if owner.balance >= 0:
             line = f"**{owner.name}** currently has **no open bill**. Last payment was made: **{last_pay}**.\n"
@@ -104,13 +106,13 @@ async def get_category_msg(category, messages=[]):
     msgs.append(chunk)
     return msgs
 
-async def get_user_msg(cat_users, messages=[]):
+async def get_user_msg(groups, messages=[]):
     chunk, msgs = "", []
     if len(messages) > 0:
         if len(messages[-1] + chunk) <= 2000:
             chunk = messages[-1] + chunk
             msgs = messages[:-1]
-    for owner in cat_users:
+    for owner in groups:
         last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
         if owner.balance >= 0:
             line = (f"**{owner.name}** currently **has no open bill** for **{owner.category.name}**. "
@@ -124,25 +126,48 @@ async def get_user_msg(cat_users, messages=[]):
             chunk = line
         else:
             chunk += line
-    msgs.append(chunk)
+    if chunk != '':
+        msgs.append(chunk)
     return msgs
 
 async def payments(id, category_id):
     while True:
-        # confirm that user still exists otherwise break
-        cat_user = session.query(CatUsers).filter_by(id=id, category_id=category_id).first()
-        if not cat_user:
-            logger.info(f"User with id {id} and category_id {category_id} removed from payments list "
-                         "because they have been deleted from db since last time.")
+        messaged = False
+        # quit task if group has been deleted
+        group = session.query(Groups).get(id)
+        if not group:
+            name = session.query(OwnersCache.name).filter_by(id=id).scalar()
+            guess = '(' + name + ') ' if name else ''
+            logger.info(f"Group with id {id} {guess}no longer exists. Task has not been renewed.")
             break
-        await discord.utils.sleep_until(cat_user.next_due)
-        cat_user.next_due = cat_user.next_due + cat_user.category.frequency
-        cat_user.balance -= 1
-        logger.info(f"Deducted 1 bpp from {cat_user.name} ({id}). New balance is {cat_user.balance}. "
-                    f"Next due date has been set to {cat_user.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}.")
+        # remove characters and clans from groups if they no longer exist
+        for cat_owner in group.owners:
+            if not Owner.get(cat_owner.id):
+                name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
+                guess = '(' + name + ') ' if name else ''
+                logger.info(f"Character or clan with id {cat_owner.id} {guess}and category_id {category_id} removed "
+                             "from payments list because they have been deleted from db since last time.")
+                messaged = True
+                session.delete(cat_owner)
+        # remove simple groups that are empty
+        if (group.is_simple and messaged and len(group.owners) <= 1) or (not messaged and len(group.owners) == 0):
+            if not messaged:
+                name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
+                guess = '(' + name + ') ' if name else ''
+                logger.info(f"Character or clan with id {id} {guess}and category_id {category_id} removed from payments list "
+                             "because there are no.")
+            session.delete(group)
+            break
+        await discord.utils.sleep_until(group.next_due)
+        group.next_due = group.next_due + group.category.frequency
+        group.balance -= 1
+        logger.info(f"Deducted 1 bpp from {group.name} ({id}). New balance is {group.balance}. "
+                    f"Next due date has been set to {group.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}.")
         session.commit()
 
 async def print_payments_msg(ctx, messages):
+    if messages == []:
+        await ctx.send("There are no characters, clans or groups registered.")
     for idx in range(len(messages)):
         if idx == len(messages) - 1 and messages[idx][-2:] == "\n":
             await ctx.send(messages[idx][:-2])
@@ -161,15 +186,15 @@ async def payments_output(guilds, id):
         if cat.verbosity == 0:
             break
         if cat.frequency > timedelta(days=1):
-            delay = timedelta(days=1)
+            delay = timedelta(days=1) + timedelta(seconds=cat.id*5)
         elif cat.frequency >= timedelta(days=1):
-            delay = timedelta(hours=12)
+            delay = timedelta(hours=12) + timedelta(seconds=cat.id*5)
         elif cat.frequency >= timedelta(hours=1):
-            delay = timedelta(minutes=30)
+            delay = timedelta(minutes=30) + timedelta(seconds=cat.id*5)
         else:
             break
 
-        next_due = CatUsers._next_due(cat.start) - delay if not next_due else next_due + cat.frequency
+        next_due = next_time(cat.start) - delay if not next_due else next_due + cat.frequency
         if next_due <= datetime.utcnow():
             next_due += cat.frequency
         await discord.utils.sleep_until(next_due)
@@ -180,37 +205,40 @@ async def payments_output(guilds, id):
                     await print_payments_msg(channel, messages)
 
 async def payments_input(category, message):
-    cat_users, cat_user_ids, found = {}, [], False
-    for cat_user in session.query(CatUsers).filter_by(category_id=category.id).all():
-        cat_user_ids.append(cat_user.id)
-        cat_users[cat_user.id] = cat_user
+    cat_owners, cat_owner_ids, found = {}, [], False
+    filter = (CatOwners.group_id == Groups.id) & (Groups.category_id == category.id)
+    for cat_owner in session.query(CatOwners).filter(filter).all():
+        cat_owner_ids.append(cat_owner.id)
+        cat_owners[cat_owner.id] = cat_owner
     if category.guild_pay:
-        for guild in session.query(Guilds).filter(Guilds.id.in_(cat_user_ids)).all():
-            cat_user = cat_users[guild.id]
-            if cat_user.name != guild.name:
-                cat_user.name = guild.name
-            if not found and guild.name in message.content:
+        for guild in session.query(Guilds).filter(Guilds.id.in_(cat_owner_ids)).all():
+            if found:
+                break
+            cat_owner = cat_owners[guild.id]
+            group = cat_owner.group
+            if guild.name in message.content:
                 found = True
-                cat_user.balance += 1
-                cat_user.last_payment = datetime.utcnow()
-                logger.info(f"Added 1 bpp to {cat_user.name} ({cat_user.id}).")
-            elif not found:
+                group.balance += 1
+                group.last_payment = datetime.utcnow()
+                logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
+            else:
                 for char in guild.members:
                     if char.name in message.content:
                         found = True
-                        cat_user.balance += 1
-                        cat_user.last_payment = datetime.utcnow()
-                        logger.info(f"Added 1 bpp to {cat_user.name} ({cat_user.id}).")
+                        cat_owner.balance += 1
+                        cat_owner.last_payment = datetime.utcnow()
+                        logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
     else:
-        for char in session.query(Characters).filter(Characters.id.in_(cat_user_ids)).all():
-            cat_user = cat_users[char.id]
-            if cat_user.name != char.name:
-                cat_user.name = char.name
-            if not found and char.name in message.content:
+        for char in session.query(Characters).filter(Characters.id.in_(cat_owner_ids)).all():
+            if found:
+                break
+            cat_owner = cat_owners[char.id]
+            group = cat_owner.group
+            if char.name in message.content:
                 found = True
-                cat_user.balance += 1
-                cat_user.last_payment = datetime.utcnow()
-                logger.info(f"Added 1 bpp to {cat_user.name} ({cat_user.id}).")
+                group.balance += 1
+                group.last_payment = datetime.utcnow()
+                logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
     session.commit()
 
 # errors in tasks raise silently normally so lets make them speak up

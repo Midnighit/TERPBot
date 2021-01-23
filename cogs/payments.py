@@ -11,139 +11,270 @@ class Payments(commands.Cog, name="Payment commands."):
         self.bot = bot
 
     @staticmethod
-    async def get_chars(user):
+    async def get_groups(user):
         chars = get_chars_by_user(user)
-        char_ids, guild_ids, owners = [], [], {}
+        char_ids, guild_ids, groups = [], [], {}
         for char in chars:
             char_ids.append(char.id)
             if char.has_guild:
                 guild_ids.append(char.guild.id)
-        for owner in session.query(CatUsers).order_by(CatUsers.id).all():
+        for owner in session.query(CatOwners).order_by(CatOwners.id).all():
             if (owner.id in char_ids) or (owner.category.guild_pay and owner.id in guild_ids):
-                if not owner.id in owners:
-                    owners[owner.id] = [owner]
+                if not owner.group.id in groups:
+                    groups[owner.group.id] = [owner.group]
                 else:
-                    owners[owner.id].append(owner)
-        return owners
+                    groups[owner.group.id].append(owner.group)
+        return groups
 
     @staticmethod
-    async def get_cat_names(cat_users):
-        cats = [cat_user.category.cmd for cat_user in cat_users]
-        return ', '.join(cats[:-1]) + ' and ' + cats[-1] if len(cats) > 1 else cats[0]
+    async def get_cat_names(groups=None, cat_owners=None):
+        if groups or cat_owners:
+            if groups:
+                cats = [group.category.cmd for group in groups]
+            if cat_owners:
+                cats = [cat_owner.group.category.cmd for cat_owner in cat_owners]
+            return ', '.join(cats[:-1]) + ' and ' + cats[-1] if len(cats) > 1 else cats[0]
+        return None
 
     @command(name='pm', help=f"Payment commands. Type {PREFIX}pm help for more information.")
     async def pm(self, ctx, *Arguments):
         guild = get_guild(self.bot)
         args = Arguments
         is_staff = has_support_role_or_greater(guild, ctx.author)
+        # print(f"len(args): {len(args)}")
+        # for idx in range(len(args)):
+        #     print(f"{idx}: {args[idx]}")
 
         # Command pm (1 arg)
         if len(args) == 0:
-            owners = await Payments.get_chars(ctx.author)
-            if len(owners) == 0:
+            group_list = await Payments.get_groups(ctx.author)
+            if len(group_list) == 0:
                 await ctx.send("You have no characters or clans on any of the payment lists.")
             else:
                 messages = []
-                for owner_id, cat_users in owners.items():
-                    messages = await get_user_msg(cat_users, messages)
+                for owner_id, groups in group_list.items():
+                    messages = await get_user_msg(groups, messages)
                 await print_payments_msg(ctx.channel, messages)
+
+        # Command pm group add|show <group name> [<category>] [<owner>]
+        elif args[0] == 'group' and \
+             ((len(args) < 2) or \
+             (args[1] in ('add', 'delete') and len(args) < 4) or \
+             (not args[1] in ('add', 'delete', 'show'))):
+            if is_staff:
+                await ctx.send("Command requires the keyword add, remove or show and a group name. "
+                               "If keyword wasn't show it also requires a character or clan name. "
+                               "A category is only required if character or clan are in multiple categories\n"
+                              f"{PREFIX}pm group add|delete|show <group> [<category>] [<character, clan or group>]")
+            else:
+                await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
+        elif args[0] == 'group' and args[1] == 'add':
+            grp = session.query(Groups).filter(Groups._name.collate('NOCASE') == args[2]).first()
+            cat = session.query(Categories).filter(Categories.cmd.collate('NOCASE') == args[3]).first()
+            if not grp and not cat:
+                await ctx.send(f"Command requires either an existing group name or a new group name and category.\n"
+                         f"{PREFIX}pm group add <group> [<category>] [<character, clan or group>]")
+            elif grp and cat and grp.category != cat:
+                await ctx.send(f"Group **{grp.name}** already exists and is assigned to category **{grp.category.cmd}**. "
+                         f"If group needs to be reassigned to category **{cat.cmd}** you'll have to remove and "
+                          "recreate it under the new category again.\n"
+                         f"{PREFIX}pm group add <group> [<category>] [<character, clan or group>]")
+            else:
+                # if group doesn't exist but category is found, create new group
+                if not grp and cat:
+                    existed = False
+                    grp = Groups(name=args[2], category=cat)
+                    name = ' '. join(args[4:])
+                    next_due = None
+                # if group exists but category isn't found, determine group
+                elif grp and not cat:
+                    existed = True
+                    cat = grp.category
+                    name = ' '. join(args[3:])
+                    next_due=grp.next_due
+                if cat.guild_pay:
+                    owners = Owner.get_by_name(name, nocase=True)
+                    if len(owners) == 0:
+                        await ctx.send(f"Couldn't find character or clan named **{name}**.")
+                    elif len(owners) > 1:
+                        await ctx.send("Name ambiguous. "
+                                      f"At least two characters or clans with name **{name}** were found.")
+                    else:
+                        owner = owners[0]
+                        if not owner.is_guild and owner.has_guild:
+                            owner = owner.guild
+                        cat_owner = CatOwners(id=owner.id, next_due=next_due, category=cat, group=grp)
+                else:
+                    owners = Owner.get_by_name(name, nocase=True, include_guilds=False)
+                    if len(owners) == 0:
+                        await ctx.send(f"Couldn't find character named **{name}**.")
+                    elif len(owners) > 1:
+                        await ctx.send("Name ambiguous. "
+                                      f"At least two characters with name **{name}** were found.")
+                    else:
+                        owner = owners[0]
+                        cat_owner = CatOwners(id=owner.id, next_due=next_due, category=cat, group=grp)
+                if cat_owner:
+                    tense = 'is' if existed else 'has been set to'
+                    session.add(cat_owner)
+                    session.commit()
+                    await ctx.send(f"Added **{owner.name}** to group **{grp.name}** belonging to "
+                                   f"category **{cat.cmd}**. Their next due date {tense} "
+                                   f"**{cat_owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}**")
+                    if not existed:
+                        payments_task = asyncio.create_task(payments(cat_owner.id, cat_owner.category.id))
+                        payments_task.add_done_callback(exception_catching_callback)
+        elif args[0] == 'group' and args[1] == 'delete':
+            if len(args) < 3:
+                await ctx.send(f"Command requires a group name to be deleted.\n"
+                               f"{PREFIX}pm group delete <group>")
+            else:
+                name = ' '.join(args[2:])
+                group = session.query(Groups).filter(Groups._name.collate('NOCASE') == name).first()
+                if not group:
+                    await ctx.send(f"No group with the name **{name}** has been found.\n"
+                                   f"{PREFIX}pm group delete <group>")
+                else:
+                    name = group.name
+                    for cat_owner in group.owners:
+                        session.delete(cat_owner)
+                    session.delete(group)
+                    session.commit()
+                    await ctx.send(f"Group **{name}** and all of its members have been deleted.")
+        elif args[0] == 'group' and args[1] == 'show':
+            # show all groups
+            if len(args) == 2:
+                groups = [group for group in session.query(Groups).filter(Groups._name != None).all()]
+                message = await get_user_msg(groups)
+                await print_payments_msg(ctx.channel, message)
+            else:
+                name = ' '.join(args[2:])
+                group = session.query(Groups).filter(Groups._name.collate('NOCASE') == name).first()
+                if not group:
+                    await ctx.send(f"No group with the name **{name}** has been found.")
+                else:
+                    if len(group.owners) == 0:
+                        await ctx.send(f"Group **{group.name}** currently has no members.")
+                    else:
+                        messages = await get_user_msg([group])
+                        message = messages[0] + f"It currently has the following members:\n"
+                        for owner in group.owners:
+                            message += f"**{owner.name}**\n"
+                        await ctx.send(message)
 
         # Command pm add <category> <owner> (3+ args)
         elif args[0] == 'add' and len(args) < 3:
             if is_staff:
                 await ctx.send("Command requires a category and a character or clan name.\n"
-                              f"{PREFIX}pm add <category> <character or clan>")
+                              f"{PREFIX}pm add <category> <character, clan or group>")
             else:
                 await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
         elif args[0] == 'add':
             if is_staff:
                 cat = session.query(Categories).filter(Categories.cmd.collate('NOCASE') == args[1]).first()
                 name = ' '. join(args[2:])
-                cat_user = None
+                cat_owner = None
                 if not cat:
                     await ctx.send(f"Couldn't find category **{args[1]}**. You may have to create one first.")
                 else:
                     if cat.guild_pay:
-                        owner = session.query(Guilds).filter(Guilds.name.collate('NOCASE') == name).first()
-                        if not owner:
-                            owner = session.query(Characters).filter(Characters.name.collate('NOCASE') == name).first()
-                            if owner and owner.has_guild:
+                        owners = Owner.get_by_name(name, nocase=True)
+                        if len(owners) == 0:
+                            await ctx.send(f"Couldn't find character or clan named **{name}**.")
+                        elif len(owners) > 1:
+                            await ctx.send("Name ambiguous. "
+                                          f"At least two characters or clans with name **{name}** were found.")
+                        else:
+                            owner = owners[0]
+                            if not owner.is_guild and owner.has_guild:
                                 owner = owner.guild
-                        if not owner:
-                            await ctx.send(f"Couldn't find character or clan named **{name}**.")
-                        else:
-                            cat_user = CatUsers(id=owner.id, name=owner.name, category=cat)
+                            cat_owner = CatOwners(id=owner.id, category=cat)
                     else:
-                        owner = session.query(Characters).filter(Characters.name.collate('NOCASE') == name).first()
-                        if owner:
-                            cat_user = CatUsers(id=owner.id, name=owner.name, category=cat)
+                        owners = Owner.get_by_name(name, nocase=True, include_guilds=False)
+                        if len(owners) == 0:
+                            await ctx.send(f"Couldn't find character named **{name}**.")
+                        elif len(owners) > 1:
+                            await ctx.send("Name ambiguous. "
+                                          f"At least two characters with name **{name}** were found.")
                         else:
-                            await ctx.send(f"Couldn't find character or clan named **{name}**.")
-                if cat_user:
-                    await ctx.send(f"Added **{owner.name}** to category **{cat.cmd}**. Their next due date has been "
-                                   f"set to **{cat_user.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}**")
-                    session.add(cat_user)
+                            owner = owners[0]
+                            cat_owner = CatOwners(id=owner.id, category=cat)
+                if cat_owner:
+                    session.add(cat_owner)
                     session.commit()
-                    payments_task = asyncio.create_task(payments(cat_user.id, cat_user.category_id))
+                    payments_task = asyncio.create_task(payments(cat_owner.id, cat_owner.category.id))
                     payments_task.add_done_callback(exception_catching_callback)
-
+                    await ctx.send(f"Added **{owner.name}** to category **{cat.cmd}**. Their next due date has been "
+                                   f"set to **{cat_owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}**")
             else:
                 await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
 
-        # Command pm remove <category> <owner> (3+ args)
+        # Command pm remove [<category>] <owner> (2+ args)
         elif args[0] == 'remove' and len(args) < 2:
             if is_staff:
                 await ctx.send("Command requires a category and a character or clan name. "
                                "If category is omitted character or clan will be removed from all categories.\n"
-                              f"{PREFIX}pm remove [<category>] <character or clan>")
+                              f"{PREFIX}pm remove [<category>] <character, clan or group>")
             else:
                 await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
         elif args[0] == 'remove':
             if is_staff:
                 name_long = ' '.join(args[1:])
                 name_short = ' '.join(args[2:])
-                cat_users = session.query(CatUsers).filter(CatUsers.name.collate('NOCASE') == name_long).all()
+                owners = Owner.get_by_name(name_long, nocase=True)
+                owner_ids = [o.id for o in owners]
+                cat_owners = session.query(CatOwners).filter(CatOwners.id.in_(owner_ids)).all()
                 # no category name was given and user(s) exist => remove user from all categories
-                if cat_users:
-                    cat_nam = await self.get_cat_names(cat_users)
-                    cat_nam = f"category **{cat_nam}**" if len(cat_users) == 1 else f"categories **{cat_nam}**"
-                    await ctx.send(f"Removed **{cat_users[0].name}** from {cat_nam}.")
-                    for cat_user in cat_users:
-                        session.delete(cat_user)
+                if cat_owners:
+                    cat_nam = await self.get_cat_names(cat_owners=cat_owners)
+                    cat_nam = f"category **{cat_nam}**" if len(cat_owners) == 1 else f"categories **{cat_nam}**"
+                    name = cat_owners[0].name
+                    for cat_owner in cat_owners:
+                        if cat_owner.is_simple_group:
+                            session.delete(cat_owner.group)
+                        session.delete(cat_owner)
                     session.commit()
+                    await ctx.send(f"Removed **{name}** from {cat_nam}.")
                 # category name was given or user name was spelled incorrectly
                 else:
                     cat_name = args[1]
                     cat = session.query(Categories).filter(Categories.cmd.collate('NOCASE') == cat_name).first()
                     # category name was given, user existence unclear
                     if cat:
-                        filter = (CatUsers.name.collate('NOCASE') == name_short) & (CatUsers.category == cat)
-                        cat_user = session.query(CatUsers).filter(filter).first()
+                        owner_ids = [o.id for o in Owner.get_by_name(name_short, nocase=True)]
+                        filter = ((CatOwners.group_id == Groups.id) &
+                                  (Groups.category_id == cat.id) &
+                                  (Groups._name.collate('NOCASE') == name_short) |
+                                  (CatOwners.id.in_(owner_ids)))
+                        cat_owner = session.query(CatOwners).filter(filter).first()
                         # category name was given and user exists => remove user from that category
-                        if cat_user:
-                            await ctx.send(f"Removed **{cat_user.name}** from category **{cat.cmd}**.")
-                            session.delete(cat_user)
+                        if cat_owner:
+                            name = cat_owner.name
+                            if cat_owner.is_simple_group:
+                                session.delete(cat_owner.group)
+                            session.delete(cat_owner)
                             session.commit()
+                            await ctx.send(f"Removed **{name}** from category **{cat.cmd}**.")
                         # category name was given but user doesn't exists
                         else:
-                            await ctx.send(f"Couldn't find **{name_short}** in category **{cat.cmd}**.\n"
-                                           f"{PREFIX}pm remove [<category>] <character or clan>")
+                            await ctx.send(f"Couldn't find **{name_short}** in category **{cat.cmd}**."
+                                           f"{PREFIX}pm remove [<category>] <character, clan or group>")
                     # category name and user were given but category doesn't exist or character name was misspelled
                     else:
                         await ctx.send(f"Couldn't find a user with the name **{name_long}** in any of the categories and "
                                        f"{cat_name} is not a valid category name.\n"
-                                       f"{PREFIX}pm remove [<category>] <character or clan>")
+                                       f"{PREFIX}pm remove [<category>] <character, clan or group>")
 
-        # Command pm give <amount> [<category>] <owner> (4+ args)
-        elif args[0] in ('give', 'withdraw') and len(args) < 4:
+        # Command pm give|withdraw <amount> [<category>] <owner> (3+ args)
+        elif args[0].lower() in ('give', 'withdraw') and len(args) < 3:
             cmd = args[0].lower()
             if is_staff:
                 await ctx.send("Command requires an amount, a category and a character or clan name. "
                               f"Category can be omitted if character or clan are only in one category.\n"
-                              f"{PREFIX}pm {cmd} <amount> [<category>] <character or clan>")
+                              f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
             else:
                 await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
-        elif args[0] in ('give', 'withdraw'):
+        elif args[0].lower() in ('give', 'withdraw'):
             cmd = args[0].lower()
             if not is_staff:
                 await ctx.send("Command may only be used by users with role greater or equal than Support Staff.")
@@ -151,60 +282,75 @@ class Payments(commands.Cog, name="Payment commands."):
                 amount = args[1]
                 if not amount.isnumeric():
                     await ctx.send("Amount needs to be a positive numeric value.\n"
-                                  f"{PREFIX}pm {cmd} <amount> [<category>] <character or clan>")
+                                  f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                 # amount is guaranteed to be set to a positive number
                 else:
                     cat = session.query(Categories).filter(Categories.cmd.collate('NOCASE') == args[2]).first()
                     # category has either been omitted or misspelled
                     if not cat:
                         name_long = ' '.join(args[2:])
-                        cat_users = session.query(CatUsers).filter(CatUsers.name.collate('NOCASE') == name_long).all()
+                        owner_ids = [o.id for o in Owner.get_by_name(name_long, nocase=True)]
+                        filter = ((CatOwners.group_id == Groups.id) &
+                                  (Groups._name.collate('NOCASE') == name_long) |
+                                  (CatOwners.id.in_(owner_ids)))
+                        groups = session.query(Groups).filter(filter).all()
                         # misspelled
-                        if not cat_users:
-                            await ctx.send(f"Couldn't find a user with the name **{name_long}** in any of the "
-                                           f"categories and **{args[2]}** is not a valid category name.\n"
-                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character or clan>")
+                        if not groups:
+                            await ctx.send(f"Couldn't find a character, clan or group with the name **{name_long}** "
+                                           f"in any of the categories and **{args[2]}** is not a valid category name.\n"
+                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                         # ambiguous
-                        elif len(cat_users) > 1:
-                            cat_nam = self.get_cat_names(cat_users)
-                            period = "period" if amout == '1' else "periods"
+                        elif len(groups) > 1:
+                            cat_nam = await self.get_cat_names(groups=groups)
+                            period = "period" if amount == '1' else "periods"
                             if cmd == 'give':
-                                val = f"which of these categories should be given **{amount} billing {period}**"
+                                val = f"which of these categories should be given **{amount}** billing {period}"
                             else:
-                                val = f"from which of these categories **{amount} billing {period}** should be withdrawn"
-                            await ctx.send(f"**{cat_users[0].name}** is in categories **{cat_nam}**. "
+                                val = (f"from which of these categories **{amount}** billing {period} "
+                                        "should be withdrawn")
+                            await ctx.send(f"**{groups[0].name}** is in categories **{cat_nam}**. "
                                            f"Please specify {val}.\n"
-                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character or clan>")
+                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                         # category has been omitted and user is in only one category
                         else:
+                            period = "period" if amount == '1' else "periods"
                             if cmd == 'give':
-                                await ctx.send(f"**{cat_users[0].name}** has been given **{amount}** billing periods.")
-                                cat_users[0].balance += int(amount)
+                                groups[0].balance += int(amount)
+                                session.commit()
+                                await ctx.send(f"**{groups[0].name}** has been given **{amount}** billing {period}.")
                             else:
-                                await ctx.send(f"**{amount}** billing periods have been "
-                                               f"withdrawn from **{cat_users[0].name}**.")
-                                cat_users[0].balance -= int(amount)
-                            session.commit()
+                                groups[0].balance -= int(amount)
+                                session.commit()
+                                has = 'has' if amount == 1 else 'have'
+                                await ctx.send(f"**{amount}** billing {period} {has} been "
+                                               f"withdrawn from **{groups[0].name}**.")
                     # category was given and found
                     else:
                         name_short = ' '.join(args[3:])
-                        filter = (CatUsers.name.collate('NOCASE') == name_short) & (CatUsers.category == cat)
-                        cat_user = session.query(CatUsers).filter(filter).first()
+                        owner_ids = [o.id for o in Owner.get_by_name(name_short, nocase=True)]
+                        filter = ((CatOwners.group_id == Groups.id) &
+                                  (Groups.category_id == cat.id) &
+                                  (Groups._name.collate('NOCASE') == name_short) |
+                                  (CatOwners.id.in_(owner_ids)))
+                        group = session.query(Group).filter(filter).first()
                         # no user with the given name was found in the given category
-                        if not cat_user:
+                        if not group:
                             await ctx.send(f"Couldn't find a user with the name **{name_short}** in the "
                                            f"category **{cat.cmd}**. Did you misspell the name maybe?\n"
-                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character or clan>")
+                                           f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                         # user and category were found add amount to balance
                         else:
+                            period = 'period' if amount == 1 else 'periods'
                             if cmd == 'give':
-                                await ctx.send(f"**{cat_user.name}** has been given **{amount}** billing periods.")
-                                cat_user.balance += int(amount)
+                                group.balance += int(amount)
+                                session.commit()
+                                await ctx.send(f"**{group.name}** has been given **{amount}** billing {period}.")
                             else:
-                                await ctx.send(f"**{amount}** billing periods have been "
-                                               f"withdrawn from **{cat_user.name}**.")
-                                cat_user.balance -= int(amount)
-                            session.commit()
+                                group.balance -= int(amount)
+                                session.commit()
+                                has = 'has' if amount == 1 else 'have'
+                                await ctx.send(f"**{amount}** billing {period} {has} been "
+                                               f"withdrawn from **{group.name}**.")
 
         # Command pm stats [<category>] [<owner>]
         elif args[0] == 'stats':
@@ -226,12 +372,16 @@ class Payments(commands.Cog, name="Payment commands."):
                     await print_payments_msg(ctx.channel, messages)
                 # args[1] is user or misspelled
                 else:
-                    cat_users = session.query(CatUsers).filter(CatUsers.name.collate('NOCASE') == args[1]).all()
-                    if not cat_users:
+                    owner_ids = [o.id for o in Owner.get_by_name(args[1], nocase=True)]
+                    filter = ((CatOwners.group_id == Groups.id) &
+                              (Groups._name.collate('NOCASE') == args[1]) |
+                              (CatOwners.id.in_(owner_ids)))
+                    groups = session.query(Groups).filter(filter).all()
+                    if not groups:
                         await ctx.send(f"Couldn't find **{args[1]}** in categories or users.\n"
-                                       f"{PREFIX}pm stats [<category>] [<character or clan>]")
+                                       f"{PREFIX}pm stats [<category>] [<character, clan or group>]")
                     else:
-                        messages = await get_user_msg(cat_users)
+                        messages = await get_user_msg(groups)
                         await print_payments_msg(ctx.channel, messages)
             # output either list of given user within given category or all categories belonging to given user
             elif len(args) > 2:
@@ -239,28 +389,36 @@ class Payments(commands.Cog, name="Payment commands."):
                 # args[2] ... args[n] must be the users name
                 if cat:
                     name = ' '.join(args[2:])
-                    filter = (CatUsers.name.collate('NOCASE') == name) & (CatUsers.category == cat)
-                    cat_user = session.query(CatUsers).filter(filter).first()
+                    owner_ids = [o.id for o in Owner.get_by_name(name, nocase=True)]
+                    filter = ((CatOwners.group_id == Groups.id) &
+                              (Groups.category_id == cat.id) &
+                              (Groups._name.collate('NOCASE') == name) |
+                              (CatOwners.id.in_(owner_ids)))
+                    group = session.query(Groups).filter(filter).first()
                     # no user with the given name was found in the given category
-                    if not cat_user:
+                    if not group:
                         await ctx.send(f"Couldn't find a user with the name **{name}** in the "
                                        f"category **{cat.cmd}**. Did you misspell the name maybe?\n"
-                                       f"{PREFIX}pm stats [<category>] [<character or clan>]")
+                                       f"{PREFIX}pm stats [<category>] [<character, clan or group>]")
                     # user and category were found
                     else:
-                        messages = await get_user_msg([cat_user])
+                        messages = await get_user_msg([group])
                         await print_payments_msg(ctx.channel, messages)
                 # args[1] ... args[n] must be the users name
                 else:
                     name = ' '.join(args[1:])
-                    cat_users = session.query(CatUsers).filter(CatUsers.name.collate('NOCASE') == name).all()
+                    owner_ids = [o.id for o in Owner.get_by_name(name, nocase=True)]
+                    filter = ((CatOwners.group_id == Groups.id) &
+                              (Groups._name.collate('NOCASE') == name) |
+                              (CatOwners.id.in_(owner_ids)))
+                    groups = session.query(Groups).filter(filter).all()
                     # misspelled
-                    if not cat_users:
+                    if not groups:
                         await ctx.send(f"Couldn't find a user with the name **{name}** in any of the "
                                        f"categories and **{args[1]}** is not a valid category name.\n"
-                                       f"{PREFIX}pm stats [<category>] [<character or clan>]")
+                                       f"{PREFIX}pm stats [<category>] [<character, clan or group>]")
                     else:
-                        messages = await get_user_msg(cat_users)
+                        messages = await get_user_msg(groups)
                         await print_payments_msg(ctx.channel, messages)
 
         else:
@@ -269,16 +427,16 @@ class Payments(commands.Cog, name="Payment commands."):
                 intro = f"Unknown command **{PREFIX}pm {cmd}**. " if args[0] != "help" else ""
                 await ctx.send(f"{intro}Possible commands are:\n"
                                f"  {PREFIX}pm\n"
-                               f"  {PREFIX}pm add <category> <character or clan>\n"
-                               f"  {PREFIX}pm remove [<category>] <character or clan>\n"
-                               f"  {PREFIX}pm give <amount> [<category>] <character or clan>\n"
-                               f"  {PREFIX}pm withdraw <amount> [<category>] <character or clan>\n"
-                               f"  {PREFIX}pm stats [<category>] [<character or clan>]")
+                               f"  {PREFIX}pm group show [<group>]\n"
+                               f"  {PREFIX}pm group add|delete <group> [<category>] [<character, clan or group>]\n"
+                               f"  {PREFIX}pm add|remove [<category>] <character, clan or group>\n"
+                               f"  {PREFIX}pm give|withdraw <amount> [<category>] <character, clan or group>\n"
+                               f"  {PREFIX}pm stats [<category>] [<character, clan or group>]")
             else:
-                owners = await Payments.get_chars(ctx.author)
+                group_list = await Payments.get_groups(ctx.author)
                 messages = []
-                for owner_id, cat_users in owners.items():
-                    messages = await get_user_msg(cat_users, messages)
+                for owner_id, groups in group_list.items():
+                    messages = await get_user_msg(groups, messages)
                 await print_payments_msg(ctx.channel, messages)
 
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
