@@ -236,11 +236,8 @@ class Applications(commands.Cog, name="Application commands"):
             return
 
         # remove Not Applied role
-        logger.info(f"member == {member}")
-        logger.info(f"Before removal member.roles == {member.roles} roles[NOT_APPLIED_ROLE].id == {roles[NOT_APPLIED_ROLE].id}")
         if roles[NOT_APPLIED_ROLE] in member.roles:
             await member.remove_roles(roles[NOT_APPLIED_ROLE])
-            logger.info(f"after removal member.roles == {member.roles}")
 
         # remove application from list of open applications
         app.status = 'approved'
