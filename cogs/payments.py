@@ -122,7 +122,7 @@ class Payments(commands.Cog, name="Payment commands."):
                                    f"category **{cat.cmd}**. Their next due date {tense} "
                                    f"**{cat_owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}**")
                     if not existed:
-                        payments_task = asyncio.create_task(payments(cat_owner.id, cat_owner.category.id))
+                        payments_task = asyncio.create_task(payments(cat_owner.group.id, cat_owner.category.id))
                         payments_task.add_done_callback(exception_catching_callback)
         elif args[0] == 'group' and args[1] == 'delete':
             if len(args) < 3:
@@ -202,7 +202,7 @@ class Payments(commands.Cog, name="Payment commands."):
                 if cat_owner:
                     session.add(cat_owner)
                     session.commit()
-                    payments_task = asyncio.create_task(payments(cat_owner.id, cat_owner.category.id))
+                    payments_task = asyncio.create_task(payments(cat_owner.group.id, cat_owner.category.id))
                     payments_task.add_done_callback(exception_catching_callback)
                     await ctx.send(f"Added **{owner.name}** to category **{cat.cmd}**. Their next due date has been "
                                    f"set to **{cat_owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}**")
