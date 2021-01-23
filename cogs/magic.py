@@ -1,4 +1,3 @@
-# import sys, re, itertools
 import random
 from discord.ext import commands
 from discord.ext.commands import Cog, command, group
