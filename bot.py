@@ -121,6 +121,7 @@ async def update_roles():
             if not name in required_clan_roles:
                 await roles[name].delete()
                 del roles[name]
+                logger.info(f"Deleting role {name}.")
             # create the slice of existing clans otherwise
             else:
                 clan_roles.append(name)
@@ -133,19 +134,23 @@ async def update_roles():
                 hoist = CLAN_ROLE_HOIST
                 mentionable = CLAN_ROLE_MENTIONABLE
                 roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
+                logger.info(f"Creating role {name}.")
                 # add all members to that role
                 for member in members:
                     await member.add_roles(roles[name])
+                    logger.info(f"Adding {str(member)} to role {name}.")
             # update existing roles
             else:
                 # add members not alread assigned to the role
                 for member in members:
                     if not member in roles[name].members:
                         await member.add_roles(roles[name])
+                        logger.info(f"Adding {str(member)} to role {name}.")
                 # remove members that are assigned to the role but shouldn't be
                 for member in roles[name].members:
                     if not member in members:
                         await member.remove_roles(roles[name])
+                        logger.info(f"Removing {str(member)} from role {name}.")
 
         # create a positions list for the roles
         reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
@@ -218,8 +223,8 @@ async def on_ready():
     if ROLL_FOR_MANA:
         magic_roles_task = asyncio.create_task(magic_rolls())
         magic_roles_task.add_done_callback(exception_catching_callback)
-    for cat_user in session.query(CatUsers).order_by(CatUsers.next_due).all():
-        payments_task = asyncio.create_task(payments(cat_user.id, cat_user.category_id))
+    for group in session.query(Groups).order_by(Groups.next_due).all():
+        payments_task = asyncio.create_task(payments(group.id, group.category_id))
         payments_task.add_done_callback(exception_catching_callback)
     for category in session.query(Categories).all():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
