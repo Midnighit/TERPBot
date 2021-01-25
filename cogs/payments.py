@@ -33,7 +33,7 @@ class Payments(commands.Cog, name="Payment commands."):
                 cats = [group.category.cmd for group in groups]
             if cat_owners:
                 cats = [cat_owner.group.category.cmd for cat_owner in cat_owners]
-            return ', '.join(cats[:-1]) + ' and ' + cats[-1] if len(cats) > 1 else cats[0]
+            return '**, **'.join(cats[:-1]) + '** and **' + cats[-1] if len(cats) > 1 else cats[0]
         return None
 
     @command(name='pm', help=f"Payment commands. Type {PREFIX}pm help for more information.")
@@ -188,7 +188,12 @@ class Payments(commands.Cog, name="Payment commands."):
                             owner = owners[0]
                             if not owner.is_guild and owner.has_guild:
                                 owner = owner.guild
-                            cat_owner = CatOwners(id=owner.id, category=cat)
+                            filter = (CatOwners.id==owner.id) & (CatOwners.group_id==Groups.id)
+                            exist = session.query(CatOwners.id, Groups.category_id).filter(filter).all()
+                            if (owner.id, cat.id) in exist:
+                                await ctx.send(f"**{owner.name}** is already assigned to category **{cat.cmd}**.")
+                            else:
+                                cat_owner = CatOwners(id=owner.id, category=cat)
                     else:
                         owners = Owner.get_by_name(name, nocase=True, include_guilds=False)
                         if len(owners) == 0:
@@ -198,7 +203,12 @@ class Payments(commands.Cog, name="Payment commands."):
                                           f"At least two characters with name **{name}** were found.")
                         else:
                             owner = owners[0]
-                            cat_owner = CatOwners(id=owner.id, category=cat)
+                            filter = (CatOwners.id==owner.id) & (CatOwners.group_id==Groups.id)
+                            exist = session.query(CatOwners.id, Groups.category_id).filter(filter).all()
+                            if (owner.id, cat.id) in exist:
+                                await ctx.send(f"**{owner.name}** is already assigned to category **{cat.cmd}**.")
+                            else:
+                                cat_owner = CatOwners(id=owner.id, category=cat)
                 if cat_owner:
                     session.add(cat_owner)
                     session.commit()
@@ -289,11 +299,16 @@ class Payments(commands.Cog, name="Payment commands."):
                     # category has either been omitted or misspelled
                     if not cat:
                         name_long = ' '.join(args[2:])
-                        owner_ids = [o.id for o in Owner.get_by_name(name_long, nocase=True)]
+                        # owner_ids = [o.id for o in Owner.get_by_name(name_long, nocase=True)]
+                        owner_ids = []
+                        for o in Owner.get_by_name(name_long, nocase=True):
+                            owner_ids.append(o.id)
+                            if o.is_character and o.has_guild:
+                                owner_ids.append(o.guild.id)
                         filter = ((CatOwners.group_id == Groups.id) &
-                                  (Groups._name.collate('NOCASE') == name_long) |
-                                  (CatOwners.id.in_(owner_ids)))
+                                  ((Groups._name.collate('NOCASE') == name_long) | (CatOwners.id.in_(owner_ids))))
                         groups = session.query(Groups).filter(filter).all()
+
                         # misspelled
                         if not groups:
                             await ctx.send(f"Couldn't find a character, clan or group with the name **{name_long}** "
@@ -301,6 +316,11 @@ class Payments(commands.Cog, name="Payment commands."):
                                            f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                         # ambiguous
                         elif len(groups) > 1:
+                            name = name_long
+                            for group in groups:
+                                if group.name.lower() == name_long.lower():
+                                    name = group.name
+                                    break
                             cat_nam = await self.get_cat_names(groups=groups)
                             period = "period" if amount == '1' else "periods"
                             if cmd == 'give':
@@ -308,7 +328,7 @@ class Payments(commands.Cog, name="Payment commands."):
                             else:
                                 val = (f"from which of these categories **{amount}** billing {period} "
                                         "should be withdrawn")
-                            await ctx.send(f"**{groups[0].name}** is in categories **{cat_nam}**. "
+                            await ctx.send(f"**{name}** is in categories **{cat_nam}**. "
                                            f"Please specify {val}.\n"
                                            f"{PREFIX}pm {cmd} <amount> [<category>] <character, clan or group>")
                         # category has been omitted and user is in only one category
@@ -317,22 +337,23 @@ class Payments(commands.Cog, name="Payment commands."):
                             if cmd == 'give':
                                 groups[0].balance += int(amount)
                                 session.commit()
-                                await ctx.send(f"**{groups[0].name}** has been given **{amount}** billing {period}.")
+                                await ctx.send(f"**{groups[0].name}** has been given **{amount}** "
+                                               f"billing {period} in category **{groups[0].category.cmd}**.")
                             else:
                                 groups[0].balance -= int(amount)
                                 session.commit()
                                 has = 'has' if amount == 1 else 'have'
-                                await ctx.send(f"**{amount}** billing {period} {has} been "
-                                               f"withdrawn from **{groups[0].name}**.")
+                                await ctx.send(f"**{amount}** billing {period} {has} been withdrawn "
+                                               f"from **{groups[0].name}** in category **{groups[0].category.cmd}**.")
                     # category was given and found
                     else:
                         name_short = ' '.join(args[3:])
-                        owner_ids = [o.id for o in Owner.get_by_name(name_short, nocase=True)]
+                        owners = Owner.get_by_name(name_short, nocase=True)
+                        owner_ids = [o.guild.id if o.is_character and o.has_guild else o.id for o in owners]
                         filter = ((CatOwners.group_id == Groups.id) &
                                   (Groups.category_id == cat.id) &
-                                  (Groups._name.collate('NOCASE') == name_short) |
-                                  (CatOwners.id.in_(owner_ids)))
-                        group = session.query(Group).filter(filter).first()
+                                  ((Groups._name.collate('NOCASE') == name_short) | (CatOwners.id.in_(owner_ids))))
+                        group = session.query(Groups).filter(filter).first()
                         # no user with the given name was found in the given category
                         if not group:
                             await ctx.send(f"Couldn't find a user with the name **{name_short}** in the "
@@ -344,13 +365,14 @@ class Payments(commands.Cog, name="Payment commands."):
                             if cmd == 'give':
                                 group.balance += int(amount)
                                 session.commit()
-                                await ctx.send(f"**{group.name}** has been given **{amount}** billing {period}.")
+                                await ctx.send(f"**{group.name}** has been given **{amount}** billing {period} "
+                                               f"in category **{cat.cmd}**")
                             else:
                                 group.balance -= int(amount)
                                 session.commit()
                                 has = 'has' if amount == 1 else 'have'
                                 await ctx.send(f"**{amount}** billing {period} {has} been "
-                                               f"withdrawn from **{group.name}**.")
+                                               f"withdrawn from **{group.name}** in category **{cat.cmd}**.")
 
         # Command pm stats [<category>] [<owner>]
         elif args[0] == 'stats':
