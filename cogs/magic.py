@@ -1,14 +1,12 @@
-import random
 from discord.ext import commands
-from discord.ext.commands import Cog, command, group
-from config import *
-from exiles_api import *
+from discord.ext.commands import command, group
 from logger import logger
 from checks import *
+from config import *
+from exiles_api import *
 from functions import *
-from cogs.general import General
 
-class Mag(Cog, name="Magic commands."):
+class Mag(commands.Cog, name="Magic commands."):
     def __init__(self, bot):
         self.bot = bot
 

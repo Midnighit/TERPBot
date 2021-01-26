@@ -1,15 +1,13 @@
-import re, asyncio
+import re
 from discord.ext import commands
 from discord.ext.commands import command
 from datetime import datetime
 from logger import logger
+from checks import *
 from config import *
 from exiles_api import session, TextBlocks, Users, Applications as AppsTable
 from exceptions import *
-from checks import *
 from functions import *
-from cogs.general import General
-from cogs.rcon import RCon
 
 class Applications(commands.Cog, name="Application commands"):
     def __init__(self, bot):
@@ -257,7 +255,7 @@ class Applications(commands.Cog, name="Application commands"):
         info = parse(guild, ctx.author, f"They have been informed to request whitelisting in {channels[SUPPORT]}.")
         if funcom_id:
             funcom_id = funcom_id.upper()
-            result = await RCon.whitelist_player(funcom_id)
+            result, err = whitelist_player(funcom_id)
             if result == f"Player {funcom_id} added to whitelist.":
                 await self.add_new_user(member, funcom_id)
                 await member.send(parse(guild, ctx.author, TextBlocks.get('WHITELISTING_SUCCEEDED')))

@@ -1,18 +1,14 @@
 # TERPBot v1.2.1
 import os, random, discord, asyncio
 from datetime import datetime, timedelta
-from threading import Timer
 from discord import ChannelType
 from discord.ext import commands
 from logger import logger
 from checks import has_role, init_checks
 from config import *
-from functions import *
 from exiles_api import *
+from functions import *
 from cogs.applications import Applications as Apps
-from cogs.general import General
-from cogs.rcon import RCon
-from cogs.magic import Mag
 
 intents = discord.Intents.default()
 intents.members = True
@@ -163,21 +159,36 @@ async def update_roles():
         await guild.edit_role_positions(positions)
         logger.info("Finished reindexing discord clan roles.")
 
+async def display_playerlist():
+    while True:
+        channels = get_channels(bot=bot)
+        async for message in channels[DISPLAY_PLAYERLIST].history(limit=100):
+            if message.author == bot.user:
+                break
+        now = datetime.utcnow()
+        playerlist, success = listplayers()
+        if not success:
+            await discord.utils.sleep_until(now + timedelta(seconds=30))
+            continue
+        logger.info(f"Updated playerlist in channel {channels[DISPLAY_PLAYERLIST]}")
+        await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
+        await discord.utils.sleep_until(now + DISPLAY_PLAYERLIST_INTERVAL)
+
 async def get_time():
     first_attempt = now = datetime.utcnow()
-    failure = await RCon.get_time_decimal()
+    failure = get_time_decimal()
     while failure and now - first_attempt <= timedelta(minutes=2, seconds=10):
         await discord.utils.sleep_until(now + timedelta(seconds=30))
-        failure = await RCon.get_time_decimal()
+        failure = get_time_decimal()
         now = datetime.utcnow()
     return
 
 async def set_time():
     first_attempt = now = datetime.utcnow()
-    failure = await RCon.set_time_decimal()
+    failure = set_time_decimal()
     while failure and now - first_attempt <= timedelta(minutes=5, seconds=10):
         await discord.utils.sleep_until(now + timedelta(seconds=30))
-        failure = await RCon.set_time_decimal()
+        failure = set_time_decimal()
         now = datetime.utcnow()
     return
 
@@ -223,12 +234,16 @@ async def on_ready():
     if ROLL_FOR_MANA:
         magic_roles_task = asyncio.create_task(magic_rolls())
         magic_roles_task.add_done_callback(exception_catching_callback)
+    if DISPLAY_PLAYERLIST:
+        display_playerlist_task = asyncio.create_task(display_playerlist())
+        display_playerlist_task.add_done_callback(exception_catching_callback)
     for group in session.query(Groups).order_by(Groups.next_due).all():
         payments_task = asyncio.create_task(payments(group.id, group.category_id))
         payments_task.add_done_callback(exception_catching_callback)
     for category in session.query(Categories).all():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
         payments_output_task.add_done_callback(exception_catching_callback)
+
 
 @bot.event
 async def on_member_join(member):

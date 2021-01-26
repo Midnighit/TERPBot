@@ -1,10 +1,14 @@
 import discord, re
-from datetime import timedelta, datetime
-from logger import logger
 from discord import Member
 from discord.ext import commands
+from datetime import timedelta, datetime
+from factorio_rcon import RCONClient
+from psutil import process_iter
+from logger import logger
 from config import *
 from exiles_api import *
+
+rcon = RCONClient(RCON_IP, RCON_PORT, RCON_PASSWORD, timeout=5.0, connect_on_init=False)
 
 def get_guild(bot=None, guild=None):
     if guild:
@@ -65,6 +69,293 @@ def is_hex(s):
 
 def is_float(s):
     return re.match(r'^-?\d+(?:\.\d+)?$', s) is not None
+
+def rreplace(s, old, new):
+    li = s.rsplit(old, 1)
+    return new.join(li)
+
+def listplayers():
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, 'ListPlayers')
+        packets = rcon.receive_packets()
+        rcon.close()
+        result = packets[0].body
+    except Exception as err:
+        return (err, False)
+    lines = result.split('\n')
+    list, names = [], []
+    name, level, guild, rank, disc_user = 'Char name', 'Level', 'Guild name', 'Rank', 'Discord'
+    ln, ll, lg, lr, ld = len(name), len(level), len(guild), len(rank), len(disc_user)
+    idx = 0
+    if len(lines) > 1:
+        for line in lines[1:]:
+            columns = line.split('|')
+            if len(columns) >= 4:
+                list.append({'name': columns[1].strip(), 'funcom_id': columns[3].strip()})
+                characters = Owner.get_by_name(list[idx]['name'], include_guilds=False)
+                if len(characters) == 1:
+                    char = characters[0]
+                elif len(characters) > 1:
+                    for c in characters:
+                        if c.account.funcom_id == funcom_id:
+                            char = c
+                            break
+                else:
+                    logger.error(f"Function listplayers couldn't find character named {list[idx]['name']} in db.")
+                    return (f"Error: couldn't find character {list[idx]['name']} in db.", False)
+                list[idx]['guild'] = char.guild.name if char.has_guild else ''
+                list[idx]['rank'] = char.rank_name if char.has_guild else ''
+                list[idx]['level'] = str(char.level)
+                list[idx]['disc_user'] = char.user.disc_user
+                ln = max(ln, len(list[idx]['name']))
+                ll = max(ll, len(list[idx]['level']))
+                lg = max(lg, len(list[idx]['guild']))
+                lr = max(lr, len(list[idx]['rank']))
+                ld = max(ld, len(list[idx]['disc_user']))
+                idx += 1
+    list.sort(key=lambda user: user['name'])
+    for line in list:
+        names.append(f"{line['name']:<{ln}} | {line['level']:>{ll}} | {line['guild']:<{lg}} | "
+                     f"{line['rank']:<{lr}} | {line['disc_user']}")
+    num = len(list)
+    if num == 0:
+        return ("Nobody is currently online", True)
+    else:
+        nl = '\n'
+        headline = f"{name:<{ln}} | {level:<{ll}} | {guild:<{lg}} | {rank:<{lr}} | {disc_user}\n"
+        return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
+
+def is_time_format(time):
+    tLst = time.split(':')
+    if not tLst:
+        return False
+
+    if len(tLst) >= 1 and tLst[0].isnumeric() and int(tLst[0]) >= 0:
+        hours = str(int(tLst[0]) % 24)
+    else:
+        return False
+
+    if len(tLst) >= 2 and tLst[1].isnumeric() and int(tLst[1]) >= 0 and int(tLst[1]) < 60:
+        minutes = tLst[1]
+    elif len(tLst) < 2:
+        minutes = '00'
+    else:
+        return False
+
+    if len(tLst) >= 3 and tLst[2].isnumeric() and int(tLst[2]) >= 0 and int(tLst[2]) < 60:
+        seconds = tLst[2]
+    elif len(tLst) < 3:
+        seconds = '00'
+    else:
+        return False
+
+    return ':'.join([hours, minutes, seconds])
+
+def get_time():
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, "TERPO getTime")
+        packets = rcon.receive_packets()
+        rcon.close()
+        result = packets[0].body
+    except Exception as err:
+        return (err, False)
+    return (result, True)
+
+def set_time(time):
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, f"TERPO setTime {time}")
+        packets = rcon.receive_packets()
+        rcon.close()
+        result = packets[0].body
+    except Exception as err:
+        return (err, False)
+    return (result, True)
+
+def get_time_decimal():
+    logger.info(f"Trying to read the time from the game server.")
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, f"TERPO getTimeDecimal")
+        packets = rcon.receive_packets()
+        rcon.close()
+        result = packets[0].body
+    except Exception as err:
+        logger.error(f"Failed to read time from game server. RConError: {err}")
+        return 1
+    if not is_float(result):
+        logger.info(f"Failed reading time. {time}")
+        return 2
+    logger.info(f"Time read successfully: {result}")
+    GlobalVars.set_value('LAST_RESTART_TIME', result)
+    return 0
+
+def set_time_decimal():
+    time = GlobalVars.get_value('LAST_RESTART_TIME')
+    logger.info(f"Trying to reset the time to the previously read time of {time}")
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, f"TERPO setTimeDecimal {time}")
+        packets = rcon.receive_packets()
+        rcon.close()
+        result = packets[0].body
+    except Exception as err:
+        logger.error(f"Failed to set time {time}. RConError: err == {err}")
+        return 1
+    if not result.startswith("Time has been set to"):
+        logger.info(f"Failed setting time. {result}")
+        return 2
+    logger.info("Time was reset successfully!")
+    return 0
+
+def is_running(process_name, strict=False):
+    '''Check if there is any running process that contains the given name process_name.'''
+    #Iterate over the all the running process
+    for proc in process_iter():
+        try:
+            # Check if process name contains the given name string.
+            if process_name.lower() in proc.name().lower():
+                return True
+        except:
+            pass
+    return False
+
+def is_on_whitelist(funcom_id):
+    try:
+        with open(WHITELIST_PATH, 'r') as f:
+            lines = f.readlines()
+    except:
+        return False
+    funcom_id = funcom_id.upper()
+    for line in lines:
+        if funcom_id in line.upper():
+            return True
+    return False
+
+def whitelist_player(funcom_id):
+    # intercept obvious wrong cases
+    if not is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
+        return (f"{funcom_id} is not a valid FuncomID.", False)
+    elif funcom_id == "8187A5834CD94E58":
+        return (f"{funcom_id} is the example FuncomID of Midnight.", False)
+
+    # try whitelisting via rcon
+    msg = "Whitelisting failed. Server didn't respond. Please try again later."
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, f"WhitelistPlayer {funcom_id}")
+        packets = rcon.receive_packets()
+        rcon.close()
+        msg = packets[0].body
+    except Exception as err:
+        return (err, False)
+
+    if msg == f"Player {funcom_id} added to whitelist.":
+        return (msg, True)
+
+    # handle possible failure messages
+    # msg is unchanged if server is completely down and doesn't react
+    if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
+        write2file = True
+    # before server has really begun starting up, still allows writing to file
+    elif  msg == "Couldn't find the command: WhitelistPlayer. Try \"help\"":
+        write2file = True
+    # server is up but rejected command
+    elif msg == "Still processing previous command.":
+        write2file = False
+    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+    else:
+        write2file = False
+        logger.error(f"Unknown RCon error message: {msg}")
+
+    # write funcom_id to file directly
+    if write2file and not is_running('ConanSandboxServer'):
+        update_whitelist_file(funcom_id)
+        msg = f"Player {funcom_id} added to whitelist."
+    # try again later
+    elif write2file:
+        msg = f"Server is not ready. Please try again later."
+    return (msg, True)
+
+def unwhitelist_player(funcom_id):
+    msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
+    try:
+        rcon.connect()
+        rcon.send_packet(0, 2, f"UnWhitelistPlayer {funcom_id}")
+        packets = rcon.receive_packets()
+        rcon.close()
+        msg = packets[0].body
+    except Exception as err:
+        return (err, False)
+
+    if msg == f"Player {funcom_id} removed from whitelist.":
+        return (msg, True)
+
+    # handle possible failure messages
+    # when server is completely down and doesn't react
+    if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
+        write2file = True
+    # before server has really begun starting up, still allows writing to file
+    elif  msg == "Couldn't find the command: UnWhitelistPlayer. Try \"help\"":
+        write2file = True
+    # server is up but rejected command
+    elif msg == "Still processing previous command.":
+        write2file = False
+    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+    else:
+        write2file = False
+        logger.error(f"Unknown RCon error message: {msg}")
+
+    # remove funcom_id from file directly
+    if write2file and not is_running('ConanSandboxServer'):
+        update_whitelist_file(funcom_id, add=False)
+        msg = f"Player {funcom_id} removed from whitelist."
+    # try again later
+    elif write2file and is_running('ConanSandboxServer'):
+        msg = f"Server is not ready. Please try again later."
+    return (msg, True)
+
+def update_whitelist_file(funcom_id, add=True):
+    is_on_whitelist = is_on_whitelist(funcom_id)
+    if (is_on_whitelist and add) or (not is_on_whitelist and not add):
+        return
+    try:
+        with open(WHITELIST_PATH, 'r') as f:
+            lines = f.readlines()
+    except:
+        with open(WHITELIST_PATH, 'w') as f:
+            pass
+        lines = []
+    # removed duplicates and lines with INVALID. Ensure that each line ends with a newline character
+    filtered = set()
+    names = {}
+    # define regular expression to filter out unprintable characters
+    control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
+    control_char_re = re.compile('[%s]' % re.escape(control_chars))
+    for line in lines:
+        if line != "\n" and not "INVALID" in line and (add or not funcom_id in line):
+            # remove unprintable characters from the line
+            res = control_char_re.sub('', line)
+            res = res.split(':')
+            id = res[0].strip()
+            if len(res) > 1:
+                name = res[1].strip()
+            else:
+                name = 'Unknown'
+            filtered.add(id)
+            if not id in names or names[id] == 'Unknown':
+                names[id] = name
+    if add:
+        filtered.add(funcom_id)
+    names[funcom_id] = 'Unknown'
+    wlist = []
+    for id in filtered:
+        wlist.append(id + ':' + names[id] + '\n')
+    wlist.sort()
+    with open(WHITELIST_PATH, 'w') as f:
+        f.writelines(wlist)
 
 async def get_member(ctx, name):
     if not name is str:
@@ -145,19 +436,16 @@ async def payments(id, category_id):
             if not Owner.get(cat_owner.id):
                 name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
                 guess = '(' + name + ') ' if name else ''
-                logger.info(f"Character or clan with id {cat_owner.id} {guess}and category_id {category_id} removed "
+                logger.info(f"Character or clan with id {id} {guess}and category_id {category_id} removed "
                              "from payments list because they have been deleted from db since last time.")
                 messaged = True
                 session.delete(cat_owner)
         # remove simple groups that are empty
         if (group.is_simple and messaged and len(group.owners) <= 1) or (not messaged and len(group.owners) == 0):
             if not messaged:
-                name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
-                guess = '(' + name + ') ' if name else ''
-                logger.info(f"Character or clan with id {id} {guess}and category_id {category_id} removed from payments list "
-                             "because there are no.")
+                logger.info(f"Character or clan with id {id} and category_id {category_id} removed "
+                             "from payments list because they have been deleted from db since last time.")
             session.delete(group)
-            break
         await discord.utils.sleep_until(group.next_due)
         group.next_due = group.next_due + group.category.frequency
         group.balance -= 1

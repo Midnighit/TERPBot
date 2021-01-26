@@ -1,12 +1,12 @@
-import random, config, time
+import random, time
 from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
-from exiles_api import *
-from config import *
-from exceptions import *
 from checks import *
+from config import *
+from exiles_api import *
+from exceptions import *
 from functions import *
 
 class General(commands.Cog, name="General commands."):
@@ -84,22 +84,23 @@ class General(commands.Cog, name="General commands."):
         return result
 
     @staticmethod
-    async def get_user_string(arg, users, with_id=False):
+    async def get_user_string(arg, users, with_char_id=False, with_disc_id=False):
         if not users:
             return f"No discord user or chracter named {arg} was found."
 
         msg = ''
         for user in users:
-            id = '(@' + user.disc_id + ')' if with_id else ''
+            disc_id = '(@' + user.disc_id + ') ' if with_disc_id else ''
             if len(user.characters) == 0:
-                msg += f"No characters linked to discord nick **{user.disc_user}** {id}have been found.\n"
+                msg += f"No characters linked to discord nick **{user.disc_user}** {disc_id}have been found.\n"
             else:
-                msg += f"The characters belonging to the discord nick **{user.disc_user}** {id} are:\n"
+                msg += f"The characters belonging to the discord nick **{user.disc_user}** {disc_id}are:\n"
                 for char in user.characters:
-                    lldate = char.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
+                    char_id = ' (' + str(char.id) + ')' if with_char_id else ''
+                    lldate = char.last_login.strftime("%d-%b-%Y %H:%M UTC")
                     guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ''
                     slot = " on **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
-                    msg += f"**{char.name}**{guild}{slot} (last login: {lldate})\n"
+                    msg += f"**{char.name}**{char_id}{guild}{slot} (last login: {lldate})\n"
                 msg += '\n'
         return msg[:-2]
 
@@ -132,7 +133,7 @@ class General(commands.Cog, name="General commands."):
                 rank_nam = "Undeterminable rank" if rank == -1 else RANKS[rank]
                 for member in members:
                     mem_msg = ''
-                    lldate = member.last_login.strftime("%d-%b-%Y %H:%M:%S UTC")
+                    lldate = member.last_login.strftime("%d-%b-%Y %H:%M UTC")
                     slot = member.slot
                     if slot == 'active':
                         mem_msg += f"**{member.name}** is **{rank_nam}** on **active** slot (last login: {lldate})\n"
@@ -229,8 +230,16 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
-    async def whois(self, ctx, *, arg):
-        disc_id = disc_user = user = None
+    async def whois(self, ctx, *, Name):
+        disc_id = disc_user = user = show_char_id = show_disc_id = None
+        arg_list = Name.split()
+        if "char_id" in arg_list:
+            show_char_id = True
+            arg_list.remove("char_id")
+        if "disc_id" in arg_list:
+            show_disc_id = True
+            arg_list.remove("disc_id")
+        arg = ' '.join(arg_list)
         # try converting the given argument into a member
         member = await get_member(ctx, arg)
         if member:
@@ -264,7 +273,7 @@ class General(commands.Cog, name="General commands."):
         for user in Characters.get_users(arg):
             if not user in users:
                 users += [user]
-        await ctx.send(await self.get_user_string(arg, users, True))
+        await ctx.send(await self.get_user_string(arg, users, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
@@ -470,6 +479,11 @@ class General(commands.Cog, name="General commands."):
 
         await guild.edit_role_positions(positions)
         await ctx.send(f"Done!")
+
+    @command(name="test")
+    async def test(self, ctx):
+        playerlist, success = listplayers()
+        await ctx.send(playerlist)
 
 def setup(bot):
     bot.add_cog(General(bot))

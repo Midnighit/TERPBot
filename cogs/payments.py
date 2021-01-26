@@ -2,9 +2,9 @@ import asyncio
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
+from config import *
 from exiles_api import *
 from functions import *
-from config import *
 
 class Payments(commands.Cog, name="Payment commands."):
     def __init__(self, bot):
