@@ -85,15 +85,17 @@ def listplayers():
         return (err, False)
     lines = result.split('\n')
     list, names = [], []
-    name, level, guild, rank, disc_user = 'Char name', 'Level', 'Guild name', 'Rank', 'Discord'
+    name, level, guild, rank, disc_user = 'Char name', 'Level', 'Clan name', 'Rank', 'Discord'
     ln, ll, lg, lr, ld = len(name), len(level), len(guild), len(rank), len(disc_user)
     idx = 0
     if len(lines) > 1:
         for line in lines[1:]:
             columns = line.split('|')
             if len(columns) >= 4:
-                list.append({'name': columns[1].strip(), 'funcom_id': columns[3].strip()})
-                characters = Owner.get_by_name(list[idx]['name'], include_guilds=False)
+                char_name, funcom_id = columns[1].strip(), columns[3].strip()
+                if char_name == '':
+                    continue
+                characters = Owner.get_by_name(char_name, include_guilds=False)
                 if len(characters) == 1:
                     char = characters[0]
                 elif len(characters) > 1:
@@ -103,27 +105,29 @@ def listplayers():
                             break
                 else:
                     logger.error(f"Function listplayers couldn't find character named {list[idx]['name']} in db.")
-                    return (f"Error: couldn't find character {list[idx]['name']} in db.", False)
-                list[idx]['guild'] = char.guild.name if char.has_guild else ''
-                list[idx]['rank'] = char.rank_name if char.has_guild else ''
-                list[idx]['level'] = str(char.level)
-                list[idx]['disc_user'] = char.user.disc_user
+                list.append({'name': char_name,
+                             'funcom_id': funcom_id,
+                             'guild': char.guild.name if char and char.has_guild else '',
+                             'rank': char.rank_name if char and char.has_guild else '',
+                             'level': str(char.level) if char else '',
+                             'disc_user': char.user.disc_user if char else ''})
+                idx = len(list) - 1
                 ln = max(ln, len(list[idx]['name']))
                 ll = max(ll, len(list[idx]['level']))
                 lg = max(lg, len(list[idx]['guild']))
                 lr = max(lr, len(list[idx]['rank']))
                 ld = max(ld, len(list[idx]['disc_user']))
-                idx += 1
     list.sort(key=lambda user: user['name'])
     for line in list:
-        names.append(f"{line['name']:<{ln}} | {line['level']:>{ll}} | {line['guild']:<{lg}} | "
-                     f"{line['rank']:<{lr}} | {line['disc_user']}")
+        names.append(f"{line['name']:<{ln}} | {line['guild']}")
     num = len(list)
     if num == 0:
         return ("Nobody is currently online", True)
     else:
         nl = '\n'
-        headline = f"{name:<{ln}} | {level:<{ll}} | {guild:<{lg}} | {rank:<{lr}} | {disc_user}\n"
+        headline = f"{name:<{ln}} | {guild}\n"
+        width = len(headline) - len(guild) - 1 + lg
+        headline = headline + width * '-' + '\n'
         return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
 
 def is_time_format(time):
