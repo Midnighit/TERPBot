@@ -104,8 +104,9 @@ class General(commands.Cog, name="General commands."):
                 msg += '\n'
         return msg[:-2]
 
+    # guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
     @staticmethod
-    async def get_clan_string(arg, guilds):
+    async def get_clan_string(arg, guilds, guild_id=None, char_id=None):
         if not guilds:
             return [f"No clan named {arg} was found."]
 
@@ -116,7 +117,8 @@ class General(commands.Cog, name="General commands."):
             if len(members) == 0:
                 continue
             mem = 'members' if len(members) > 1 else 'member'
-            chunk += f"Clan **{guild.name}** has **{len(members)}** {mem}:\n"
+            gid = f"({guild.id}) " if guild_id else ''
+            chunk += f"Clan **{guild.name}** {gid}has **{len(members)}** {mem}:\n"
             members_by_rank = {}
             for member in members:
                 rank = 3 if member.rank > 3 else member.rank
@@ -134,11 +136,14 @@ class General(commands.Cog, name="General commands."):
                 for member in members:
                     mem_msg = ''
                     lldate = member.last_login.strftime("%d-%b-%Y %H:%M UTC")
+                    cid = f"({member.id}) " if char_id else ''
                     slot = member.slot
                     if slot == 'active':
-                        mem_msg += f"**{member.name}** is **{rank_nam}** on **active** slot (last login: {lldate})\n"
+                        mem_msg += (f"**{member.name}** {cid}is **{rank_nam}** on "
+                                    f"**active** slot (last login: {lldate})\n")
                     else:
-                        mem_msg += f"**{member.name}** is **{rank_nam}** on slot **{slot}** (last login: {lldate})\n"
+                        mem_msg += (f"**{member.name}** {cid}is **{rank_nam}** on "
+                                    f"slot **{slot}** (last login: {lldate})\n")
 
                     if len(chunk) + len(mem_msg) >= 2000:
                         msg.append(chunk)
@@ -294,8 +299,22 @@ class General(commands.Cog, name="General commands."):
     @command(name="clanmembers")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def clanmembers(self, ctx, *, arg):
-        guilds = session.query(Guilds).filter(Guilds.name.like('%' + arg + '%')).all()
-        guild_strings = await self.get_clan_string(arg, guilds)
+        guild_id = char_id = False
+        arg_list = arg.split()
+        if "guild_id" in arg_list:
+            guild_id = True
+            arg_list.remove("guild_id")
+        if "char_id" in arg_list:
+            char_id = True
+            arg_list.remove("char_id")
+        name = " ".join(arg_list)
+        if name == "":
+            await ctx.send("Name is a required argument that is missing.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+            return
+
+        guilds = session.query(Guilds).filter(Guilds.name.like('%' + name + '%')).all()
+        guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
         for msg in guild_strings:
             await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
@@ -303,13 +322,7 @@ class General(commands.Cog, name="General commands."):
     @command(name="whoisowner")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whoisowner(self, ctx, *, arg):
-        if arg == "":
-            await ctx.send("Name is a required argument that is missing.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
-            return
-
         loc = obj = strict = False
-
         arg_list = arg.split()
         if "loc" in arg_list:
             loc = True
@@ -320,7 +333,11 @@ class General(commands.Cog, name="General commands."):
         if "strict" in arg_list:
             strict = True
             arg_list.remove("strict")
-        name = " ".join(arg_list) if loc or obj or strict else arg
+        name = " ".join(arg_list)
+        if name == '':
+            await ctx.send("Name is a required argument that is missing.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+            return
 
         thralls = Properties.get_thrall_owners(name=name, strict=strict)
         await ctx.send(await self.get_owner_string(name, thralls, loc, obj))
@@ -479,11 +496,6 @@ class General(commands.Cog, name="General commands."):
 
         await guild.edit_role_positions(positions)
         await ctx.send(f"Done!")
-
-    @command(name="test")
-    async def test(self, ctx):
-        playerlist, success = listplayers()
-        await ctx.send(playerlist)
 
 def setup(bot):
     bot.add_cog(General(bot))
