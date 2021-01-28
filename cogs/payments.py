@@ -428,8 +428,7 @@ class Payments(commands.Cog, name="Payment commands."):
                     name = ' '.join(args[1:])
                     owner_ids = [o.id for o in Owner.get_by_name(name, nocase=True)]
                     filter = ((CatOwners.group_id == Groups.id) &
-                              (Groups._name.collate('NOCASE') == name) |
-                              (CatOwners.id.in_(owner_ids)))
+                              ((Groups._name.collate('NOCASE') == name) | (CatOwners.id.in_(owner_ids))))
                     groups = session.query(Groups).filter(filter).all()
                     # misspelled
                     if not groups:
