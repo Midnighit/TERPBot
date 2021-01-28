@@ -349,10 +349,10 @@ class Payments(commands.Cog, name="Payment commands."):
                     else:
                         name_short = ' '.join(args[3:])
                         owners = Owner.get_by_name(name_short, nocase=True)
-                        owner_ids = [o.guild.id if o.is_character and o.has_guild else o.id for o in owners]
+                        ids = [o.guild.id if cat.guild_pay and o.is_character and o.has_guild else o.id for o in owners]
                         filter = ((CatOwners.group_id == Groups.id) &
                                   (Groups.category_id == cat.id) &
-                                  ((Groups._name.collate('NOCASE') == name_short) | (CatOwners.id.in_(owner_ids))))
+                                  ((Groups._name.collate('NOCASE') == name_short) | (CatOwners.id.in_(ids))))
                         group = session.query(Groups).filter(filter).first()
                         # no user with the given name was found in the given category
                         if not group:
@@ -396,8 +396,7 @@ class Payments(commands.Cog, name="Payment commands."):
                 else:
                     owner_ids = [o.id for o in Owner.get_by_name(args[1], nocase=True)]
                     filter = ((CatOwners.group_id == Groups.id) &
-                              (Groups._name.collate('NOCASE') == args[1]) |
-                              (CatOwners.id.in_(owner_ids)))
+                             ((Groups._name.collate('NOCASE') == args[1]) | (CatOwners.id.in_(owner_ids))))
                     groups = session.query(Groups).filter(filter).all()
                     if not groups:
                         await ctx.send(f"Couldn't find **{args[1]}** in categories or users.\n"
@@ -412,10 +411,8 @@ class Payments(commands.Cog, name="Payment commands."):
                 if cat:
                     name = ' '.join(args[2:])
                     owner_ids = [o.id for o in Owner.get_by_name(name, nocase=True)]
-                    filter = ((CatOwners.group_id == Groups.id) &
-                              (Groups.category_id == cat.id) &
-                              (Groups._name.collate('NOCASE') == name) |
-                              (CatOwners.id.in_(owner_ids)))
+                    filter = ((CatOwners.group_id == Groups.id) & (Groups.category_id == cat.id) &
+                             ((Groups._name.collate('NOCASE') == name) | CatOwners.id.in_(owner_ids)))
                     group = session.query(Groups).filter(filter).first()
                     # no user with the given name was found in the given category
                     if not group:
