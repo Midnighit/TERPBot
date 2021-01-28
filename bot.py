@@ -170,7 +170,7 @@ async def display_playerlist():
         if not success:
             await discord.utils.sleep_until(now + timedelta(seconds=30))
             continue
-        logger.info(f"Updated playerlist in channel {channels[DISPLAY_PLAYERLIST]}")
+        # logger.info(f"Updated playerlist in channel {channels[DISPLAY_PLAYERLIST]}")
         await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
         await discord.utils.sleep_until(now + DISPLAY_PLAYERLIST_INTERVAL)
 
