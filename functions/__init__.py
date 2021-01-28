@@ -228,7 +228,13 @@ def is_running(process_name, strict=False):
 
 def is_on_whitelist(funcom_id):
     try:
-        with open(WHITELIST_PATH, 'r') as f:
+        with open(WHITELIST_PATH, 'rb') as f:
+            line = f.readline()
+            codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
+    except:
+        return False
+    try:
+        with open(WHITELIST_PATH, 'r', encoding=codec) as f:
             lines = f.readlines()
     except:
         return False
@@ -390,9 +396,8 @@ async def get_category_msg(category, messages=[]):
         if owner.balance >= 0:
             line = f"**{owner.name}** currently has **no open bill**. Last payment was made: **{last_pay}**.\n"
         else:
-            period = "period" if abs(owner.balance) == 1 else "periods"
-            line = (f"**{owner.name}** currently owes **{abs(owner.balance)} billing {period}**. "
-                    f"Last payment was made: **{last_pay}**.\n")
+            periods = f" ({abs(owner.balance)} billing periods)" if owner.balance < -1 else ''
+            line = (f"**{owner.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n")
         if len(chunk + line) > 2000:
             msgs.append(chunk)
             chunk = line
@@ -413,9 +418,9 @@ async def get_user_msg(groups, messages=[]):
             line = (f"**{owner.name}** currently **has no open bill** for **{owner.category.name}**. "
                     f"Last payment was made: **{last_pay}**.\n")
         else:
-            period = "period" if abs(owner.balance) == 1 else "periods"
-            line = (f"**{owner.name}** owes **{abs(owner.balance)} billing {period}** fee for their "
-                    f"**{owner.category.name}**. Last payment was made: **{last_pay}**.\n")
+            periods = f" ({abs(owner.balance)} billing periods)" if owner.balance < -1 else ''
+            line = (f"**{owner.name}'s** payment for their **{owner.category.name}** is "
+                    f"**overdue{periods}**. Last payment was made: **{last_pay}**.\n")
         if len(chunk + line) > 2000:
             msgs.append(chunk)
             chunk = line
