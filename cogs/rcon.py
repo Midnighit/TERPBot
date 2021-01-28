@@ -146,9 +146,16 @@ class RCon(commands.Cog, name="RCon commands"):
             await ctx.send("Command can only be used while server isn't running.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
+        # determine codec
+        try:
+            with open(WHITELIST_PATH, 'rb') as f:
+                line = f.readline()
+                codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
+        except:
+            codec = 'utf8'
         # try to read all entries already in the whitelist.txt file
         try:
-            with open(WHITELIST_PATH, 'r') as f:
+            with open(WHITELIST_PATH, 'r', encoding=codec) as f:
                 lines = f.readlines()
         # if file doesn't exist create an empty list
         except:
@@ -190,7 +197,7 @@ class RCon(commands.Cog, name="RCon commands"):
         wlist.sort()
 
         # overwrite / write the new file with the contenst of wlist
-        with open(WHITELIST_PATH, 'w') as f:
+        with open(WHITELIST_PATH, 'w', encoding=codec) as f:
             f.writelines(wlist)
         await ctx.send("All players in the supplemental database have been placed on the whitelist.")
 

@@ -331,8 +331,15 @@ def update_whitelist_file(funcom_id, add=True):
     is_on_whitelist = is_on_whitelist(funcom_id)
     if (is_on_whitelist and add) or (not is_on_whitelist and not add):
         return
+    # determine codec
     try:
-        with open(WHITELIST_PATH, 'r') as f:
+        with open(WHITELIST_PATH, 'rb') as f:
+            line = f.readline()
+            codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
+    except:
+        codec = 'utf8'
+    try:
+        with open(WHITELIST_PATH, 'r', encoding=codec) as f:
             lines = f.readlines()
     except:
         with open(WHITELIST_PATH, 'w') as f:
