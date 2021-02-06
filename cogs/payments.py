@@ -56,10 +56,11 @@ class Payments(commands.Cog, name="Payment commands."):
                     messages = await get_user_msg(groups, messages)
                 await print_payments_msg(ctx.channel, messages)
 
-        # Command pm group add|show <group name> [<category>] [<owner>]
+        # Command pm group add|delete|show <group name> [<category>] [<owner>]
         elif args[0] == 'group' and \
              ((len(args) < 2) or \
-             (args[1] in ('add', 'delete') and len(args) < 4) or \
+             (args[1] == 'add' and len(args) < 4) or \
+             (args[1] == 'delete' and len(args) < 3) or \
              (not args[1] in ('add', 'delete', 'show'))):
             if is_staff:
                 await ctx.send("Command requires the keyword add, remove or show and a group name. "
