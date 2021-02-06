@@ -76,7 +76,7 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name='whitelist', help="Whitelists the player using the given FuncomID")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whitelist(self, ctx, *, Arguments):
-        funcom_id = await Applications.get_funcom_id_in_text(Arguments)
+        funcom_id = await Applications.get_funcom_id_in_text(Arguments, upper_case=False)
         if not funcom_id:
             msg = ("No valid FuncomID given. ID needs to be 14-16 characters "
                    "long and consist only of digits and letters A-F.")
@@ -86,6 +86,7 @@ class RCon(commands.Cog, name="RCon commands"):
 
         arg_list = Arguments.split()
         arg_list.remove(funcom_id)
+        funcom_id = funcom_id.upper()
 
         member = await get_member(ctx, " ".join(arg_list))
         if not member:

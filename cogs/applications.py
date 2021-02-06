@@ -52,7 +52,7 @@ class Applications(commands.Cog, name="Application commands"):
         return overview
 
     @staticmethod
-    async def get_funcom_id_in_text(text):
+    async def get_funcom_id_in_text(text, upper_case=True):
         # get all strings consisting only of the letters a-f and digits that's at least 14 and at most 16 characters long
         result = re.search(r'([a-fA-F0-9]{14,16})', text)
         if not result:
@@ -63,8 +63,10 @@ class Applications(commands.Cog, name="Application commands"):
         # if given funcom_id isn't either at the beginning and/or end of the text or delimited by a blank
         if (start > 0 and text[start-1] != " ") or (end < len(text) - 1 and text[end+1] != " "):
             return None
-        if funcom_id:
+        if funcom_id and upper_case:
             return funcom_id.upper()
+        elif funcom_id and not upper_case:
+            return funcom_id
         else:
             return None
 
