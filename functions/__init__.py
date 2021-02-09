@@ -82,7 +82,7 @@ def listplayers():
         rcon.close()
         result = packets[0].body
     except Exception as err:
-        return (err, False)
+        return (str(err), False)
     lines = result.split('\n')
     list, names = [], []
     name, level, guild, rank, disc_user = 'Char name', 'Level', 'Clan name', 'Rank', 'Discord'
@@ -164,7 +164,7 @@ def get_time():
         rcon.close()
         result = packets[0].body
     except Exception as err:
-        return (err, False)
+        return (str(err), False)
     return (result, True)
 
 def set_time(time):
@@ -175,7 +175,7 @@ def set_time(time):
         rcon.close()
         result = packets[0].body
     except Exception as err:
-        return (err, False)
+        return (str(err), False)
     return (result, True)
 
 def get_time_decimal():
@@ -187,7 +187,7 @@ def get_time_decimal():
         rcon.close()
         result = packets[0].body
     except Exception as err:
-        logger.error(f"Failed to read time from game server. RConError: {err}")
+        logger.error(f"Failed to read time from game server. RConError: {str(err)}")
         return 1
     if not is_float(result):
         logger.info(f"Failed reading time. {time}")
@@ -206,7 +206,7 @@ def set_time_decimal():
         rcon.close()
         result = packets[0].body
     except Exception as err:
-        logger.error(f"Failed to set time {time}. RConError: err == {err}")
+        logger.error(f"Failed to set time {time}. RConError: err == {str(err)}")
         return 1
     if not result.startswith("Time has been set to"):
         logger.info(f"Failed setting time. {result}")
@@ -260,7 +260,7 @@ def whitelist_player(funcom_id):
         rcon.close()
         msg = packets[0].body
     except Exception as err:
-        return (err, False)
+        return (str(err), False)
 
     if msg == f"Player {funcom_id} added to whitelist.":
         return (msg, True)
@@ -298,7 +298,7 @@ def unwhitelist_player(funcom_id):
         rcon.close()
         msg = packets[0].body
     except Exception as err:
-        return (err, False)
+        return (str(err), False)
 
     if msg == f"Player {funcom_id} removed from whitelist.":
         return (msg, True)
