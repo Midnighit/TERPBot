@@ -401,9 +401,15 @@ async def get_category_msg(category, messages=[]):
     for owner in groups:
         last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
         next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
+        if category.frequency == timedelta(weeks=1):
+            dur = 'week'
+        elif category.frequency == timedelta(days=28):
+            dur = 'month'
+        else:
+            dur = 'billing period'
         line = f"**{owner.name}:**\nLast payment: {last_pay}.\nNext due: "
         if owner.balance > 0:
-            line += "Already paid for this week.\n\n"
+            line += f"Already paid for this {dur}.\n\n"
         elif owner.balance == 0:
             line += f"{next_due} (at the latest).\n\n"
         else:
@@ -433,11 +439,17 @@ async def get_category_msg_original(category, messages=[]):
     for owner in groups:
         last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
         next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
+        if category.frequency == timedelta(weeks=1):
+            dur = 'week'
+        elif category.frequency == timedelta(days=28):
+            dur = 'month'
+        else:
+            dur = 'billing period'
         if owner.balance > 0:
-            line = (f"**{owner.name}** has **already paid for this week**. "
+            line = (f"**{owner.name}** has **already paid for this {dur}**. "
                     f"Last payment was made: **{last_pay}**.\n")
         elif owner.balance == 0:
-            line = (f"**{owner.name}** has **not paid for this week yet**. "
+            line = (f"**{owner.name}** has **not paid for this {dur} yet**. "
                     f"Last payment was made: **{last_pay}**. "
                     f"Next payment is due on **{next_due}** at the latest.\n")
         else:
@@ -462,9 +474,15 @@ async def get_category_msg_compact(category, messages=[]):
     name_hl, next_due_hl, last_payment_hl = 'Name', 'Next due date (UTC)', 'Last payment (UTC)'
     ln, lnd, llp = len(name_hl), len(next_due_hl), len(last_payment_hl)
     date_format = '%A %d-%b-%Y %H:%M'
+    if category.frequency == timedelta(weeks=1):
+        dur = 'week'
+    elif category.frequency == timedelta(days=28):
+        dur = 'month'
+    else:
+        dur = 'billing period'
     for owner in groups:
         if owner.balance > 0:
-            next_due = "Paid for this week"
+            next_due = f"Paid for this {dur}"
         elif owner.balance == 0:
             next_due = owner.last_payment.strftime(date_format)
         else:
@@ -501,11 +519,17 @@ async def get_user_msg(groups, messages=[]):
     for owner in groups:
         last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
         next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
+        if owner.category.frequency == timedelta(weeks=1):
+            dur = 'week'
+        elif owner.category.frequency == timedelta(days=28):
+            dur = 'month'
+        else:
+            dur = 'billing period'
         if owner.balance > 0:
-            line = (f"**{owner.name}** has **already paid for this week**. "
+            line = (f"**{owner.name}** has **already paid for this {dur}**. "
                     f"Last payment was made: **{last_pay}**.\n")
         elif owner.balance == 0:
-            line = (f"**{owner.name}** has **not paid for this week yet**. "
+            line = (f"**{owner.name}** has **not paid for this {dur} yet**. "
                     f"Last payment was made: **{last_pay}**. "
                     f"Next payment is due on **{next_due}** at the latest.\n")
         else:
