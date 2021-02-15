@@ -526,10 +526,10 @@ async def get_user_msg(groups, messages=[]):
         else:
             dur = 'billing period'
         if owner.balance > 0:
-            line = (f"**{owner.name}** has **already paid for this {dur}**. "
+            line = (f"**{owner.name}** has **already paid** their **{owner.category.name}** this {dur}. "
                     f"Last payment was made: **{last_pay}**.\n")
         elif owner.balance == 0:
-            line = (f"**{owner.name}** has **not paid for this {dur} yet**. "
+            line = (f"**{owner.name}** has **not paid** their **{owner.category.name}** this {dur} yet. "
                     f"Last payment was made: **{last_pay}**. "
                     f"Next payment is due on **{next_due}** at the latest.\n")
         else:
