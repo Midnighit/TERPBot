@@ -398,23 +398,15 @@ async def get_category_msg(category, messages=[]):
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
+    fmt = '%A %d-%b-%Y UTC'
+    freq = category.frequency
+    now = datetime.utcnow()
     for owner in groups:
-        last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
-        next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
-        if category.frequency == timedelta(weeks=1):
-            dur = 'week'
-        elif category.frequency == timedelta(days=28):
-            dur = 'month'
-        else:
-            dur = 'billing period'
-        line = f"**{owner.name}:**\nLast payment: {last_pay}.\nNext due: "
-        if owner.balance > 0:
-            line += f"Already paid for this {dur}.\n\n"
-        elif owner.balance == 0:
-            line += f"{next_due} (at the latest).\n\n"
-        else:
-            periods = f" ({abs(owner.balance)} billing periods)" if owner.balance < -1 else ''
-            line += f"**Overdue{periods}**.\n\n"
+        last_pay = owner.last_payment.strftime(fmt) if owner.last_payment else 'Never'
+        next_due = owner.next_due if last_pay == 'Never' else owner.last_payment + freq
+        line = f"**{owner.name}:**\nLast payment: {last_pay}.\nNext due: {next_due.strftime(fmt)}"
+        line += ". **(Overdue)**\n\n" if now > next_due else "\n\n"
+
         if len(chunk + line) > 2000:
             msgs.append(chunk)
             chunk = line
@@ -516,26 +508,17 @@ async def get_user_msg(groups, messages=[]):
         if len(messages[-1] + chunk) <= 2000:
             chunk = messages[-1] + chunk
             msgs = messages[:-1]
+    fmt = '%A %d-%b-%Y UTC'
+    now = datetime.utcnow()
     for owner in groups:
-        last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
-        next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
-        if owner.category.frequency == timedelta(weeks=1):
-            dur = 'week'
-        elif owner.category.frequency == timedelta(days=28):
-            dur = 'month'
+        freq = owner.category.frequency
+        last_pay = owner.last_payment.strftime(fmt) if owner.last_payment else 'Never'
+        next_due = owner.next_due if last_pay == 'Never' else owner.last_payment + freq
+        line = f"**{owner.name}** last paid their **{owner.category.name}** on **{last_pay}**.\n"
+        if now < next_due:
+            line += f"Next payment is due on **{next_due.strftime(fmt)}**.\n"
         else:
-            dur = 'billing period'
-        if owner.balance > 0:
-            line = (f"**{owner.name}** has **already paid** their **{owner.category.name}** this {dur}. "
-                    f"Last payment was made: **{last_pay}**.\n")
-        elif owner.balance == 0:
-            line = (f"**{owner.name}** has **not paid** their **{owner.category.name}** this {dur} yet. "
-                    f"Last payment was made: **{last_pay}**. "
-                    f"Next payment is due on **{next_due}** at the latest.\n")
-        else:
-            periods = f" ({abs(owner.balance)} billing periods)" if owner.balance < -1 else ''
-            line = (f"**{owner.name}'s** payment for their **{owner.category.name}** is "
-                    f"**overdue{periods}**. Last payment was made: **{last_pay}**.\n")
+            line += f"Next payment **was** due on **{next_due.strftime(fmt)}**. **(Overdue)**\n"
         if len(chunk + line) > 2000:
             msgs.append(chunk)
             chunk = line
