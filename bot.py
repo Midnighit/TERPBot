@@ -244,7 +244,6 @@ async def on_ready():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
         payments_output_task.add_done_callback(exception_catching_callback)
 
-
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
@@ -268,7 +267,7 @@ async def on_member_remove(member):
 async def on_message(message):
     guild = get_guild(bot)
     channels = get_channels(guild)
-    if message.channel == channels[STATUS]:
+    if TIME_SYNC and message.channel == channels[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
             get_time_task = asyncio.create_task(get_time())
             get_time_task.add_done_callback(exception_catching_callback)
