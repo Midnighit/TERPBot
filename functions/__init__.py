@@ -386,7 +386,6 @@ async def get_member(ctx, name):
             return None
 
 async def get_category_msg(category, messages=[]):
-    filter = (CatOwners.group_id == Groups.id) & (Groups.category_id == category.id)
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
     if len(groups) == 0:
         return messages
@@ -401,10 +400,22 @@ async def get_category_msg(category, messages=[]):
     fmt = '%A %d-%b-%Y UTC'
     freq = category.frequency
     now = datetime.utcnow()
-    for owner in groups:
-        last_pay = owner.last_payment.strftime(fmt) if owner.last_payment else 'Never'
-        next_due = owner.next_due if last_pay == 'Never' else owner.last_payment + freq
-        line = f"**{owner.name}:**\nLast payment: {last_pay}.\nNext due: {next_due.strftime(fmt)}"
+    for group in groups:
+        # owner doesn't exist anymore
+        if group.name is None:
+            if len(group.owners) > 0:
+                owner = group.owners[0]
+                name = session.query(OwnersCache.name).filter_by(id=group.owner.id).scalar()
+                line = f"**{name}: Not found in db and may have to be deleted."
+            continue
+        elif group.name == 'Ruins':
+            owner = group.owners[0]
+            name = session.query(OwnersCache.name).filter_by(id=owner.id).scalar() + ' (Ruins)'
+        else:
+            name = group.name
+        last_pay = group.last_payment.strftime(fmt) if group.last_payment else 'Never'
+        next_due = group.next_due if last_pay == 'Never' else group.last_payment + freq
+        line = f"**{name}:**\nLast payment: {last_pay}.\nNext due: {next_due.strftime(fmt)}"
         line += ". **(Overdue)**\n\n" if now > next_due else "\n\n"
 
         if len(chunk + line) > 2000:
@@ -416,7 +427,6 @@ async def get_category_msg(category, messages=[]):
     return msgs
 
 async def get_category_msg_original(category, messages=[]):
-    filter = (CatOwners.group_id == Groups.id) & (Groups.category_id == category.id)
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
     if len(groups) == 0:
         return messages
@@ -428,25 +438,25 @@ async def get_category_msg_original(category, messages=[]):
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
-    for owner in groups:
-        last_pay = owner.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if owner.last_payment else 'Never'
-        next_due = owner.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
+    for group in groups:
+        last_pay = group.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if group.last_payment else 'Never'
+        next_due = group.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
         if category.frequency == timedelta(weeks=1):
             dur = 'week'
         elif category.frequency == timedelta(days=28):
             dur = 'month'
         else:
             dur = 'billing period'
-        if owner.balance > 0:
-            line = (f"**{owner.name}** has **already paid for this {dur}**. "
+        if group.balance > 0:
+            line = (f"**{group.name}** has **already paid for this {dur}**. "
                     f"Last payment was made: **{last_pay}**.\n")
-        elif owner.balance == 0:
-            line = (f"**{owner.name}** has **not paid for this {dur} yet**. "
+        elif group.balance == 0:
+            line = (f"**{group.name}** has **not paid for this {dur} yet**. "
                     f"Last payment was made: **{last_pay}**. "
                     f"Next payment is due on **{next_due}** at the latest.\n")
         else:
-            periods = f" ({abs(owner.balance)} billing periods)" if owner.balance < -1 else ''
-            line = (f"**{owner.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n")
+            periods = f" ({abs(group.balance)} billing periods)" if group.balance < -1 else ''
+            line = (f"**{group.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n")
         if len(chunk + line) > 2000:
             msgs.append(chunk)
             chunk = line
@@ -456,7 +466,6 @@ async def get_category_msg_original(category, messages=[]):
     return msgs
 
 async def get_category_msg_compact(category, messages=[]):
-    filter = (CatOwners.group_id == Groups.id) & (Groups.category_id == category.id)
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
     if len(groups) == 0:
         return messages
@@ -472,16 +481,16 @@ async def get_category_msg_compact(category, messages=[]):
         dur = 'month'
     else:
         dur = 'billing period'
-    for owner in groups:
-        if owner.balance > 0:
+    for group in groups:
+        if group.balance > 0:
             next_due = f"Paid for this {dur}"
-        elif owner.balance == 0:
-            next_due = owner.last_payment.strftime(date_format)
+        elif group.balance == 0:
+            next_due = group.last_payment.strftime(date_format)
         else:
             next_due = ">> OVERDUE! <<"
-        last_payment = owner.last_payment.strftime(date_format) if owner.last_payment else 'Never'
-        list.append({'name': owner.name, 'last_pay': last_payment, 'next_due': next_due})
-        ln = max(ln, len(owner.name))
+        last_payment = group.last_payment.strftime(date_format) if group.last_payment else 'Never'
+        list.append({'name': group.name, 'last_pay': last_payment, 'next_due': next_due})
+        ln = max(ln, len(group.name))
         lnd = max(lnd, len(next_due))
         llp = max(llp, len(last_payment))
     list.sort(key=lambda user: user['name'])
@@ -510,11 +519,11 @@ async def get_user_msg(groups, messages=[]):
             msgs = messages[:-1]
     fmt = '%A %d-%b-%Y UTC'
     now = datetime.utcnow()
-    for owner in groups:
-        freq = owner.category.frequency
-        last_pay = owner.last_payment.strftime(fmt) if owner.last_payment else 'Never'
-        next_due = owner.next_due if last_pay == 'Never' else owner.last_payment + freq
-        line = f"**{owner.name}** last paid their **{owner.category.name}** on **{last_pay}**.\n"
+    for group in groups:
+        freq = group.category.frequency
+        last_pay = group.last_payment.strftime(fmt) if group.last_payment else 'Never'
+        next_due = group.next_due if last_pay == 'Never' else group.last_payment + freq
+        line = f"**{group.name}** last paid their **{group.category.name}** on **{last_pay}**.\n"
         if now < next_due:
             line += f"Next payment is due on **{next_due.strftime(fmt)}**.\n"
         else:
@@ -623,7 +632,8 @@ async def payments_input(category, message):
                         cat_owner.balance += 1
                         cat_owner.last_payment = datetime.utcnow()
                         logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
-    else:
+    # even with guild_pay set, check for character_ids when no guild or guild member was found
+    if not found:
         for char in session.query(Characters).filter(Characters.id.in_(cat_owner_ids)).all():
             if found:
                 break
