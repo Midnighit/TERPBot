@@ -11,8 +11,24 @@ class Mag(commands.Cog, name="Magic commands."):
         self.bot = bot
 
     @staticmethod
+    async def get_mchar(character):
+        if type(character) is int or character.isnumeric():
+            mchar = session.query(MagicChars).get(character)
+            if mchar:
+                mchars = [mchar]
+            else:
+                return f"No character with ID **{character}** registered."
+        else:
+            mchars = session.query(MagicChars).filter(MagicChars.name.collate('NOCASE')==character).all()
+        if len(mchars) == 0:
+            return f"No character named **{character}** registered."
+        elif len(mchars) > 1:
+            return f"Character name **{character}** is ambiguous. Please use character ID instead."
+        return mchars[0]
+
+    @staticmethod
     async def get_char(character):
-        if character.isnumeric():
+        if type(character) is int or character.isnumeric():
             char = session.query(Characters).get(character)
             if char:
                 chars = [char]
@@ -89,24 +105,29 @@ class Mag(commands.Cog, name="Magic commands."):
     @mag.command(name='remove', help="Unregisters a character from the system.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def remove(self, ctx, *, Character):
-        # determine the char by its name or id or return an error message if none were found
-        result = await Mag.get_char(Character)
+        # determine the mchar by its name or id or return an error message if none were found
+        result = await Mag.get_mchar(Character)
+        # output error message if char wasn't found
         if type(result) is str:
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
-        char = result
-        # ensure that this char is registered
-        mchar = session.query(MagicChars).get(char.id)
-        if not mchar:
-            await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
-            return
+        mchar = result
+
+        # determine the char by its id or return an error message if none were found
+        result = await Mag.get_char(mchar.id)
+        # delete character from MagicChars if it's no longer in Characters
+        if type(result) is str:
+            name = mchar.name
+            session.delete(mchar)
         # deactivate character
-        mchar.active = False
+        else:
+            name = result.name
+            mchar.active = False
+
         session.commit()
-        await ctx.send(f"Unregistered **{char.name}**.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Unregistered {char.name}.")
+        await ctx.send(f"Unregistered **{name}**.")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Unregistered {name}.")
 
     @mag.command(name='use', help="Subtracts the given number of mana points from the characters mana pool.")
     async def use(self, ctx, Mana: int, *Character):
