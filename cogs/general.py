@@ -327,9 +327,9 @@ class General(commands.Cog, name="General commands."):
         if "loc" in arg_list:
             loc = True
             arg_list.remove("loc")
-        if "obj" in arg_list:
+        if "obj_id" in arg_list:
             obj = True
-            arg_list.remove("obj")
+            arg_list.remove("obj_id")
         if "strict" in arg_list:
             strict = True
             arg_list.remove("strict")
@@ -356,9 +356,9 @@ class General(commands.Cog, name="General commands."):
         if "loc" in arg_list:
             loc = True
             arg_list.remove("loc")
-        if "obj" in arg_list:
+        if "obj_id" in arg_list:
             obj = True
-            arg_list.remove("obj")
+            arg_list.remove("obj_id")
 
         name = " ".join(arg_list) if loc or obj else arg
         if name.isnumeric():
