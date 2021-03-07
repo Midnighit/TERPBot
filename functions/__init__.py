@@ -1,4 +1,4 @@
-import discord, re
+import discord, re, pprint
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
@@ -9,6 +9,16 @@ from config import *
 from exiles_api import *
 
 rcon = RCONClient(RCON_IP, RCON_PORT, RCON_PASSWORD, timeout=5.0, connect_on_init=False)
+
+def pp(arg):
+    printer = pprint.PrettyPrinter(indent=4)
+    printer.pprint(arg)
+
+def pe(arg):
+    print(f"error: {arg}")
+    print(f" type: {type(arg)}")
+    print( "  dir: ")
+    pp(dir(arg))
 
 def get_guild(bot=None, guild=None):
     if guild:
