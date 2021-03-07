@@ -15,7 +15,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         self.master_id = 440871726285324288
         self.permitted = [self.master_id, 221332467410403328]
 
-    @group(help="Commands to pay and get paid with boatbucks... if I'm feeling generous.")
+    @group(hidden=True, help="Commands to pay and get paid with boatbucks... Or does it?")
     async def bbk(self, ctx):
         if ctx.author.id in self.permitted:
             if ctx.invoked_subcommand is None:
@@ -32,7 +32,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                     await ctx.send(f"You currently have {user.bucks} :boatbuck:. Don't spend them all in one place!")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @bbk.command(aliases=['pay'], help="Pay :boatbuck: to another player from your own account... or just print them if you're the master of central boatbank. :wink:")
+    @bbk.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
     async def give(self, ctx, bucks: int, member: Member):
         # sender and recipient of the boatbucks are the same person
         if ctx.author.id == member.id:
