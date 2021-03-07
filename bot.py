@@ -313,9 +313,9 @@ async def on_message(message):
 
 @bot.event
 async def on_command_error(ctx, error):
-    # if save_d.C_ERR:
-    #     save_d.C_ERR = False
-    #     return
+    if GlobalVars.get_value("caught"):
+        GlobalVars.set_value("caught", 0)
+        return
     if isinstance(error, commands.BadArgument):
         await ctx.send("Bad argument error.")
     elif isinstance(error, commands.CommandError):
