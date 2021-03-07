@@ -77,7 +77,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                                 f"{member.mention} doesn't need them anyway."),
                                (f"Sure, let's fight inflation and remove **{bucks}** :boatbuck: from circulation. "
                                 f"{member.mention} has unlimited credit at the boatbank anyway.")]
-                # default case sender and recpient are normal and sender has enough bucks
+                # default case sender and recipient are normal and sender has enough bucks
                 else:
                     recipient = session.query(Boatbucks).get(member.id)
                     if not recipient:
@@ -123,7 +123,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         "You may have to talk to Midnight if you want to have them fired for good.")]
         else:
             recipient = session.query(Boatbucks).get(member.id)
-            # recipient doesn't have any boatbucks at all
+            # recipient has no boatbucks at all
             if not recipient or recipient.bucks == 0:
                 replies = [("As much as I enjoy taking away money from hapless vict... I mean fellow players, "
                            f"{member.mention} doesn't have any boatbucks to take away. :slight_frown:")]
