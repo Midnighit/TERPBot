@@ -303,7 +303,7 @@ class Payments(commands.Cog, name="Payment commands."):
                             await ctx.send(f"Removed **{name}** from category **{cat.cmd}**.")
                         # category name was given but user doesn't exists
                         else:
-                            await ctx.send(f"Couldn't find **{name_short}** in category **{cat.cmd}**."
+                            await ctx.send(f"Couldn't find **{name_short}** in category **{cat.cmd}**. "
                                            f"{PREFIX}pm remove [<category>] <character, clan or group>")
                     # category name and user were given but category doesn't exist or character name was misspelled
                     else:
