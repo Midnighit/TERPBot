@@ -16,12 +16,12 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         self.permitted = [self.master_id, 221332467410403328]
 
     @group(hidden=True, help="Commands to pay and get paid with boatbucks... Or does it?")
-    async def bbk(self, ctx):
+    async def boatbucks(self, ctx):
         if ctx.author.id in self.permitted:
             if ctx.invoked_subcommand is None:
                 await ctx.send("I have no idea what you want from me. I can either "
-                              f"`{PREFIX}bbk give <boatbucks> <user>` or "
-                              f"`{PREFIX}bbk take <boatbucks> <user>` for you.")
+                              f"`{PREFIX}boatbucks give <boatbucks> <user>` or "
+                              f"`{PREFIX}boatbucks take <boatbucks> <user>` for you.")
         else:
             if ctx.invoked_subcommand is None:
                 user = session.query(Boatbucks).get(ctx.author.id)
@@ -32,7 +32,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                     await ctx.send(f"You currently have {user.bucks} :boatbuck:. Don't spend them all in one place!")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @bbk.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
+    @boatbucks.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
     async def give(self, ctx, bucks: int, member: Member):
         # sender and recipient of the boatbucks are the same person
         if ctx.author.id == member.id:
@@ -110,7 +110,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @bbk.command(name="take", help="Withdraw a given amount of boatbucks from some poor soul. As befits such a tyrannical command, it's only available to Rowboat and her henchmen at the boatbank.")
+    @boatbucks.command(name="take", help="Withdraw a given amount of boatbucks from some poor soul. As befits such a tyrannical command, it's only available to Rowboat and her henchmen at the boatbank.")
     async def take(self, ctx, bucks: int, member: Member):
         # sender can't create and take away boatbucks at will
         if ctx.author.id not in self.permitted:
