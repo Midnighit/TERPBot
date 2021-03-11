@@ -14,6 +14,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         self.bot = bot
         self.master_id = 440871726285324288
         self.permitted = [self.master_id, 221332467410403328]
+        self.bbk = "<:boatbuck:817400070072696833>"
 
     @group(hidden=True, help="Commands to pay and get paid with boatbucks... Or does it?")
     async def boatbucks(self, ctx):
@@ -26,10 +27,10 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             if ctx.invoked_subcommand is None:
                 user = session.query(Boatbucks).get(ctx.author.id)
                 if user is None or user.bucks == 0:
-                    await ctx.send(f"You don't have any <:boatbuck:817400070072696833>. "
+                    await ctx.send(f"You don't have any {self.bbk}. "
                                    f"Maybe you can earn some if you ask <@{self.master_id}> nicely!")
                 else:
-                    await ctx.send(f"You currently have {user.bucks} <:boatbuck:817400070072696833>. Don't spend them all in one place!")
+                    await ctx.send(f"You currently have {user.bucks} {self.bbk}. Don't spend them all in one place!")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @boatbucks.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
@@ -50,14 +51,14 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             else:
                 recipient.bucks += bucks
             session.commit()
-            replies = [(f"Sure boss. Created **{bucks}** <:boatbuck:817400070072696833> out of thin air for {member.mention}. "
+            replies = [(f"Sure boss. Created **{bucks}** {self.bbk} out of thin air for {member.mention}. "
                         f"I hope you know what you're doing..."),
                        (f"Here I am, brain the size of a planet, and they tell me to give {member.mention} **{bucks}** "
-                        f"<:boatbuck:817400070072696833>. Call that job satisfaction? 'Cos I don't."),
+                        f"{self.bbk}. Call that job satisfaction? 'Cos I don't."),
                        (f"Are you sure {member.mention} really deserves it? Fine, fine transferring **{bucks}** "
-                        f"<:boatbuck:817400070072696833> to their account. _dramatic sigh_"),
+                        f"{self.bbk} to their account. _dramatic sigh_"),
                        (f"Firing up the money printing machine. **{bucks}** "
-                        f"<:boatbuck:817400070072696833> for {member.mention} coming right up!")]
+                        f"{self.bbk} for {member.mention} coming right up!")]
         else:
             sender = session.query(Boatbucks).get(ctx.author.id)
             if not sender or sender.bucks < bucks:
@@ -67,15 +68,15 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                                 f"Try earning some boatbucks with <@{self.master_id}> first!")]
                 # sender doesn't have as many bucks as they want to send
                 else:
-                    replies = [(f"Nice try but you only have **{sender.bucks}** <:boatbuck:817400070072696833>. "
+                    replies = [(f"Nice try but you only have **{sender.bucks}** {self.bbk}. "
                                 f"Try to earn some with <@{self.master_id}> first!")]
             else:
                 sender.bucks -= bucks
                 # recipient can create and take away boatbucks at will
                 if member.id in self.permitted:
-                    replies = [(f"Destroying **{bucks}** <:boatbuck:817400070072696833> for you. "
+                    replies = [(f"Destroying **{bucks}** {self.bbk} for you. "
                                 f"{member.mention} doesn't need them anyway."),
-                               (f"Sure, let's fight inflation and remove **{bucks}** <:boatbuck:817400070072696833> from circulation. "
+                               (f"Sure, let's fight inflation and remove **{bucks}** {self.bbk} from circulation. "
                                 f"{member.mention} has unlimited credit at the boatbank anyway.")]
                 # default case sender and recipient are normal and sender has enough bucks
                 else:
@@ -85,12 +86,12 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         session.add(recipient)
                     else:
                         recipient.bucks += bucks
-                    replies = [(f"Alright, transferring **{bucks}** <:boatbuck:817400070072696833> from your account to {member.mention}. "
+                    replies = [(f"Alright, transferring **{bucks}** {self.bbk} from your account to {member.mention}. "
                                 f"It's your money. ¯\_(ツ)_/¯"),
-                               (f"Another **{bucks}** <:boatbuck:817400070072696833> further away from buying your own yacht. "
+                               (f"Another **{bucks}** {self.bbk} further away from buying your own yacht. "
                                 f"Maybe {member.mention} will be able to afford a rowboat after this transaction."),
                                (f"Feeling generous, huh? Very well your loss of **{bucks}** "
-                                f"<:boatbuck:817400070072696833> will be {member.mention}'s gain.")]
+                                f"{self.bbk} will be {member.mention}'s gain.")]
                 session.commit()
         await ctx.send(random.choice(replies))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
@@ -130,20 +131,29 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             else:
                 # recipient has boatbucks but not as many as sender wants to take away
                 if recipient.bucks < bucks:
-                    replies = [(f"{member.mention} only has **{recipient.bucks}** <:boatbuck:817400070072696833>. I just took all of "
-                                 "those from them instead. They now have exactly... **0** <:boatbuck:817400070072696833>. Poor sod.")]
+                    replies = [(f"{member.mention} only has **{recipient.bucks}** {self.bbk}. "
+                                f"I just took all of those from them instead. They now have exactly... **0** "
+                                f"{self.bbk}. Poor sod.")]
                     session.delete(recipient)
                 # default case sender takes as many or less boatbucks as recipient has
                 else:
                     if recipient.bucks == bucks:
                         session.delete(recipient)
+                        replies = [(f"First they took {member.mention}'s family and boatbucks, then they took their "
+                                    f"health and their pride and finally they left them to die! "
+                                    f"What will they do, when there's nothing left but to live or die?"),
+                                   (f"{member.mention} has just been freed of the burden of owning boatbucks. "
+                                    f"Who needs money anyway, right?"),
+                                   (f"The boatbank giveth and the boatbank taketh away. "
+                                    f"{member.mention} now has no more boatbucks.")]
                     else:
                         recipient.bucks -= bucks
-                    replies = [(f"With pleasure boss. {member.mention} is now **{bucks}** <:boatbuck:817400070072696833> poorer. They now "
-                                f"have **{recipient.bucks}** <:boatbuck:817400070072696833> left to pay for boatfacts, oars or bribes."),
-                               (f"Disintegrated **{bucks}** <:boatbuck:817400070072696833> from {member.mention}'s account at the "
-                                f"boatbank. They now have **{recipient.bucks}** left. "
-                                f"We're sorry but currency stability has to be ensured.")]
+                        replies = [(f"With pleasure boss. {member.mention} is now **{bucks}** "
+                                    f"{self.bbk} poorer. They now have **{recipient.bucks}** "
+                                    f"{self.bbk} left to pay for boatfacts, oars or bribes."),
+                                   (f"Disintegrated **{bucks}** {self.bbk} from {member.mention}'s "
+                                    f"account at the boatbank. They now have **{leftover}** left. "
+                                    f"We're sorry but currency stability has to be ensured.")]
             session.commit()
         await ctx.send(random.choice(replies))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
