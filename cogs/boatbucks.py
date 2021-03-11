@@ -16,7 +16,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         self.permitted = [self.master_id, 221332467410403328]
         self.bbk = "<:boatbuck:817400070072696833>"
 
-    @group(hidden=True, help="Commands to pay and get paid with boatbucks... Or does it?")
+    @group(help="Commands to pay and get paid with boatbucks...if you're lucky.")
     async def boatbucks(self, ctx):
         if ctx.author.id in self.permitted:
             if ctx.invoked_subcommand is None:
