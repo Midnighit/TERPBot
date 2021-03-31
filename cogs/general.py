@@ -84,7 +84,7 @@ class General(commands.Cog, name="General commands."):
         return result
 
     @staticmethod
-    async def get_user_string(arg, users, with_char_id=False, with_disc_id=False):
+    async def get_user_string(arg, users, detailed=True, with_char_id=False, with_disc_id=False):
         if not users:
             return f"No discord user or chracter named {arg} was found."
 
@@ -92,15 +92,26 @@ class General(commands.Cog, name="General commands."):
         for user in users:
             disc_id = '(@' + user.disc_id + ') ' if with_disc_id else ''
             if len(user.characters) == 0:
-                msg += f"No characters linked to discord nick **{user.disc_user}** {disc_id}have been found.\n"
+                msg += f"No characters linked to discord nick **{user.disc_user}** {disc_id}have been found.\n\n"
             else:
                 msg += f"The characters belonging to the discord nick **{user.disc_user}** {disc_id}are:\n"
-                for char in user.characters:
-                    char_id = ' (' + str(char.id) + ')' if with_char_id else ''
-                    lldate = char.last_login.strftime("%d-%b-%Y %H:%M UTC")
-                    guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ''
-                    slot = " on **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
-                    msg += f"**{char.name}**{char_id}{guild}{slot} (last login: {lldate})\n"
+                if detailed:
+                    for char in user.characters:
+                        char_id = ' (' + str(char.id) + ')' if with_char_id else ''
+                        lldate = char.last_login.strftime("%d-%b-%Y %H:%M UTC")
+                        guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ''
+                        slot = " on **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
+                        msg += f"**{char.name}**{char_id}{guild}{slot} (last login: {lldate})\n"
+                else:
+                    char_names = [char.name for char in user.characters]
+                    if len(char_names) > 2:
+                        csv = '**, **'.join(char_names[:-2])
+                        asv = '** and **'.join(char_names[-2:])
+                        msg += '**' + csv + '**, **' + asv + '**\n'
+                    elif len(char_names) == 2:
+                        msg += '**' + char_names[0] + '** and **' + char_names[1] + '**\n'
+                    else:
+                        msg += '**' + char_names[0] + '**\n'
                 msg += '\n'
         return msg[:-2]
 
@@ -233,9 +244,16 @@ class General(commands.Cog, name="General commands."):
             await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="whois", help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
-    @has_role_greater_or_equal(SUPPORT_ROLE)
+    @command(name="whois", aliases=['whomst'], help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     async def whois(self, ctx, *, Name):
+        def is_staff():
+            guild = get_guild(self.bot)
+            roles = get_roles(guild)
+            member = guild.get_member(ctx.author.id)
+            for author_role in member.roles:
+                if author_role >= roles[SUPPORT_ROLE]:
+                    return True
+
         disc_id = disc_user = user = show_char_id = show_disc_id = None
         arg_list = Name.split()
         if "char_id" in arg_list:
@@ -278,7 +296,8 @@ class General(commands.Cog, name="General commands."):
         for user in Characters.get_users(arg):
             if not user in users:
                 users += [user]
-        await ctx.send(await self.get_user_string(arg, users, show_char_id, show_disc_id))
+        detailed = True if is_staff() else False
+        await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
