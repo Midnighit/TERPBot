@@ -86,7 +86,7 @@ class General(commands.Cog, name="General commands."):
     @staticmethod
     async def get_user_string(arg, users, detailed=True, with_char_id=False, with_disc_id=False):
         if not users:
-            return f"No discord user or chracter named {arg} was found."
+            return f"No discord user or character named {arg} was found."
 
         msg = ''
         for user in users:
