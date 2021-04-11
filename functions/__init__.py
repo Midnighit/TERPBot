@@ -656,6 +656,33 @@ async def payments_input(category, message):
                 logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
     session.commit()
 
+async def process_chat_command(message):
+    first, second = message.split(' executed chat command ')
+    command, params = second.split('  with params ')
+    name = first[7:]
+    command = command[1:-1]
+    params = params[1:-1]
+    now = datetime.utcnow().strftime('%Y.%m.%d-%H.%M.%S:%f')[:-3]
+    line = None
+    if command == 'me':
+        line = f"[{now}][Pippi]PippiChat: Character {name} emoted: *{name} {params}*\n"
+    elif command == 'do':
+        line = f"[{now}][Pippi]PippiChat: Character {name} emoted: *{params} {name}*\n"
+    elif command == 'shout':
+        line = f"[{now}][Pippi]PippiChat: Character {name} shouted: *{name} shouts: {params}*\n"
+    elif command == 'mumble':
+        line = f"[{now}][Pippi]PippiChat: Character {name} mumbled: *{name} mumbles: {params}*\n"
+    else:
+        params = f" with params {params}" if len(params) > 0 else params
+        line = f"[{now}][Pippi]PippiCommand: Character {name} used command {command}{params}\n"
+    if line:
+        try:
+            with open(SAVED_DIR_PATH + '/Logs/PippiCommands.log', 'a', encoding='utf-8-sig') as f:
+                f.write(line)
+            print("success!")
+        except Exception as e:
+            print(e)
+
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
     if task.exception():

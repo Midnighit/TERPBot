@@ -281,6 +281,9 @@ async def on_message(message):
             await payments_input(category, message)
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
+    if message.channel == channels[PIPPI_CHATLOG]:
+        if ' executed chat command ' in message.content:
+            await process_chat_command(message.content)
     if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
             return
