@@ -665,13 +665,13 @@ async def process_chat_command(message):
     now = datetime.utcnow().strftime('%Y.%m.%d-%H.%M.%S:%f')[:-3]
     line = None
     if command == 'me':
-        line = f"[{now}][Pippi]PippiChat: Character {name} emoted: *{name} {params}*\n"
+        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Emote]: *{name} {params}*\n"
     elif command == 'do':
-        line = f"[{now}][Pippi]PippiChat: Character {name} emoted: *{params} {name}*\n"
+        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Emote]: *{params} {name}*\n"
     elif command == 'shout':
-        line = f"[{now}][Pippi]PippiChat: Character {name} shouted: *{name} shouts: {params}*\n"
+        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Shout]: *{name} shouts: {params}*\n"
     elif command == 'mumble':
-        line = f"[{now}][Pippi]PippiChat: Character {name} mumbled: *{name} mumbles: {params}*\n"
+        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Mumble]: *{name} mumbles: {params}*\n"
     else:
         params = f" with params {params}" if len(params) > 0 else params
         line = f"[{now}][Pippi]PippiCommand: Character {name} used command {command}{params}\n"
