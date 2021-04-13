@@ -381,7 +381,9 @@ class General(commands.Cog, name="General commands."):
 
         name = " ".join(arg_list) if loc or obj else arg
         if name.isnumeric():
-            owner_id = name
+            owner = session.query(Guilds).get(name)
+            if not owner:
+                owner = session.query(Chararacters).get(name)
         else:
             fuzzy_name = "%" + name + "%"
             owners = [g for g in session.query(Guilds).filter(Guilds.name.like(fuzzy_name)).all()]
