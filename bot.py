@@ -12,6 +12,7 @@ from cogs.applications import Applications as Apps
 
 intents = discord.Intents.default()
 intents.members = True
+intents.reactions = True
 bot = commands.Bot(PREFIX, intents=intents, case_insensitive=True)
 
 async def magic_rolls():
@@ -316,7 +317,7 @@ async def on_message(message):
 
 @bot.event
 async def on_command_error(ctx, error):
-    if GlobalVars.get_value("caught"):
+    if int(GlobalVars.get_value("caught")):
         GlobalVars.set_value("caught", 0)
         return
     if isinstance(error, commands.BadArgument):
