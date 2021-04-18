@@ -269,19 +269,20 @@ async def on_member_join(member):
     roles = get_roles(guild)
     channels = get_channels(guild)
     await member.add_roles(roles[NOT_APPLIED_ROLE])
-    # await channels[WELCOME].send(parse(guild, member, TextBlocks.get('GREETING')))
+    await channels[WELCOME].send(parse(guild, member, TextBlocks.get('GREETING')))
 
 @bot.event
 async def on_member_remove(member):
     channels = get_channels(bot=bot)
-    async for message in channels[SETROLES].history(limit=100):
-        if message.author == bot.user:
-            break
-    if message:
-        for reaction in message.reactions:
-            async for user in reaction.users():
-                if user.id == member.id:
-                    await reaction.remove(user)
+    if SETROLES in channels:
+        async for message in channels[SETROLES].history(limit=100):
+            if message.author == bot.user:
+                break
+        if message:
+            for reaction in message.reactions:
+                async for user in reaction.users():
+                    if user.id == member.id:
+                        await reaction.remove(user)
     app = session.query(Applications).filter_by(disc_id=member.id).first()
     if app and not app.status in ('rejected', 'approved'):
         session.delete(app)
@@ -343,30 +344,32 @@ async def on_message(message):
 
 @bot.event
 async def on_raw_reaction_add(payload):
-    guild = get_guild(bot)
-    channels = get_channels(guild)
-    roles = get_roles(guild)
-    if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
-        reaction = SETROLES_REACTIONS[payload.emoji.name]
-        name = reaction['role']
-        if not name in roles:
-            mentionable = reaction['mentionable'] if 'mentionable' in reaction else False
-            roles[name] = await guild.create_role(name=name, mentionable=mentionable)
-        await payload.member.add_roles(roles[name])
+    if DISPLAY_SETROLES:
+        guild = get_guild(bot)
+        channels = get_channels(guild)
+        roles = get_roles(guild)
+        if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
+            reaction = SETROLES_REACTIONS[payload.emoji.name]
+            name = reaction['role']
+            if not name in roles:
+                mentionable = reaction['mentionable'] if 'mentionable' in reaction else False
+                roles[name] = await guild.create_role(name=name, mentionable=mentionable)
+            await payload.member.add_roles(roles[name])
 
 @bot.event
 async def on_raw_reaction_remove(payload):
-    guild = get_guild(bot)
-    channels = get_channels(guild)
-    roles = get_roles(guild)
-    if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
-        reaction = SETROLES_REACTIONS[payload.emoji.name]
-        name = reaction['role']
-        if name in roles:
-            for member in guild.members:
-                if roles[name] in member.roles and member.id == payload.user_id:
-                    await member.remove_roles(roles[name])
-                    break
+    if DISPLAY_SETROLES:
+        guild = get_guild(bot)
+        channels = get_channels(guild)
+        roles = get_roles(guild)
+        if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
+            reaction = SETROLES_REACTIONS[payload.emoji.name]
+            name = reaction['role']
+            if name in roles:
+                for member in guild.members:
+                    if roles[name] in member.roles and member.id == payload.user_id:
+                        await member.remove_roles(roles[name])
+                        break
 
 @bot.event
 async def on_command_error(ctx, error):
