@@ -115,7 +115,6 @@ class General(commands.Cog, name="General commands."):
                 msg += '\n'
         return msg[:-2]
 
-    # guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
     @staticmethod
     async def get_clan_string(arg, guilds, guild_id=None, char_id=None):
         if not guilds:
@@ -334,8 +333,11 @@ class General(commands.Cog, name="General commands."):
 
         guilds = session.query(Guilds).filter(Guilds.name.like('%' + name + '%')).all()
         guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
-        for msg in guild_strings:
-            await ctx.send(msg)
+        if len(guild_strings) > 0 and len(guild_strings[0]) > 0:
+            for msg in guild_strings:
+                await ctx.send(msg)
+        else:
+            await ctx.send(f"No clan named **{name}** was found.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whoisowner")
