@@ -679,7 +679,6 @@ async def process_chat_command(message):
         try:
             with open(SAVED_DIR_PATH + '/Logs/PippiCommands.log', 'a', encoding='utf-8-sig') as f:
                 f.write(line)
-            print("success!")
         except Exception as e:
             print(e)
 
