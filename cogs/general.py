@@ -86,7 +86,7 @@ class General(commands.Cog, name="General commands."):
     @staticmethod
     async def get_user_string(arg, users, detailed=True, with_char_id=False, with_disc_id=False):
         if not users:
-            return f"No discord user or character named {arg} was found."
+            return f"No discord user or character named **{arg}** was found."
 
         msg = ''
         for user in users:
@@ -118,17 +118,17 @@ class General(commands.Cog, name="General commands."):
     @staticmethod
     async def get_clan_string(arg, guilds, guild_id=None, char_id=None):
         if not guilds:
-            return [f"No clan named {arg} was found."]
+            return [f"No clan named **{arg}** was found."]
 
         msg = []
         chunk = ''
         for guild in guilds:
             members = guild.members
-            if len(members) == 0:
-                continue
-            mem = 'members' if len(members) > 1 else 'member'
+            mem = 'members' if len(members) > 1 or len(members) == 0 else 'member'
             gid = f"({guild.id}) " if guild_id else ''
             chunk += f"Clan **{guild.name}** {gid}has **{len(members)}** {mem}:\n"
+            if len(members) == 0:
+                continue
             members_by_rank = {}
             for member in members:
                 rank = 3 if member.rank > 3 else member.rank
@@ -333,11 +333,8 @@ class General(commands.Cog, name="General commands."):
 
         guilds = session.query(Guilds).filter(Guilds.name.like('%' + name + '%')).all()
         guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
-        if len(guild_strings) > 0 and len(guild_strings[0]) > 0:
-            for msg in guild_strings:
-                await ctx.send(msg)
-        else:
-            await ctx.send(f"No clan named **{name}** was found.")
+        for msg in guild_strings:
+            await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whoisowner")
