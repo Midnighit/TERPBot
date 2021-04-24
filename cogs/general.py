@@ -517,6 +517,18 @@ class General(commands.Cog, name="General commands."):
         await guild.edit_role_positions(positions)
         await ctx.send(f"Done!")
 
+    @command(name="donate", aliases=['donations', 'donation'])
+    async def donate(self, ctx):
+        channels = get_channels(bot=self.bot)
+        donations_channel = channels['donations'] if 'donations' in channels else None
+        ari = await get_member(ctx, 123298178828206080)
+        if donations_channel and ari:
+            await ctx.send(f"If you'd like to contribute to the operating costs of the server, please have a look at "
+                           f"{donations_channel.mention}. You can either contribute monthly through the Patreon, "
+                           f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
+                           f"it helps keep the server up and running at less of an expense to {ari.mention}")
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
 def setup(bot):
     bot.add_cog(General(bot))
 
