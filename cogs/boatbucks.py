@@ -13,7 +13,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
     def __init__(self, bot):
         self.bot = bot
         self.master_id = 440871726285324288
-        self.permitted = [self.master_id, 221332467410403328]
+        self.permitted = [self.master_id, 221332467410403328, 136678918005456896]
         self.bbk = "<:boatbuck:817400070072696833>"
 
     @group(help="Commands to pay and get paid with boatbucks...if you're lucky.")
