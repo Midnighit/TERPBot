@@ -35,8 +35,11 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @boatbucks.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
     async def give(self, ctx, bucks: int, member: Member):
+        # sender tries to send a negative amount of bucks (i.e. gaining bucks)
+        if bucks < 0:
+            replies = [("Ok, I get it. It was fun while it lasted but no more giving of negative amounts anymore!")]
         # sender and recipient of the boatbucks are the same person
-        if ctx.author.id == member.id:
+        elif ctx.author.id == member.id:
             replies = [("Trying to send boatbucks to yourself, huh? "
                         "You think you're very clever don't you? Sorry, but no dice!")]
         # both sender and recipient are able to create and take away boatbucks at will
