@@ -64,7 +64,12 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         f"{self.bbk} for {member.mention} coming right up!")]
         else:
             sender = session.query(Boatbucks).get(ctx.author.id)
-            if not sender or sender.bucks < bucks:
+            # sender is in boatdebt
+            if not sender or sender.bucks < 0:
+                replies [(f"Nuh uh, you're already {abs(sender.bucks)} {self.bbk} in boatdebt. You can't pay what you "
+                          f"don't have. Try to earn some boatbucks with <@{self.master_id}> or get someone with "
+                          f"boatbucks to pay you first.")]
+            elif not sender or sender.bucks < bucks:
                 # sender has no boatbucks at all
                 if not sender or sender.bucks == 0:
                     replies = [(f"You don't have a single penny, much less a whole boatbuck right now. "
@@ -121,42 +126,50 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             replies = [(f"No can do. Only <@{self.master_id}> and her henchmen from the boatbank are allowed to "
                          "take other peoples boatbucks without asking for permission. "
                          "Sorry mate, the world just ain't fair.")]
-        # recipient can create and take away boatbucks at will
-        elif member.id in self.permitted:
-            replies = [("Hey, you can't take away boatbucks from a fellow employee at the boatbank. "
-                        "You may have to talk to Midnight if you want to have them fired for good.")]
+        # # recipient can create and take away boatbucks at will
+        # elif member.id in self.permitted:
+        #     replies = [("Hey, you can't take away boatbucks from a fellow employee at the boatbank. "
+        #                 "You may have to talk to Midnight if you want to have them fired for good.")]
         else:
             recipient = session.query(Boatbucks).get(member.id)
-            # recipient has no boatbucks at all
-            if not recipient or recipient.bucks == 0:
-                replies = [("As much as I enjoy taking away money from hapless vict... I mean fellow players, "
-                           f"{member.mention} doesn't have any boatbucks to take away. :slight_frown:")]
+            # # recipient has no boatbucks at all
+            # if not recipient or recipient.bucks == 0:
+            #     replies = [("As much as I enjoy taking away money from hapless vict... I mean fellow players, "
+            #                f"{member.mention} doesn't have any boatbucks to take away. :slight_frown:")]
+            # else:
+            #     # recipient has boatbucks but not as many as sender wants to take away
+            #     if recipient.bucks < bucks:
+            #         replies = [(f"{member.mention} only has **{recipient.bucks}** {self.bbk}. "
+            #                     f"I just took all of those from them instead. They now have exactly... **0** "
+            #                     f"{self.bbk}. Poor sod.")]
+            #         session.delete(recipient)
+            #     # default case sender takes as many or less boatbucks as recipient has
+            #     else:
+            if recipient.bucks == bucks:
+                session.delete(recipient)
+                replies = [(f"First they took {member.mention}'s family and boatbucks, then they took their "
+                            f"health and their pride and finally they left them to die! "
+                            f"What will they do, when there's nothing left but to live or die?"),
+                           (f"{member.mention} has just been freed of the burden of owning boatbucks. "
+                            f"Who needs money anyway, right?"),
+                           (f"The boatbank giveth and the boatbank taketh away. "
+                            f"{member.mention} now has no more boatbucks.")]
+            elif recipient.bucks < bucks:
+                recipient.bucks -= bucks
+                replies = [(f"Huh, I guess you really don't like {member.mention}. Took {bucks} {self.bbk} from them "
+                            f"They now have {abs(recipient.bucks)} {self.bbk} boatdebt."),
+                           (f"Yet another person who's in boatdebt! Removed {bucks} {self.bbk} from {member.mention}. "
+                            f"They now owe {abs(recipient.bucks)} {self.bbk} to the boatbank."),
+                           (f"Hmm, I'm sure {member.mention} deserves it. Withdrew {bucks} {self.bbk} from them. They "
+                            f"are now {abs(recipient.bucks)} {self.bbk} in boatdebt.")]
             else:
-                # recipient has boatbucks but not as many as sender wants to take away
-                if recipient.bucks < bucks:
-                    replies = [(f"{member.mention} only has **{recipient.bucks}** {self.bbk}. "
-                                f"I just took all of those from them instead. They now have exactly... **0** "
-                                f"{self.bbk}. Poor sod.")]
-                    session.delete(recipient)
-                # default case sender takes as many or less boatbucks as recipient has
-                else:
-                    if recipient.bucks == bucks:
-                        session.delete(recipient)
-                        replies = [(f"First they took {member.mention}'s family and boatbucks, then they took their "
-                                    f"health and their pride and finally they left them to die! "
-                                    f"What will they do, when there's nothing left but to live or die?"),
-                                   (f"{member.mention} has just been freed of the burden of owning boatbucks. "
-                                    f"Who needs money anyway, right?"),
-                                   (f"The boatbank giveth and the boatbank taketh away. "
-                                    f"{member.mention} now has no more boatbucks.")]
-                    else:
-                        recipient.bucks -= bucks
-                        replies = [(f"With pleasure boss. {member.mention} is now **{bucks}** "
-                                    f"{self.bbk} poorer. They now have **{recipient.bucks}** "
-                                    f"{self.bbk} left to pay for boatfacts, oars or bribes."),
-                                   (f"Disintegrated **{bucks}** {self.bbk} from {member.mention}'s "
-                                    f"account at the boatbank. They now have **{leftover}** left. "
-                                    f"We're sorry but currency stability has to be ensured.")]
+                recipient.bucks -= bucks
+                replies = [(f"With pleasure boss. {member.mention} is now **{bucks}** "
+                            f"{self.bbk} poorer. They now have **{recipient.bucks}** "
+                            f"{self.bbk} left to pay for boatfacts, oars or bribes."),
+                           (f"Disintegrated **{bucks}** {self.bbk} from {member.mention}'s "
+                            f"account at the boatbank. They now have **{leftover}** left. "
+                            f"We're sorry but currency stability has to be ensured.")]
             session.commit()
         await ctx.send(random.choice(replies))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
