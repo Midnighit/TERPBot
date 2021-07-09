@@ -29,6 +29,9 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                 if user is None or user.bucks == 0:
                     await ctx.send(f"You don't have any {self.bbk}. "
                                    f"Maybe you can earn some if you ask <@{self.master_id}> nicely!")
+                elif user.bucks < 0:
+                    await ctx.send(f"You are {user.bucks} {self.bbk} in boatdebt. "
+                                   f"Maybe you can earn some if you ask <@{self.master_id}> nicely!")
                 else:
                     await ctx.send(f"You currently have {user.bucks} {self.bbk}. Don't spend them all in one place!")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
