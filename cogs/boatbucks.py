@@ -129,12 +129,15 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             replies = [(f"No can do. Only <@{self.master_id}> and her henchmen from the boatbank are allowed to "
                          "take other peoples boatbucks without asking for permission. "
                          "Sorry mate, the world just ain't fair.")]
-        # # recipient can create and take away boatbucks at will
-        # elif member.id in self.permitted:
-        #     replies = [("Hey, you can't take away boatbucks from a fellow employee at the boatbank. "
-        #                 "You may have to talk to Midnight if you want to have them fired for good.")]
+        # recipient can create and take away boatbucks at will
+        elif member.id in self.permitted:
+            replies = [("Hey, you can't take away boatbucks from a fellow employee at the boatbank. "
+                        "You may have to talk to Midnight if you want to have them fired for good.")]
         else:
             recipient = session.query(Boatbucks).get(member.id)
+            if not recipient and bucks > 0:
+                recipient = Boatbucks(id=member.id, bucks=0)
+                session.add(recipient)
             # # recipient has no boatbucks at all
             # if not recipient or recipient.bucks == 0:
             #     replies = [("As much as I enjoy taking away money from hapless vict... I mean fellow players, "
