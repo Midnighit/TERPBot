@@ -36,6 +36,81 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                     await ctx.send(f"You currently have {user.bucks} {self.bbk}. Don't spend them all in one place!")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
+    @boatbucks.command(help="Gives an overview of who has something, who's filthy rich and who has boatdebt.")
+    async def list(self, ctx):
+        if ctx.author.id in self.permitted:
+            await ctx.send(("Alright boss, just give me a moment...\n"
+                           f"*discreetely slides over a stack of papers to {str(ctx.author)[:-5]}*"))
+            blocks = []
+            positives, negatives, changed, delete = False, False, False, []
+            for bbs in session.query(Boatbucks).order_by(Boatbucks.bucks.desc()).all():
+                bucks, disc_id = bbs.bucks, bbs.id
+                name = await get_member(ctx, disc_id)
+                user = session.query(Users).filter_by(disc_id=disc_id).first()
+                if not name:
+                    if not user:
+                        delete.append(disc_id)
+                        continue
+                    else:
+                        name = user.disc_user
+                else:
+                    if str(name) != user.disc_user:
+                        user.disc_user = str(name)
+                        changed = True
+                if changed:
+                    session.commit()
+                name = str(name)[:-5]
+
+                if bucks == 0:
+                    delete.append(disc_id)
+                elif bucks > 0:
+                    # if no headline for people with a positive amount of bbs has been posted yet, start a new block with that
+                    if not positives:
+                        block = "**People with boatbucks:**\n"
+                        positives = True
+                    boatbucks = "boatbuck" if bucks == 1 else "boatbucks"
+                    add = f"{bucks} {boatbucks} - {name}\n"
+                    if len(block) + len(add) > 2000:
+                        blocks.append(block)
+                        block = add
+                    else:
+                        block += add
+                else:
+                    # if no headline for people with a negative amount of bbs has been posted yet, start a new block with that
+                    if not negatives:
+                        # if current block isn't empty, append it to blocks before starting a new one
+                        if len(block) > 0:
+                            blocks.append(block)
+                        block = "**People with boatdebt:**\n"
+                        negatives = True
+                    add = f"{abs(bucks)} boatdebt - {name}\n"
+                    if len(block) + len(add) > 2000:
+                        blocks.append(block)
+                        block = add
+                    else:
+                        block += add
+            if len(block) > 0:
+                blocks.append(block)
+            if len(blocks) == 0:
+                await ctx.author.send(("It seems like nobody is using the boatback right now. Shame really. "
+                                       "Maybe you need to distribute a few bucks to get the economy running."))
+            else:
+                for block in blocks:
+                    await ctx.author.send(block)
+            if len(delete) > 0:
+                session.query(Boatbucks).filter(Boatbucks.id.in_(delete)).delete(synchronize_session='fetch')
+                session.commit()
+        else:
+            await ctx.send(("Nope, no can do. The boatbank very much values the privacy of its customers...\n"
+                            "most of the times...\nif it suits us..."))
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @list.error
+    async def give_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        await ctx.send("I'm terribly sorry but there has been an error, please contact support or ask my maker for help.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
     @boatbucks.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
     async def give(self, ctx, bucks: int, member: Member):
         # sender tries to send a negative amount of bucks (i.e. gaining bucks)
@@ -109,7 +184,6 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @give.error
     async def give_error(self, ctx, error):
-        pe(error)
         GlobalVars.set_value("caught", 1)
         if isinstance(error, commands.errors.MissingRequiredArgument):
             if error.param.name == "member":
