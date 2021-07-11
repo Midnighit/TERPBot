@@ -66,10 +66,9 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                 elif bucks > 0:
                     # if no headline for people with a positive amount of bbs has been posted yet, start a new block with that
                     if not positives:
-                        block = "**People with boatbucks:**\n"
+                        block = "People with **boatbucks**:\n"
                         positives = True
-                    boatbucks = "boatbuck" if bucks == 1 else "boatbucks"
-                    add = f"{bucks} {boatbucks} - {name}\n"
+                    add = f"{bucks} - {name}\n"
                     if len(block) + len(add) > 2000:
                         blocks.append(block)
                         block = add
@@ -81,9 +80,9 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         # if current block isn't empty, append it to blocks before starting a new one
                         if len(block) > 0:
                             blocks.append(block)
-                        block = "**People with boatdebt:**\n"
+                        block = "People with **boatdebt**:\n"
                         negatives = True
-                    add = f"{abs(bucks)} boatdebt - {name}\n"
+                    add = f"{abs(bucks)} - {name}\n"
                     if len(block) + len(add) > 2000:
                         blocks.append(block)
                         block = add
