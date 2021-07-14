@@ -247,7 +247,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                             f"{self.bbk} poorer. They now have **{recipient.bucks}** "
                             f"{self.bbk} left to pay for boatfacts, oars or bribes."),
                            (f"Disintegrated **{bucks}** {self.bbk} from {member.mention}'s "
-                            f"account at the boatbank. They now have **{leftover}** left. "
+                            f"account at the boatbank. They now have **{recipient.bucks}** left. "
                             f"We're sorry but currency stability has to be ensured.")]
             session.commit()
         await ctx.send(random.choice(replies))
