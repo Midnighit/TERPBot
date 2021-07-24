@@ -211,19 +211,6 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             if not recipient and bucks > 0:
                 recipient = Boatbucks(id=member.id, bucks=0)
                 session.add(recipient)
-            # # recipient has no boatbucks at all
-            # if not recipient or recipient.bucks == 0:
-            #     replies = [("As much as I enjoy taking away money from hapless vict... I mean fellow players, "
-            #                f"{member.mention} doesn't have any boatbucks to take away. :slight_frown:")]
-            # else:
-            #     # recipient has boatbucks but not as many as sender wants to take away
-            #     if recipient.bucks < bucks:
-            #         replies = [(f"{member.mention} only has **{recipient.bucks}** {self.bbk}. "
-            #                     f"I just took all of those from them instead. They now have exactly... **0** "
-            #                     f"{self.bbk}. Poor sod.")]
-            #         session.delete(recipient)
-            #     # default case sender takes as many or less boatbucks as recipient has
-            #     else:
             if recipient.bucks == bucks:
                 session.delete(recipient)
                 replies = [(f"First they took {member.mention}'s family and boatbucks, then they took their "
