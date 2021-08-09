@@ -243,7 +243,7 @@ class General(commands.Cog, name="General commands."):
             await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="whois", aliases=['whomst'], help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
+    @command(name="whois", aliases=['whomst', 'whomstthefuck'], help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
     async def whois(self, ctx, *, Name):
         def is_staff():
             guild = get_guild(self.bot)

@@ -66,7 +66,7 @@ class RCon(commands.Cog, name="RCon commands"):
         else:
             return False
 
-    @command(name='listplayers', help="Shows a list of all players online right now")
+    @command(name='listplayers', aliases=['playerslist', 'playerlist', 'listplayer'], help="Shows a list of all players online right now")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def listplayers(self, ctx):
         playerlist, success = listplayers()
