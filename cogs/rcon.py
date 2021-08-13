@@ -73,7 +73,7 @@ class RCon(commands.Cog, name="RCon commands"):
         await ctx.send(playerlist)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name='whitelist', help="Whitelists the player using the given FuncomID")
+    @command(name='whitelist', aliases=['whitelistplayer'], help="Whitelists the player using the given FuncomID")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def whitelist(self, ctx, *, Arguments):
         funcom_id = await Applications.get_funcom_id_in_text(Arguments, upper_case=False)
