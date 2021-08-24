@@ -14,6 +14,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         self.bot = bot
         self.master_id = 440871726285324288
         self.permitted = [self.master_id, 221332467410403328, 136678918005456896]
+        self.whitelisted = [190718422894641152]
         self.bbk = "<:boatbuck:817400070072696833>"
 
     @group(help="Commands to pay and get paid with boatbucks...if you're lucky.")
@@ -105,7 +106,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @list.error
-    async def give_error(self, ctx, error):
+    async def list_error(self, ctx, error):
         GlobalVars.set_value("caught", 1)
         await ctx.send("I'm terribly sorry but there has been an error, please contact support or ask my maker for help.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
