@@ -1,5 +1,4 @@
 import random
-# from math import ceil
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command, group
@@ -255,6 +254,49 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         else:
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @boatbucks.command(name="tax", help="Withdraw funds to keep the boatbank afloat. Target of the tax is determined by a complicated calculation that is totally not random.")
+    async def tax(self, ctx):
+        # sender can't collect taxes
+        if ctx.author.id not in self.permitted:
+            replies = [(f"Trying to collect taxes on behalf of the boatbank? While that's very commendable only "
+                        f"<@{self.master_id}> and her henchmen from the boatbank are allowed to collect taxes.")]
+        else:
+            filter = Boatbucks.bucks > 0, Boatbucks.id.notin_(self.whitelisted)
+            recipients = session.query(Boatbucks).filter(*filter).all()
+        if len(recipients) == 0:
+            if session.query(func.count(Boatbucks.id)).scalar() == 0:
+                replies = [("It looks like nobody has an open account on the boatbank yet. How comes?")]
+            else:
+                replies = [(f"It looks like nobody on the boatbanks has any {self.bbk} left to pay taxes with. "
+                             "What gives?")]
+        else:
+            recipient, member = None, None
+            while(not member and len(recipients) > 0):
+                recipient = random.choice(recipients)
+                member = await get_member(ctx, recipient.id)
+                if not member:
+                    recipients.remove(recipient)
+            if member:
+                recipient.bucks -= 1
+                leftover = f"They now have {recipient.bucks} {self.bbk} left."
+                replies = [(f"The taxboat cometh and has taken one {self.bbk} from {member.mention}! {leftover}"),
+                           (f"You know what they say… nothing is certain but death and taxes. Removing one {self.bbk} "
+                            f"from {member.mention}! {leftover}"),
+                           (f"Yikes! Guess you should've hidden some of it in an 'offshore investment'… taking one "
+                            f"{self.bbk} from {member.mention}! {leftover}")]
+                session.commit()
+            else:
+                replies = [("Huh, looks like nobody who could afford a boattax is on this discord. "
+                            "Sorry, but nothing I can do boss.")]
+        await ctx.send(random.choice(replies))
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @tax.error
+    async def tax_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        pe(error)
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
 def setup(bot):
     bot.add_cog(BBK(bot))
