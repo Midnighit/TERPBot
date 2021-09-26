@@ -384,6 +384,21 @@ def update_whitelist_file(funcom_id, add=True):
     with open(WHITELIST_PATH, 'w') as f:
         f.writelines(wlist)
 
+def split_message(message, delimiter='\n'):
+    result = []
+    # if message is longer than 2000 chars, split it at the delimiter
+    while len(message) > 2000:
+        # get the closest delimiter to the 2000 chars and split the message there.
+        # the first part is appended to the result list
+        result.append(message[0, message.rfind(delimiter, 2000)])
+        # the second part becomes the new message
+        message = message[message.rfind(delimiter, 2000)+1:]
+
+    # the leftover message becomes the last part of the list
+    result = result + [message]
+
+    return result
+
 async def get_member(ctx, name):
     if not name is str:
         name = str(name)
