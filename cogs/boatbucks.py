@@ -143,7 +143,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             sender = session.query(Boatbucks).get(ctx.author.id)
             # sender is in boatdebt
             if not sender or sender.bucks < 0:
-                replies [(f"Nuh uh, you're already {abs(sender.bucks)} {self.bbk} in boatdebt. You can't pay what you "
+                replies = [(f"Nuh uh, you're already {abs(sender.bucks)} {self.bbk} in boatdebt. You can't pay what you "
                           f"don't have. Try to earn some boatbucks with <@{self.master_id}> or get someone with "
                           f"boatbucks to pay you first.")]
             elif not sender or sender.bucks < bucks:
