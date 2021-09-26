@@ -303,24 +303,30 @@ class General(commands.Cog, name="General commands."):
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def hasmoney(self, ctx, *, Name):
         if Name.isnumeric():
-            owner_id = Name
-            money = Properties.get_pippi_money(owner_id=owner_id)
+            owner = Owner.get(Name)
+            owners = [owner] if owner else []
         else:
-            owner_id = None
+            owners = Owner.get_by_name(Name, strict=False, nocase=True, include_guilds=False)
             money = Properties.get_pippi_money(name=Name)
 
-        if not money:
-            msg = f"No character named {Name} with a Pippi wallet was found."
+        if len(owners) == 0:
+            msg = f"No character named **{Name}** was found."
         else:
-            if owner_id:
-                char = session.query(Characters).filter_by(id=owner_id).first()
+            m = []
+            for owner in owners:
+                money = Properties.get_pippi_money(owner_id=owner.id)
+                if not money:
+                    continue
+                gold, silver, bronze = money
+                m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
+
+            if len(m) == 0:
+                msg = f"No character named **{Name}** with a Pippi wallet was found."
             else:
-                char = session.query(Characters).filter(Characters.name.collate('NOCASE') == Name).first()
+                msg = '\n'.join(m)
 
-            gold, silver, bronze = money
-            msg = f"{char.name} has **{gold}** gold, **{silver}** silver and **{bronze}** bronze."
-
-        await ctx.send(msg)
+        for part in split_message(msg):
+            await ctx.send(part)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
