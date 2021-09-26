@@ -390,12 +390,12 @@ def split_message(message, delimiter='\n'):
     while len(message) > 2000:
         # get the closest delimiter to the 2000 chars and split the message there.
         # the first part is appended to the result list
-        result.append(message[0, message.rfind(delimiter, 2000)])
+        result.append(message[0:message.rfind(delimiter, 0, 2000)])
         # the second part becomes the new message
-        message = message[message.rfind(delimiter, 2000)+1:]
+        message = message[message.rfind(delimiter, 0, 2000)+1:]
 
     # the leftover message becomes the last part of the list
-    result = result + [message]
+    result.append(message)
 
     return result
 
