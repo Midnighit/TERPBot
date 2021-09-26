@@ -299,6 +299,30 @@ class General(commands.Cog, name="General commands."):
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
+    @command(name="hasmoney", help="Gives the amount of Pippi money in the wallet of the given character.")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def hasmoney(self, ctx, *, Name):
+        if Name.isnumeric():
+            owner_id = Name
+            money = Properties.get_pippi_money(owner_id=owner_id)
+        else:
+            owner_id = None
+            money = Properties.get_pippi_money(name=Name)
+
+        if not money:
+            msg = f"No character named {Name} with a Pippi wallet was found."
+        else:
+            if owner_id:
+                char = session.query(Characters).filter_by(id=owner_id).first()
+            else:
+                char = session.query(Characters).filter(Characters.name.collate('NOCASE') == Name).first()
+
+            gold, silver, bronze = money
+            msg = f"{char.name} has **{gold}** gold, **{silver}** silver and **{bronze}** bronze."
+
+        await ctx.send(msg)
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
     @has_not_role(NOT_APPLIED_ROLE)
     async def mychars(self, ctx):
