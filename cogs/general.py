@@ -303,22 +303,22 @@ class General(commands.Cog, name="General commands."):
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def hasmoney(self, ctx, *, Name):
         if Name.isnumeric():
-            owner = Owner.get(Name)
-            owners = [owner] if owner else []
+            char = Owner.get(Name)
+            chars = [char] if char and char.is_character else []
         else:
-            owners = Owner.get_by_name(Name, strict=False, nocase=True, include_guilds=False)
+            chars = Owner.get_by_name(Name, strict=False, nocase=True, include_guilds=False)
             money = Properties.get_pippi_money(name=Name)
 
-        if len(owners) == 0:
+        if len(chars) == 0:
             msg = f"No character named **{Name}** was found."
         else:
             m = []
-            for owner in owners:
-                money = Properties.get_pippi_money(owner_id=owner.id)
+            for char in chars:
+                money = Properties.get_pippi_money(char_id=char.id)
                 if not money:
                     continue
                 gold, silver, bronze = money
-                m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
+                m.append(f"**{char.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
             if len(m) == 0:
                 msg = f"No character named **{Name}** with a Pippi wallet was found."
