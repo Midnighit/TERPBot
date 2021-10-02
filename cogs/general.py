@@ -1,17 +1,22 @@
-import random, time
+import random
 from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
-from checks import *
-from config import *
-from exiles_api import *
-from exceptions import *
-from functions import *
+from checks import has_not_role, has_role_greater_or_equal
+from config import NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, CLAN_IGNORE_LIST
+from config import CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
+from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds
+from exceptions import NoDiceFormatError
+from functions import get_guild, get_roles, get_member, split_message, get_channels
+
+whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
+
 
 class General(commands.Cog, name="General commands."):
     def __init__(self, bot):
         self.bot = bot
+        self.guild = get_guild(bot)
 
     @staticmethod
     def print_iter(iter):
@@ -34,12 +39,13 @@ class General(commands.Cog, name="General commands."):
 
         if input.find('d') == -1:
             raise NoDiceFormatError()
-        input = input.replace(" ","")
+        input = input.replace(" ", "")
         dice = Dice()
         num = ''
         type = 's'
         sign = '+'
         val = 0
+        d = None
         for c in input:
             if c in ('+', '-'):
                 if type == 's' and num != '':
@@ -134,12 +140,12 @@ class General(commands.Cog, name="General commands."):
                 rank = 3 if member.rank > 3 else member.rank
                 if rank is None:
                     rank = -1
-                if not rank in members_by_rank:
+                if rank not in members_by_rank:
                     members_by_rank[member.rank] = [member]
                 else:
                     members_by_rank[member.rank] += [member]
             for rank in range(3, -2, -1):
-                if not rank in members_by_rank:
+                if rank not in members_by_rank:
                     continue
                 members = members_by_rank[rank]
                 rank_nam = "Undeterminable rank" if rank == -1 else RANKS[rank]
@@ -235,20 +241,20 @@ class General(commands.Cog, name="General commands."):
     @has_not_role(NOT_APPLIED_ROLE)
     async def getfuncomid(self, ctx):
         disc_id = ctx.author.id
-        disc_user = str(ctx.author)
         user = session.query(Users).filter_by(disc_id=disc_id).first()
         if user and user.funcom_id:
             await ctx.channel.send(f"Your FuncomID is currently set to {user.funcom_id}.")
         else:
-            await ctx.channel.send(f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`")
+            await ctx.channel.send(
+                f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`"
+            )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="whois", aliases=['whomst', 'whomstthefuck'], help="Tells you the chararacter name(s) belonging to the given discord user or vice versa.")
+    @command(name="whois", aliases=['whomst', 'whomstthefuck'], help=whois_help)
     async def whois(self, ctx, *, Name):
         def is_staff():
-            guild = get_guild(self.bot)
-            roles = get_roles(guild)
-            member = guild.get_member(ctx.author.id)
+            roles = get_roles(self.guild)
+            member = self.guild.get_member(ctx.author.id)
             for author_role in member.roles:
                 if author_role >= roles[SUPPORT_ROLE]:
                     return True
@@ -293,7 +299,7 @@ class General(commands.Cog, name="General commands."):
         if len(users) == 0:
             users = Users.get_users(arg)
         for user in Characters.get_users(arg):
-            if not user in users:
+            if user not in users:
                 users += [user]
         detailed = True if is_staff() else False
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
@@ -303,27 +309,25 @@ class General(commands.Cog, name="General commands."):
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def hasmoney(self, ctx, *, Name):
         if Name.isnumeric():
-            char = Owner.get(Name)
-            chars = [char] if char and char.is_character else []
+            owner = Owner.get(Name)
+            owners = [owner]
         else:
-            chars = Owner.get_by_name(Name, strict=False, nocase=True, include_guilds=False)
+            owners = Owner.get_by_name(Name, strict=False, nocase=True)
             money = Properties.get_pippi_money(name=Name)
 
-        if len(chars) == 0:
-            msg = f"No character named **{Name}** was found."
+        if len(owners) == 0:
+            msg = f"No character or clan named **{Name}** was found."
         else:
             m = []
-            for char in chars:
-                money = Properties.get_pippi_money(char_id=char.id)
-                if not money:
-                    continue
+            for owner in owners:
+                if owner.is_character:
+                    money = Properties.get_pippi_money(char_id=owner.id)
+                else:
+                    money = Properties.get_pippi_money(guild_id=owner.id)
                 gold, silver, bronze = money
-                m.append(f"**{char.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
+                m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
-            if len(m) == 0:
-                msg = f"No character named **{Name}** with a Pippi wallet was found."
-            else:
-                msg = '\n'.join(m)
+            msg = '\n'.join(m)
 
         for part in split_message(msg):
             await ctx.send(part)
@@ -334,7 +338,9 @@ class General(commands.Cog, name="General commands."):
     async def mychars(self, ctx):
         users = Users.get_users(ctx.author.id)
         if not users:
-            await ctx.send("No characters linked to your discord account have been found. Have you been whitelisted already?")
+            await ctx.send(
+                "No characters linked to your discord account have been found. Have you been whitelisted already?"
+            )
             return
         # update disc_user if different than the one stored in Users
         user = users[0]
@@ -412,7 +418,7 @@ class General(commands.Cog, name="General commands."):
         if name.isnumeric():
             owner = session.query(Guilds).get(name)
             if not owner:
-                owner = session.query(Chararacters).get(name)
+                owner = session.query(Characters).get(name)
         else:
             fuzzy_name = "%" + name + "%"
             owners = [g for g in session.query(Guilds).filter(Guilds.name.like(fuzzy_name)).all()]
@@ -438,7 +444,7 @@ class General(commands.Cog, name="General commands."):
     @command(name="reindex")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def reindex(self, ctx):
-        roles = get_roles(guild)
+        roles = get_roles(self.guild)
 
         # clan roles that are required based on the actual Characters table
         required_clan_roles = {}
@@ -462,21 +468,15 @@ class General(commands.Cog, name="General commands."):
                     print(f"Couldn't get member by DiscordID {disc_id} for {char.name} for clan roles indexing")
                     logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
                     continue
-                if not guild_name in required_clan_roles:
+                if guild_name not in required_clan_roles:
                     required_clan_roles[guild_name] = [member]
                 else:
                     required_clan_roles[guild_name].append(member)
-
-        # print("required_clan_roles:")
-        # self.print_iter(required_clan_roles)
 
         # index roles by position
         roles_by_pos = {}
         for name, role in roles.items():
             roles_by_pos[role.position] = role
-
-        # print("roles_by_pos:")
-        # self.print_iter(roles_by_pos)
 
         roles_idx = []
         for pos in sorted(roles_by_pos):
@@ -487,39 +487,28 @@ class General(commands.Cog, name="General commands."):
                 end_pos = len(roles_idx)
             roles_idx.append(name)
 
-        # print("roles_idx:")
-        # self.print_iter(roles_idx)
-
         before_clan_roles = roles_idx[:end_pos+1]
         after_clan_roles = roles_idx[start_pos:]
-
-        # print("before_clan_roles:")
-        # self.print_iter(before_clan_roles)
-        # print("after_clan_roles:")
-        # self.print_iter(after_clan_roles)
 
         # create a slice of only those guilds that are actually required
         clan_roles = []
         for name in sorted(roles_idx[end_pos+1:start_pos]):
             # remove existing roles that are no longer required
-            if not name in required_clan_roles:
+            if name not in required_clan_roles:
                 await roles[name].delete()
                 del roles[name]
             # create the slice of existing clans otherwise
             else:
                 clan_roles.append(name)
 
-        # print("clan_roles:")
-        # self.print_iter(clan_roles)
-
         # add roles and update their members as required
         for name, members in required_clan_roles.items():
             # add clan roles not existing yet
-            if not name in roles:
+            if name not in roles:
                 clan_roles.append(name)
                 hoist = CLAN_ROLE_HOIST
                 mentionable = CLAN_ROLE_MENTIONABLE
-                roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
+                roles[name] = await self.guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
                 # add all members to that role
                 for member in members:
                     await member.add_roles(roles[name])
@@ -527,11 +516,11 @@ class General(commands.Cog, name="General commands."):
             else:
                 # add members not alread assigned to the role
                 for member in members:
-                    if not member in roles[name].members:
+                    if member not in roles[name].members:
                         await member.add_roles(roles[name])
                 # remove members that are assigned to the role but shouldn't be
                 for member in roles[name].members:
-                    if not member in members:
+                    if member not in members:
                         await member.remove_roles(roles[name])
 
         # create a positions list for the roles
@@ -544,8 +533,8 @@ class General(commands.Cog, name="General commands."):
         # print("positions:")
         # self.print_iter(positions)
 
-        await guild.edit_role_positions(positions)
-        await ctx.send(f"Done!")
+        await self.guild.edit_role_positions(positions)
+        await ctx.send("Done!")
 
     @command(name="donate", aliases=['donations', 'donation'])
     async def donate(self, ctx):
@@ -559,8 +548,10 @@ class General(commands.Cog, name="General commands."):
                            f"it helps keep the server up and running at less of an expense to {ari.mention}")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
+
 def setup(bot):
     bot.add_cog(General(bot))
+
 
 class Die:
     def __init__(self, num=1, sides=1, sign=1):
@@ -613,6 +604,7 @@ class Die:
         for i in range(self._num):
             sum += random.randint(1, self._sides)
         return sum * self._sign
+
 
 class Dice(list):
     def roll(self):
