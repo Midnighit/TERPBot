@@ -422,7 +422,7 @@ async def get_category_msg(category, messages=[]):
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
-    fmt = '%A %d-%b-%Y UTC'
+    fmt = '%A %d-%b-%Y %H:%M UTC :clock:'
     freq = category.frequency
     now = datetime.utcnow()
     for group in groups:
