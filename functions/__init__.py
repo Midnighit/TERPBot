@@ -81,7 +81,7 @@ def parse(guild, user, msg):
     roles = get_roles(guild)
     msg = str(msg).replace('{PREFIX}', PREFIX) \
                   .replace('{OWNER}', guild.owner.mention)
-    msg = msg.replace('{PLAYER}', user.mention) if type(user) is Member else msg.replace('{PLAYER}', str(user))
+    msg = msg.replace('{PLAYER}', user.mention) if isinstance(user, Member) else msg.replace('{PLAYER}', str(user))
     for name, channel in channels.items():
         msg = re.sub("(?i){" + name + "}", channel.mention, msg)
     for name, role in roles.items():
@@ -421,7 +421,7 @@ def split_message(message, delimiter='\n'):
         # the first part is appended to the result list
         result.append(message[0:message.rfind(delimiter, 0, 2000)])
         # the second part becomes the new message
-        message = message[message.rfind(delimiter, 0, 2000)+1:]
+        message = message[message.rfind(delimiter, 0, 2000) + 1:]
 
     # the leftover message becomes the last part of the list
     result.append(message)
@@ -660,11 +660,11 @@ async def payments_output(guilds, id):
         if cat.verbosity == 0:
             break
         if cat.frequency > timedelta(days=1):
-            delay = timedelta(days=1) + timedelta(seconds=cat.id*5)
+            delay = timedelta(days=1) + timedelta(seconds=cat.id * 5)
         elif cat.frequency >= timedelta(days=1):
-            delay = timedelta(hours=12) + timedelta(seconds=cat.id*5)
+            delay = timedelta(hours=12) + timedelta(seconds=cat.id * 5)
         elif cat.frequency >= timedelta(hours=1):
-            delay = timedelta(minutes=30) + timedelta(seconds=cat.id*5)
+            delay = timedelta(minutes=30) + timedelta(seconds=cat.id * 5)
         else:
             break
 

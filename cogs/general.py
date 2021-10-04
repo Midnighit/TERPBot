@@ -20,12 +20,12 @@ class General(commands.Cog, name="General commands."):
 
     @staticmethod
     def print_iter(iter):
-        if type(iter) == dict:
+        if isinstance(iter, dict):
             print("{")
             for k, v in iter.items():
                 print(f"    {k}: {v},")
             print("}")
-        elif type(iter) == list:
+        elif isinstance(iter, list):
             print("[")
             for idx in range(len(iter)):
                 print(f"    {idx}: {iter[idx]},")
@@ -487,12 +487,12 @@ class General(commands.Cog, name="General commands."):
                 end_pos = len(roles_idx)
             roles_idx.append(name)
 
-        before_clan_roles = roles_idx[:end_pos+1]
+        before_clan_roles = roles_idx[:end_pos + 1]
         after_clan_roles = roles_idx[start_pos:]
 
         # create a slice of only those guilds that are actually required
         clan_roles = []
-        for name in sorted(roles_idx[end_pos+1:start_pos]):
+        for name in sorted(roles_idx[end_pos + 1:start_pos]):
             # remove existing roles that are no longer required
             if name not in required_clan_roles:
                 await roles[name].delete()
@@ -568,12 +568,12 @@ class Die:
 
     @sign.setter
     def sign(self, value):
-        if type(value) is str:
+        if isinstance(value, str):
             if value == "+":
                 self._sign = 1
             elif value == "-":
                 self._sign = -1
-        elif type(value) is int:
+        elif isinstance(value, int):
             if value >= 0:
                 self._sign = 1
             else:
@@ -585,7 +585,7 @@ class Die:
 
     @num.setter
     def num(self, value):
-        if type(value) is int:
+        if isinstance(value, int):
             if value > 0:
                 self._num = value
 
@@ -595,7 +595,7 @@ class Die:
 
     @sides.setter
     def sides(self, value):
-        if type(value) is int:
+        if isinstance(value, int):
             if value > 0:
                 self._sides = value
 

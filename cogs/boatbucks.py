@@ -8,6 +8,8 @@ from exiles_api import *
 from functions import *
 
 # rowboat birthday 25-July - potential reveal day?
+
+
 class BBK(commands.Cog, name="Boatbucks commands."):
     def __init__(self, bot):
         self.bot = bot
@@ -21,8 +23,8 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         if ctx.author.id in self.permitted:
             if ctx.invoked_subcommand is None:
                 await ctx.send("I have no idea what you want from me. I can either "
-                              f"`{PREFIX}boatbucks give <boatbucks> <user>` or "
-                              f"`{PREFIX}boatbucks take <boatbucks> <user>` for you.")
+                               f"`{PREFIX}boatbucks give <boatbucks> <user>` or "
+                               f"`{PREFIX}boatbucks take <boatbucks> <user>` for you.")
         else:
             if ctx.invoked_subcommand is None:
                 user = session.query(Boatbucks).get(ctx.author.id)
@@ -64,7 +66,8 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                 if bucks == 0:
                     delete.append(disc_id)
                 elif bucks > 0:
-                    # if no headline for people with a positive amount of bbs has been posted yet, start a new block with that
+                    # if no headline for people with a positive amount of bbs has been posted
+                    # yet, start a new block with that
                     if not positives:
                         block = "People with **boatbucks**:\n"
                         positives = True
@@ -75,7 +78,8 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                     else:
                         block += add
                 else:
-                    # if no headline for people with a negative amount of bbs has been posted yet, start a new block with that
+                    # if no headline for people with a negative amount of bbs has been posted
+                    # yet, start a new block with that
                     if not negatives:
                         # if current block isn't empty, append it to blocks before starting a new one
                         if len(block) > 0:
@@ -110,7 +114,8 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         await ctx.send("I'm terribly sorry but there has been an error, please contact support or ask my maker for help.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @boatbucks.command(aliases=['pay'], help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
+    @boatbucks.command(aliases=['pay'],
+                       help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
     async def give(self, ctx, bucks: int, member: Member):
         # sender tries to send a negative amount of bucks (i.e. gaining bucks)
         if bucks < 0:
@@ -143,9 +148,10 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             sender = session.query(Boatbucks).get(ctx.author.id)
             # sender is in boatdebt
             if not sender or sender.bucks < 0:
-                replies = [(f"Nuh uh, you're already {abs(sender.bucks)} {self.bbk} in boatdebt. You can't pay what you "
-                          f"don't have. Try to earn some boatbucks with <@{self.master_id}> or get someone with "
-                          f"boatbucks to pay you first.")]
+                replies = [
+                    (f"Nuh uh, you're already {abs(sender.bucks)} {self.bbk} in boatdebt. You can't pay what you "
+                     f"don't have. Try to earn some boatbucks with <@{self.master_id}> or get someone with "
+                     f"boatbucks to pay you first.")]
             elif not sender or sender.bucks < bucks:
                 # sender has no boatbucks at all
                 if not sender or sender.bucks == 0:
@@ -172,7 +178,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                     else:
                         recipient.bucks += bucks
                     replies = [(f"Alright, transferring **{bucks}** {self.bbk} from your account to {member.mention}. "
-                                f"It's your money. ¯\_(ツ)_/¯"),
+                                f"It's your money. ¯\\_(ツ)_/¯"),
                                (f"Another **{bucks}** {self.bbk} further away from buying your own yacht. "
                                 f"Maybe {member.mention} will be able to afford a rowboat after this transaction."),
                                (f"Feeling generous, huh? Very well your loss of **{bucks}** "
@@ -200,8 +206,8 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         # sender can't create and take away boatbucks at will
         if ctx.author.id not in self.permitted:
             replies = [(f"No can do. Only <@{self.master_id}> and her henchmen from the boatbank are allowed to "
-                         "take other peoples boatbucks without asking for permission. "
-                         "Sorry mate, the world just ain't fair.")]
+                        "take other peoples boatbucks without asking for permission. "
+                        "Sorry mate, the world just ain't fair.")]
         # recipient can create and take away boatbucks at will
         elif member.id in self.permitted:
             replies = [("Hey, you can't take away boatbucks from a fellow employee at the boatbank. "
@@ -269,7 +275,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                 replies = [("It looks like nobody has an open account on the boatbank yet. How comes?")]
             else:
                 replies = [(f"It looks like nobody on the boatbanks has any {self.bbk} left to pay taxes with. "
-                             "What gives?")]
+                            "What gives?")]
         else:
             recipient, member = None, None
             while(not member and len(recipients) > 0):
@@ -297,6 +303,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         GlobalVars.set_value("caught", 1)
         pe(error)
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
 
 def setup(bot):
     bot.add_cog(BBK(bot))

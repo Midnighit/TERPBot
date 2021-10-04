@@ -10,12 +10,14 @@ guild = None
 ''' Checks '''
 ##############
 
+
 def is_applicant():
     async def predicate(ctx):
         if not session.query(Applications).filter_by(disc_id=ctx.author.id).first():
             raise NotApplicantError()
         return True
     return check(predicate)
+
 
 def is_not_applicant():
     async def predicate(ctx):
@@ -27,12 +29,14 @@ def is_not_applicant():
         return True
     return check(predicate)
 
+
 def is_not_bot():
     async def predicate(ctx):
         if ctx.author == bot.user:
             raise IsBotError()
         return True
     return check(predicate)
+
 
 def has_not_role(check_role: str):
     async def predicate(ctx):
@@ -43,6 +47,7 @@ def has_not_role(check_role: str):
         return True
     return check(predicate)
 
+
 def has_role(check_role: str):
     async def predicate(ctx):
         member = guild.get_member(ctx.author.id)
@@ -51,6 +56,7 @@ def has_role(check_role: str):
             raise HasNotRoleError(f"Command may only be used by users with role {check_role}.")
         return True
     return check(predicate)
+
 
 def has_role_greater_or_equal(check_role: str):
     async def predicate(ctx):
@@ -62,6 +68,7 @@ def has_role_greater_or_equal(check_role: str):
         raise RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
     return check(predicate)
 
+
 def has_role_greater(check_role: str):
     async def predicate(ctx):
         member = guild.get_member(ctx.author.id)
@@ -71,6 +78,7 @@ def has_role_greater(check_role: str):
                 return True
         raise RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
     return check(predicate)
+
 
 def number_in_range(min: int, max: int):
     async def predicate(ctx):
@@ -84,6 +92,7 @@ def number_in_range(min: int, max: int):
             raise NumberNotInRangeError(f"Number must be between {str(min)} and {str(max)}.")
         return True
     return check(predicate)
+
 
 def init_checks(_guild):
     global guild

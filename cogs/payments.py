@@ -101,7 +101,7 @@ class Payments(commands.Cog, name="Payment commands."):
                     f"Command requires a group and a character or clan name. "
                     f"Category can be omitted if group already exists.\n"
                     f"{PREFIX}pm group add <group> [<category>] <character or clan>"
-                    )
+                )
             elif grp and cat and grp.category != cat:
                 await ctx.send(
                     f"Group **{grp.name}** already exists and is assigned to category **{grp.category.cmd}**. "

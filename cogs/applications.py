@@ -9,13 +9,14 @@ from exiles_api import session, TextBlocks, Users, Applications as AppsTable
 from exceptions import *
 from functions import *
 
+
 class Applications(commands.Cog, name="Application commands"):
     def __init__(self, bot):
         self.bot = bot
 
     @staticmethod
     async def get_question_msg(guild, questions, author, id=1, msg=''):
-        txt = questions[id-1].question
+        txt = questions[id - 1].question
         num = len(questions)
         return f"{msg}\n__**Question {id} of {num}:**__\n> {parse(guild, author, txt)}"
 
@@ -53,7 +54,8 @@ class Applications(commands.Cog, name="Application commands"):
 
     @staticmethod
     async def get_funcom_id_in_text(text, upper_case=True):
-        # get all strings consisting only of the letters a-f and digits that's at least 14 and at most 16 characters long
+        # get all strings consisting only of the letters a-f and digits that's at
+        # least 14 and at most 16 characters long
         result = re.search(r'([a-fA-F0-9]{14,16})', text)
         if not result:
             return None
@@ -61,7 +63,7 @@ class Applications(commands.Cog, name="Application commands"):
         start = text.find(funcom_id)
         end = start + len(funcom_id) - 1
         # if given funcom_id isn't either at the beginning and/or end of the text or delimited by a blank
-        if (start > 0 and text[start-1] != " ") or (end < len(text) - 1 and text[end+1] != " "):
+        if (start > 0 and text[start - 1] != " ") or (end < len(text) - 1 and text[end + 1] != " "):
             return None
         if funcom_id and upper_case:
             return funcom_id.upper()
@@ -170,7 +172,8 @@ class Applications(commands.Cog, name="Application commands"):
         session.commit()
         await ctx.author.dm_channel.send(parse(guild, ctx.author, TextBlocks.get('COMMITED')))
         submission_date = datetime.utcnow().strftime("%d-%b-%Y %H:%M UTC")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has submitted their application.")
         msg = f"{roles[ADMIN_ROLE].mention}\n{ctx.author.mention} has filled out the application. ({submission_date})\nYou can now either:\n`{PREFIX}accept <applicant> <message>`, `{PREFIX}reject <applicant> <message>` or `{PREFIX}review <applicant> <message>` (asking the Applicant to review their answers) it.\nIf <message> is omitted a default message will be sent.\nIf <applicant> is also omitted, it will try to target the last application. "
         overview = await self.get_overview_msgs(app.questions, ctx.author, msg)
         for part in overview:
@@ -188,7 +191,8 @@ class Applications(commands.Cog, name="Application commands"):
         session.commit()
         await channels[APPLICATIONS].send(f"{ctx.author} has canceled their application.")
         await ctx.author.dm_channel.send("Your application has been canceled.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has canceled their application.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {ctx.author} has canceled their application.")
 
     @command(name='accept', help="Accept the application. If message is ommitted a default message will be sent. "
                                  "If message and Applicant are omitted target the last submitted application.")
@@ -205,7 +209,7 @@ class Applications(commands.Cog, name="Application commands"):
             member = await get_member(ctx, applicant)
             if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
-                        "Users who leave the server while they still have an open application are "
+                       "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -215,7 +219,7 @@ class Applications(commands.Cog, name="Application commands"):
         else:
             member = await self.get_last_applicant(ctx, self.bot, applicant)
             if not member:
-                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                msg = ("Couldn't find a submitted application within the last 100 messages. "
                        f"Please specify the Applicant via `{PREFIX}accept <applicant> <message>`.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -225,7 +229,7 @@ class Applications(commands.Cog, name="Application commands"):
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
             msg = (f"Couldn't find a submitted application for {member}. "
-                    "Please verify that the name is written correctly and try again.")
+                   "Please verify that the name is written correctly and try again.")
             await ctx.send(msg)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
@@ -252,7 +256,7 @@ class Applications(commands.Cog, name="Application commands"):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been accepted.")
 
         # Whitelist Applicant
-        text = app.questions[app.funcom_id_row-1].answer
+        text = app.questions[app.funcom_id_row - 1].answer
         funcom_id = await self.get_funcom_id_in_text(text)
         info = parse(guild, ctx.author, f"They have been informed to request whitelisting in {channels[SUPPORT]}.")
         if funcom_id:
@@ -291,7 +295,7 @@ class Applications(commands.Cog, name="Application commands"):
             member = await get_member(ctx, applicant)
             if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
-                        "Users who leave the server while they still have an open application are "
+                       "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -301,7 +305,7 @@ class Applications(commands.Cog, name="Application commands"):
         else:
             member = await self.get_last_applicant(ctx, self.bot, applicant)
             if not member:
-                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                msg = ("Couldn't find a submitted application within the last 100 messages. "
                        f"Please specify the Applicant via `{PREFIX}reject <applicant> <message>`.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -311,13 +315,13 @@ class Applications(commands.Cog, name="Application commands"):
         app = session.query(AppsTable).filter_by(disc_id=member.id).first()
         if not app:
             msg = (f"Couldn't find a submitted application for {member}. "
-                    "Please verify that the name is written correctly and try again.")
+                   "Please verify that the name is written correctly and try again.")
             await ctx.send(msg)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         elif app.can_edit_questions():
             msg = ("Can't reject application while it's still being worked on. "
-                  f"Try {PREFIX}cancelapp <applicant> <message> instead.")
+                   f"Try {PREFIX}cancelapp <applicant> <message> instead.")
             await ctx.send(msg)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
@@ -347,7 +351,7 @@ class Applications(commands.Cog, name="Application commands"):
             member = await get_member(ctx, applicant)
             if not member:
                 msg = (f"Couldn't get id for {applicant}. Are you sure they are still on this discord server? "
-                        "Users who leave the server while they still have an open application are "
+                       "Users who leave the server while they still have an open application are "
                        f"automatically removed. Use {PREFIX}showapp to check if the app is still there.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -357,7 +361,7 @@ class Applications(commands.Cog, name="Application commands"):
         else:
             member = await self.get_last_applicant(ctx, self.bot, applicant)
             if not member:
-                msg = ( "Couldn't find a submitted application within the last 100 messages. "
+                msg = ("Couldn't find a submitted application within the last 100 messages. "
                        f"Please specify the Applicant via `{PREFIX}review <applicant> <message>`.")
                 await channels[APPLICATIONS].send(msg)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -391,7 +395,8 @@ class Applications(commands.Cog, name="Application commands"):
             if member.dm_channel is None:
                 await member.create_dm()
             await member.dm_channel.send(part)
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been returned for review.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been returned for review.")
 
     @command(name='showapp', help="Displays the given Applicants application if it has been submitted. "
                                   "If applicant is omitted, shows all applications.")
@@ -454,7 +459,9 @@ class Applications(commands.Cog, name="Application commands"):
             await member.send(f"Your application was cancelled by an administrator.\n> {' '.join(message)}")
         else:
             await member.send(f"Your application was cancelled by an administrator.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been cancelled.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {member}'s application has been cancelled.")
+
 
 def setup(bot):
     bot.add_cog(Applications(bot))

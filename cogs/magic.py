@@ -6,20 +6,21 @@ from config import *
 from exiles_api import *
 from functions import *
 
+
 class Mag(commands.Cog, name="Magic commands."):
     def __init__(self, bot):
         self.bot = bot
 
     @staticmethod
     async def get_mchar(character):
-        if type(character) is int or character.isnumeric():
+        if isinstance(character, int) or character.isnumeric():
             mchar = session.query(MagicChars).get(character)
             if mchar:
                 mchars = [mchar]
             else:
                 return f"No character with ID **{character}** registered."
         else:
-            mchars = session.query(MagicChars).filter(MagicChars.name.collate('NOCASE')==character).all()
+            mchars = session.query(MagicChars).filter(MagicChars.name.collate('NOCASE') == character).all()
         if len(mchars) == 0:
             return f"No character named **{character}** registered."
         elif len(mchars) > 1:
@@ -28,14 +29,14 @@ class Mag(commands.Cog, name="Magic commands."):
 
     @staticmethod
     async def get_char(character):
-        if type(character) is int or character.isnumeric():
+        if isinstance(character, int) or character.isnumeric():
             char = session.query(Characters).get(character)
             if char:
                 chars = [char]
             else:
                 return f"No character with ID **{character}** found."
         else:
-            chars = session.query(Characters).filter(Characters.name.collate('NOCASE')==character).all()
+            chars = session.query(Characters).filter(Characters.name.collate('NOCASE') == character).all()
         if len(chars) == 0:
             return f"No character named **{character}** found."
         elif len(chars) > 1:
@@ -67,7 +68,7 @@ class Mag(commands.Cog, name="Magic commands."):
     async def add(self, ctx, *, Character):
         # determine the char by its name or id or return an error message if none were found
         result = await Mag.get_char(Character)
-        if type(result) is str:
+        if isinstance(result, str):
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
@@ -79,21 +80,25 @@ class Mag(commands.Cog, name="Magic commands."):
             if not mchar.active:
                 mchar.active = True
                 await ctx.send(f"Registered **{char.name}** as magic user.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Registered {char.name} as magic user.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. Registered {char.name} as magic user.")
             else:
                 await ctx.send(f"Character is already registered under name **{mchar.name}**. Name has been updated to **{char.name}**.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Character is already registered under name {mchar.name}. Name has been updated to {char.name}.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. Character is already registered under name {mchar.name}. Name has been updated to {char.name}.")
             session.commit()
             return
         elif mchar:
             if not mchar.active:
                 mchar.active = True
                 await ctx.send(f"Registered **{char.name}** as magic user.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Registered {char.name} as magic user.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. Registered {char.name} as magic user.")
                 session.commit()
             else:
                 await ctx.send("Character is already registered. No changes were made.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Character is already registered. No changes were made.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. Character is already registered. No changes were made.")
             return
         # add character to the table
         mchar = MagicChars(id=char.id, name=char.name)
@@ -108,7 +113,7 @@ class Mag(commands.Cog, name="Magic commands."):
         # determine the mchar by its name or id or return an error message if none were found
         result = await Mag.get_mchar(Character)
         # output error message if char wasn't found
-        if type(result) is str:
+        if isinstance(result, str):
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
@@ -117,7 +122,7 @@ class Mag(commands.Cog, name="Magic commands."):
         # determine the char by its id or return an error message if none were found
         result = await Mag.get_char(mchar.id)
         # delete character from MagicChars if it's no longer in Characters
-        if type(result) is str:
+        if isinstance(result, str):
             name = mchar.name
             session.delete(mchar)
         # deactivate character
@@ -140,14 +145,14 @@ class Mag(commands.Cog, name="Magic commands."):
                 return
             user = users[0]
             result = await Mag.get_char_by_user(user)
-            if type(result) is str:
+            if isinstance(result, str):
                 await ctx.send(result)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
                 return
         else:
             # determine the char by its name or id or return an error message if none were found
             result = await Mag.get_char(character)
-            if type(result) is str:
+            if isinstance(result, str):
                 await ctx.send(result)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
                 return
@@ -156,11 +161,13 @@ class Mag(commands.Cog, name="Magic commands."):
         mchar = session.query(MagicChars).get(char.id)
         if not mchar or not mchar.active:
             await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
             return
         elif mchar.mana < Mana:
             await ctx.send(f"**{char.name}** does not have enough mana. Mana points left this week: **{mchar.mana}**.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} does not have enough mana. Mana points left this week: {mchar.mana}.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} does not have enough mana. Mana points left this week: {mchar.mana}.")
             return
         mchar.mana -= Mana
         mchar.total_uses += 1
@@ -169,7 +176,8 @@ class Mag(commands.Cog, name="Magic commands."):
         session.commit()
         mp = "mana point" if Mana == 1 else "mana points"
         await ctx.send(f"**{char.name}** used **{Mana}** {mp}. Mana points left this week: **{mchar.mana}**.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} used {Mana} {mp}. Mana points left this week: {mchar.mana}.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} used {Mana} {mp}. Mana points left this week: {mchar.mana}.")
 
     @mag.command(name='give', help="Adds the given number of mana points to the characters mana pool.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
@@ -178,11 +186,12 @@ class Mag(commands.Cog, name="Magic commands."):
         # determine the char by its discord user
         if character == '':
             await ctx.send("Character is a required argument that is missing.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
             return
         # determine the char by its name or id or return an error message if none were found
         result = await Mag.get_char(character)
-        if type(result) is str:
+        if isinstance(result, str):
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
@@ -191,13 +200,15 @@ class Mag(commands.Cog, name="Magic commands."):
         mchar = session.query(MagicChars).get(char.id)
         if not mchar or not mchar.active:
             await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
             return
         mchar.mana += Mana
         session.commit()
         mp = "mana point" if Mana == 1 else "mana points"
         await ctx.send(f"**{char.name}** was given **{Mana}** {mp}. Mana points left this week: **{mchar.mana}**.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} was given {Mana} {mp}. Mana points left this week: {mchar.mana}.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} was given {Mana} {mp}. Mana points left this week: {mchar.mana}.")
 
     @mag.command(name='undo', help="Reverts the last mana use.")
     @has_role_greater_or_equal(SUPPORT_ROLE)
@@ -206,11 +217,12 @@ class Mag(commands.Cog, name="Magic commands."):
         # determine the char by its discord user
         if character == '':
             await ctx.send("Character is a required argument that is missing.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
             return
         # determine the char by its name or id or return an error message if none were found
         result = await Mag.get_char(character)
-        if type(result) is str:
+        if isinstance(result, str):
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
@@ -219,11 +231,13 @@ class Mag(commands.Cog, name="Magic commands."):
         mchar = session.query(MagicChars).get(char.id)
         if not mchar or not mchar.active:
             await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
             return
         elif not mchar.last_use:
             await ctx.send(f"**{char.name}** has not used any mana so far or there is no record of it. No changes were made.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} has not used any mana so far or there is no record of it. No changes were made.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} has not used any mana so far or there is no record of it. No changes were made.")
             return
         given = mchar.last_use
         mchar.mana += given
@@ -233,7 +247,8 @@ class Mag(commands.Cog, name="Magic commands."):
         session.commit()
         mp = "mana point" if given == 1 else "mana points"
         await ctx.send(f"**{char.name}** was given back **{given}** {mp}. Mana points left this week: **{mchar.mana}**.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} was given {given} {given}. Mana points left this week: {mchar.mana}.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} was given {given} {given}. Mana points left this week: {mchar.mana}.")
 
     @mag.command(name='stats', help=f"Shows statistics for all or a single character or resets them for a single character")
     @has_role_greater_or_equal(SUPPORT_ROLE)
@@ -243,10 +258,11 @@ class Mag(commands.Cog, name="Magic commands."):
             name = ' '.join(args[1:])
             if name == '':
                 await ctx.send("Character is a required argument that is missing.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. Character is a required argument that is missing.")
                 return
             result = await Mag.get_char(name)
-            if type(result) is str:
+            if isinstance(result, str):
                 await ctx.send(result)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
                 return
@@ -255,7 +271,8 @@ class Mag(commands.Cog, name="Magic commands."):
             mchar = session.query(MagicChars).get(char.id)
             if not mchar or not mchar.active:
                 await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
                 return
             mchar.mana = 0
             mchar.total_uses = 0
@@ -263,13 +280,14 @@ class Mag(commands.Cog, name="Magic commands."):
             mchar.last_use = None
             session.commit()
             await ctx.send(f"**{char.name}** has been reset to 0 mana and 0 uses.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} has been reset to 0 mana and 0 uses.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} has been reset to 0 mana and 0 uses.")
         # display the stats for the given character
         elif len(args) > 0:
             character = ' '.join(args)
             # determine the char by its discord user
             result = await Mag.get_char(character)
-            if type(result) is str:
+            if isinstance(result, str):
                 await ctx.send(result)
                 logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
                 return
@@ -278,7 +296,8 @@ class Mag(commands.Cog, name="Magic commands."):
             mchar = session.query(MagicChars).get(char.id)
             if not mchar or not mchar.active:
                 await ctx.send(f"**{char.name}** is not registered. No changes were made.")
-                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
+                logger.info(
+                    f"Author: {ctx.author} / Command: {ctx.message.content}. {char.name} is not registered. No changes were made.")
                 return
             mp = "mana point" if mchar.mana == 1 else "mana points"
             tm = "time" if mchar.total_uses == 1 else "times"
@@ -322,7 +341,7 @@ class Mag(commands.Cog, name="Magic commands."):
             return
         user = users[0]
         result = await Mag.get_char_by_user(user, single_only=False)
-        if type(result) is str:
+        if isinstance(result, str):
             await ctx.send(result)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {result}.")
             return
@@ -338,6 +357,7 @@ class Mag(commands.Cog, name="Magic commands."):
             await ctx.send(f"No registered characters found.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No registered characters found.")
             return
+
 
 def setup(bot):
     bot.add_cog(Mag(bot))

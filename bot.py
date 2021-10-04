@@ -1,5 +1,8 @@
 # TERPBot v1.2.1
-import os, random, discord, asyncio
+import os
+import random
+import discord
+import asyncio
 from datetime import datetime, timedelta
 from discord import ChannelType
 from discord.ext import commands
@@ -14,6 +17,7 @@ intents = discord.Intents.default()
 intents.members = True
 intents.reactions = True
 bot = commands.Bot(PREFIX, intents=intents, case_insensitive=True)
+
 
 async def magic_rolls():
     channels = get_channels(bot=bot)
@@ -51,6 +55,7 @@ async def magic_rolls():
         session.commit()
         await channels[MAGIC_ROLLS].send(output + "```")
 
+
 async def update_roles():
     guild = get_guild(bot)
     while True:
@@ -85,11 +90,11 @@ async def update_roles():
                 if not disc_id:
                     logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
                     continue
-                if not disc_id in guild_members:
+                if disc_id not in guild_members:
                     logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
                     continue
                 member = guild_members[disc_id]
-                if not guild_name in required_clan_roles:
+                if guild_name not in required_clan_roles:
                     required_clan_roles[guild_name] = [member]
                 else:
                     required_clan_roles[guild_name].append(member)
@@ -108,14 +113,14 @@ async def update_roles():
                 end_pos = len(roles_idx)
             roles_idx.append(name)
 
-        before_clan_roles = roles_idx[:end_pos+1]
+        before_clan_roles = roles_idx[:end_pos + 1]
         after_clan_roles = roles_idx[start_pos:]
 
         # create a slice of only those guilds that are actually required
         clan_roles = []
-        for name in sorted(roles_idx[end_pos+1:start_pos]):
+        for name in sorted(roles_idx[end_pos + 1:start_pos]):
             # remove existing roles that are no longer required
-            if not name in required_clan_roles:
+            if name not in required_clan_roles:
                 await roles[name].delete()
                 del roles[name]
                 logger.info(f"Deleting role {name}.")
@@ -126,7 +131,7 @@ async def update_roles():
         # add roles and update their members as required
         for name, members in required_clan_roles.items():
             # add clan roles not existing yet
-            if not name in roles:
+            if name not in roles:
                 clan_roles.append(name)
                 hoist = CLAN_ROLE_HOIST
                 mentionable = CLAN_ROLE_MENTIONABLE
@@ -140,12 +145,12 @@ async def update_roles():
             else:
                 # add members not alread assigned to the role
                 for member in members:
-                    if not member in roles[name].members:
+                    if member not in roles[name].members:
                         await member.add_roles(roles[name])
                         logger.info(f"Adding {str(member)} to role {name}.")
                 # remove members that are assigned to the role but shouldn't be
                 for member in roles[name].members:
-                    if not member in members:
+                    if member not in members:
                         await member.remove_roles(roles[name])
                         logger.info(f"Removing {str(member)} from role {name}.")
 
@@ -159,6 +164,7 @@ async def update_roles():
         # reorder the clan roles alphabetically
         await guild.edit_role_positions(positions)
         logger.info("Finished reindexing discord clan roles.")
+
 
 async def display_playerlist():
     while True:
@@ -175,6 +181,7 @@ async def display_playerlist():
         await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
         await discord.utils.sleep_until(now + DISPLAY_PLAYERLIST)
 
+
 async def get_time():
     first_attempt = now = datetime.utcnow()
     failure = get_time_decimal()
@@ -184,6 +191,7 @@ async def get_time():
         now = datetime.utcnow()
     return
 
+
 async def set_time():
     first_attempt = now = datetime.utcnow()
     failure = set_time_decimal()
@@ -192,6 +200,7 @@ async def set_time():
         failure = set_time_decimal()
         now = datetime.utcnow()
     return
+
 
 async def set_roles(channels):
     content = SETROLES_EXPLANATION + '\n'
@@ -211,6 +220,7 @@ async def set_roles(channels):
 ##############
 ''' Events '''
 ##############
+
 
 @bot.event
 async def on_ready():
@@ -262,6 +272,7 @@ async def on_ready():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
         payments_output_task.add_done_callback(exception_catching_callback)
 
+
 @bot.event
 async def on_member_join(member):
     logger.info(f"{member} just joined the discord.")
@@ -270,6 +281,7 @@ async def on_member_join(member):
     channels = get_channels(guild)
     await member.add_roles(roles[NOT_APPLIED_ROLE])
     await channels[WELCOME].send(parse(guild, member, TextBlocks.get('GREETING')))
+
 
 @bot.event
 async def on_member_remove(member):
@@ -284,12 +296,13 @@ async def on_member_remove(member):
                     if user.id == member.id:
                         await reaction.remove(user)
     app = session.query(Applications).filter_by(disc_id=member.id).first()
-    if app and not app.status in ('rejected', 'approved'):
+    if app and app.status not in ('rejected', 'approved'):
         session.delete(app)
         session.commit()
         logger.info(f"{member} just left discord. Ongoing application was cancelled")
     else:
         logger.info(f"{member} just left discord.")
+
 
 @bot.event
 async def on_message(message):
@@ -331,7 +344,7 @@ async def on_message(message):
     if app.current_question < 0:
         return
     questions = app.questions
-    questions[app.current_question-1].answer = message.content
+    questions[app.current_question - 1].answer = message.content
     session.commit()
     app.current_question = app.first_unanswered
     if app.current_question > 0:
@@ -342,6 +355,7 @@ async def on_message(message):
         await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get('FINISHED')))
     session.commit()
 
+
 @bot.event
 async def on_raw_reaction_add(payload):
     if DISPLAY_SETROLES:
@@ -351,10 +365,11 @@ async def on_raw_reaction_add(payload):
         if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
             reaction = SETROLES_REACTIONS[payload.emoji.name]
             name = reaction['role']
-            if not name in roles:
+            if name not in roles:
                 mentionable = reaction['mentionable'] if 'mentionable' in reaction else False
                 roles[name] = await guild.create_role(name=name, mentionable=mentionable)
             await payload.member.add_roles(roles[name])
+
 
 @bot.event
 async def on_raw_reaction_remove(payload):
@@ -371,6 +386,7 @@ async def on_raw_reaction_remove(payload):
                         await member.remove_roles(roles[name])
                         break
 
+
 @bot.event
 async def on_command_error(ctx, error):
     if int(GlobalVars.get_value("caught")):
@@ -385,11 +401,12 @@ async def on_command_error(ctx, error):
     f = False
     if hasattr(error, "args"):
         for arg in error.args:
-            if type(arg) is str:
+            if isinstance(arg, str):
                 error = arg
                 f = True
                 break
     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {str(error)}")
+
 
 @bot.command(hidden=True)
 @has_role(ADMIN_ROLE)

@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 import logging
 from config import LOG_LEVEL
 from logging.handlers import RotatingFileHandler

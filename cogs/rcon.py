@@ -1,4 +1,5 @@
-import itertools, discord
+import itertools
+import discord
 from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
@@ -11,6 +12,7 @@ from functions import *
 from cogs.general import General
 from cogs.applications import Applications
 
+
 class RCon(commands.Cog, name="RCon commands"):
     def __init__(self, bot):
         self.bot = bot
@@ -20,9 +22,9 @@ class RCon(commands.Cog, name="RCon commands"):
         removed = []
         # get all users who share either of the three attributes
         users = session.query(Users).filter(
-            (Users.disc_id==member.id) |
-            (Users.disc_user==str(member)) |
-            (Users.funcom_id==funcom_id)).all()
+            (Users.disc_id == member.id) |
+            (Users.disc_user == str(member)) |
+            (Users.funcom_id == funcom_id)).all()
         # if none were found, create a new user
         if len(users) == 0:
             new_user = Users(disc_user=str(member), disc_id=member.id, funcom_id=funcom_id)
@@ -66,7 +68,8 @@ class RCon(commands.Cog, name="RCon commands"):
         else:
             return False
 
-    @command(name='listplayers', aliases=['playerslist', 'playerlist', 'listplayer'], help="Shows a list of all players online right now")
+    @command(name='listplayers', aliases=['playerslist', 'playerlist',
+             'listplayer'], help="Shows a list of all players online right now")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def listplayers(self, ctx):
         playerlist, success = listplayers()
@@ -101,7 +104,7 @@ class RCon(commands.Cog, name="RCon commands"):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         removed = None
-        if type(success) is list:
+        if isinstance(success, list):
             removed = success
             for id in removed:
                 result, err = unwhitelist_player(id)
@@ -109,7 +112,8 @@ class RCon(commands.Cog, name="RCon commands"):
                     await ctx.send(f"Unwhitelisting former FuncomID {id} failed. Server didn't respond. Please try again later.")
         msg, err = whitelist_player(funcom_id)
         if removed:
-            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + removed[0] + " and " + removed[1] + " were"
+            r = "FuncomID " + removed[0] + " was" if len(removed) == 1 else "FuncomIDs " + \
+                removed[0] + " and " + removed[1] + " were"
             msg += f" Previous {r} removed from whitelist."
         await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
@@ -152,14 +156,14 @@ class RCon(commands.Cog, name="RCon commands"):
             with open(WHITELIST_PATH, 'rb') as f:
                 line = f.readline()
                 codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
-        except:
+        except BaseException:
             codec = 'utf8'
         # try to read all entries already in the whitelist.txt file
         try:
             with open(WHITELIST_PATH, 'r', encoding=codec) as f:
                 lines = f.readlines()
         # if file doesn't exist create an empty list
-        except:
+        except BaseException:
             with open(WHITELIST_PATH, 'w') as f:
                 pass
             lines = []
@@ -168,10 +172,10 @@ class RCon(commands.Cog, name="RCon commands"):
         filtered = set()
         names = {}
         # define regular expression to filter out unprintable characters
-        control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
+        control_chars = ''.join(map(chr, itertools.chain(range(0x00, 0x20), range(0x7f, 0xa0))))
         control_char_re = re.compile('[%s]' % re.escape(control_chars))
         for line in lines:
-            if line != "\n" and not "INVALID" in line:
+            if line != "\n" and "INVALID" not in line:
                 # remove unprintable characters from the line
                 res = control_char_re.sub('', line)
                 res = res.split(':')
@@ -182,12 +186,12 @@ class RCon(commands.Cog, name="RCon commands"):
                     name = 'Unknown'
                 filtered.add(id)
                 # if duplicate values exist, prioritize those containing a funcom_name
-                if not id in names or names[id] == 'Unknown':
+                if id not in names or names[id] == 'Unknown':
                     names[id] = name
 
         # go through the Users table and supplement missing users if any
         for user in session.query(Users).all():
-            if not user.funcom_id in filtered:
+            if user.funcom_id not in filtered:
                 filtered.add(user.funcom_id)
                 names[user.funcom_id] = 'Unknown'
 
@@ -215,7 +219,8 @@ class RCon(commands.Cog, name="RCon commands"):
         else:
             msg = f"Error: {result}."
         await ctx.send(msg)
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was sent to {ctx.author}.")
 
     @command(name='settime', help="Sets the time on the server")
     @has_role(ADMIN_ROLE)
@@ -235,7 +240,9 @@ class RCon(commands.Cog, name="RCon commands"):
             else:
                 msg = f"Failed to set time. Error: {result}"
         await ctx.send(msg)
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
+        logger.info(
+            f"Author: {ctx.author} / Command: {ctx.message.content}. Current server time was set to {time} by {ctx.author}.")
+
 
 def setup(bot):
     bot.add_cog(RCon(bot))
