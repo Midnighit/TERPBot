@@ -1,24 +1,32 @@
-import discord, re, pprint
+import re
+import discord
+import itertools
+import pprint
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
 from factorio_rcon import RCONClient
 from psutil import process_iter
 from logger import logger
-from config import *
-from exiles_api import *
+from exiles_api import (
+    session, next_time, Users, Owner, GlobalVars, Groups, CatOwners, Guilds, Characters, OwnersCache, Categories
+)
+from config import RCON_IP, RCON_PORT, RCON_PASSWORD, DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
 
 rcon = RCONClient(RCON_IP, RCON_PORT, RCON_PASSWORD, timeout=5.0, connect_on_init=False)
+
 
 def pp(arg):
     printer = pprint.PrettyPrinter(indent=4)
     printer.pprint(arg)
 
+
 def pe(arg):
-    print(f"error: {arg}")
-    print(f" type: {type(arg)}")
-    print( "  dir: ")
+    print("error: " + arg)
+    print(" type: " + type(arg))
+    print("  dir: ")
     pp(dir(arg))
+
 
 def get_guild(bot=None, guild=None):
     if guild:
@@ -29,11 +37,13 @@ def get_guild(bot=None, guild=None):
         logger.error('Called get_guild() but passed neither bot nor guild.')
         return None
 
+
 def get_categories(guild=None, bot=None):
     guild = get_guild(bot, guild)
     if guild:
         return {category.name: category for category in guild.categories}
     return None
+
 
 def get_channels(guild=None, bot=None):
     guild = get_guild(bot, guild)
@@ -42,12 +52,14 @@ def get_channels(guild=None, bot=None):
     logger.error('Called get_channels() but passed neither bot nor guild.')
     return None
 
+
 def get_roles(guild=None, bot=None):
     guild = get_guild(bot, guild)
     if guild:
         return {role.name: role for role in guild.roles}
     logger.error('Called get_roles() but passed neither bot nor guild.')
     return None
+
 
 def has_support_role_or_greater(guild, author):
     roles = get_roles(guild)
@@ -56,11 +68,13 @@ def has_support_role_or_greater(guild, author):
         if author_role >= roles[SUPPORT_ROLE]:
             return True
 
+
 def get_chars_by_user(user):
     user = session.query(Users).filter_by(disc_id=user.id).first()
     if not user:
         return []
     return user.characters
+
 
 def parse(guild, user, msg):
     channels = get_channels(guild)
@@ -74,15 +88,19 @@ def parse(guild, user, msg):
         msg = re.sub("(?i){" + name + "}", role.mention, msg)
     return msg
 
+
 def is_hex(s):
     return all(c in '1234567890ABCDEF' for c in s.upper())
+
 
 def is_float(s):
     return re.match(r'^-?\d+(?:\.\d+)?$', s) is not None
 
+
 def rreplace(s, old, new):
     li = s.rsplit(old, 1)
     return new.join(li)
+
 
 def listplayers():
     try:
@@ -140,6 +158,7 @@ def listplayers():
         headline = headline + width * '-' + '\n'
         return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
 
+
 def is_time_format(time):
     tLst = time.split(':')
     if not tLst:
@@ -166,6 +185,7 @@ def is_time_format(time):
 
     return ':'.join([hours, minutes, seconds])
 
+
 def get_time():
     try:
         rcon.connect()
@@ -176,6 +196,7 @@ def get_time():
     except Exception as err:
         return (str(err), False)
     return (result, True)
+
 
 def set_time(time):
     try:
@@ -188,11 +209,12 @@ def set_time(time):
         return (str(err), False)
     return (result, True)
 
+
 def get_time_decimal():
-    logger.info(f"Trying to read the time from the game server.")
+    logger.info("Trying to read the time from the game server.")
     try:
         rcon.connect()
-        rcon.send_packet(0, 2, f"TERPO getTimeDecimal")
+        rcon.send_packet(0, 2, "TERPO getTimeDecimal")
         packets = rcon.receive_packets()
         rcon.close()
         result = packets[0].body
@@ -200,11 +222,12 @@ def get_time_decimal():
         logger.error(f"Failed to read time from game server. RConError: {str(err)}")
         return 1
     if not is_float(result):
-        logger.info(f"Failed reading time. {time}")
+        logger.info(f"Failed reading time. {result}")
         return 2
     logger.info(f"Time read successfully: {result}")
     GlobalVars.set_value('LAST_RESTART_TIME', result)
     return 0
+
 
 def set_time_decimal():
     time = GlobalVars.get_value('LAST_RESTART_TIME')
@@ -224,35 +247,38 @@ def set_time_decimal():
     logger.info("Time was reset successfully!")
     return 0
 
+
 def is_running(process_name, strict=False):
     '''Check if there is any running process that contains the given name process_name.'''
-    #Iterate over the all the running process
+    # Iterate over the all the running process
     for proc in process_iter():
         try:
             # Check if process name contains the given name string.
             if process_name.lower() in proc.name().lower():
                 return True
-        except:
+        except Exception:
             pass
     return False
+
 
 def is_on_whitelist(funcom_id):
     try:
         with open(WHITELIST_PATH, 'rb') as f:
             line = f.readline()
             codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
-    except:
+    except Exception:
         return False
     try:
         with open(WHITELIST_PATH, 'r', encoding=codec) as f:
             lines = f.readlines()
-    except:
+    except Exception:
         return False
     funcom_id = funcom_id.upper()
     for line in lines:
         if funcom_id in line.upper():
             return True
     return False
+
 
 def whitelist_player(funcom_id):
     # intercept obvious wrong cases
@@ -280,7 +306,7 @@ def whitelist_player(funcom_id):
     if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
         write2file = True
     # before server has really begun starting up, still allows writing to file
-    elif  msg == "Couldn't find the command: WhitelistPlayer. Try \"help\"":
+    elif msg == "Couldn't find the command: WhitelistPlayer. Try \"help\"":
         write2file = True
     # server is up but rejected command
     elif msg == "Still processing previous command.":
@@ -296,8 +322,9 @@ def whitelist_player(funcom_id):
         msg = f"Player {funcom_id} added to whitelist."
     # try again later
     elif write2file:
-        msg = f"Server is not ready. Please try again later."
+        msg = "Server is not ready. Please try again later."
     return (msg, True)
+
 
 def unwhitelist_player(funcom_id):
     msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
@@ -318,7 +345,7 @@ def unwhitelist_player(funcom_id):
     if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
         write2file = True
     # before server has really begun starting up, still allows writing to file
-    elif  msg == "Couldn't find the command: UnWhitelistPlayer. Try \"help\"":
+    elif msg == "Couldn't find the command: UnWhitelistPlayer. Try \"help\"":
         write2file = True
     # server is up but rejected command
     elif msg == "Still processing previous command.":
@@ -334,24 +361,25 @@ def unwhitelist_player(funcom_id):
         msg = f"Player {funcom_id} removed from whitelist."
     # try again later
     elif write2file and is_running('ConanSandboxServer'):
-        msg = f"Server is not ready. Please try again later."
+        msg = "Server is not ready. Please try again later."
     return (msg, True)
 
+
 def update_whitelist_file(funcom_id, add=True):
-    is_on_whitelist = is_on_whitelist(funcom_id)
-    if (is_on_whitelist and add) or (not is_on_whitelist and not add):
+    whitelisted = is_on_whitelist(funcom_id)
+    if (whitelisted and add) or (not whitelisted and not add):
         return
     # determine codec
     try:
         with open(WHITELIST_PATH, 'rb') as f:
             line = f.readline()
             codec = 'utf16' if line.startswith(b'\xFF\xFE') else 'utf8'
-    except:
+    except Exception:
         codec = 'utf8'
     try:
         with open(WHITELIST_PATH, 'r', encoding=codec) as f:
             lines = f.readlines()
-    except:
+    except Exception:
         with open(WHITELIST_PATH, 'w') as f:
             pass
         lines = []
@@ -359,10 +387,10 @@ def update_whitelist_file(funcom_id, add=True):
     filtered = set()
     names = {}
     # define regular expression to filter out unprintable characters
-    control_chars = ''.join(map(chr, itertools.chain(range(0x00,0x20), range(0x7f,0xa0))))
+    control_chars = ''.join(map(chr, itertools.chain(range(0x00, 0x20), range(0x7f, 0xa0))))
     control_char_re = re.compile('[%s]' % re.escape(control_chars))
     for line in lines:
-        if line != "\n" and not "INVALID" in line and (add or not funcom_id in line):
+        if line != "\n" and "INVALID" not in line and (add or funcom_id not in line):
             # remove unprintable characters from the line
             res = control_char_re.sub('', line)
             res = res.split(':')
@@ -372,7 +400,7 @@ def update_whitelist_file(funcom_id, add=True):
             else:
                 name = 'Unknown'
             filtered.add(id)
-            if not id in names or names[id] == 'Unknown':
+            if id not in names or names[id] == 'Unknown':
                 names[id] = name
     if add:
         filtered.add(funcom_id)
@@ -383,6 +411,7 @@ def update_whitelist_file(funcom_id, add=True):
     wlist.sort()
     with open(WHITELIST_PATH, 'w') as f:
         f.writelines(wlist)
+
 
 def split_message(message, delimiter='\n'):
     result = []
@@ -399,16 +428,18 @@ def split_message(message, delimiter='\n'):
 
     return result
 
+
 async def get_member(ctx, name):
-    if not name is str:
+    if name is not str:
         name = str(name)
     try:
         return await commands.MemberConverter().convert(ctx, name)
-    except:
+    except Exception:
         try:
             return await commands.MemberConverter().convert(ctx, name.capitalize())
-        except:
+        except Exception:
             return None
+
 
 async def get_category_msg(category, messages=[]):
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
@@ -450,6 +481,7 @@ async def get_category_msg(category, messages=[]):
             chunk += line
     msgs.append(chunk)
     return msgs
+
 
 async def get_category_msg_original(category, messages=[]):
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
@@ -493,6 +525,7 @@ async def get_category_msg_original(category, messages=[]):
     msgs.append(chunk)
     return msgs
 
+
 async def get_category_msg_compact(category, messages=[]):
     groups = [g for g in session.query(Groups).filter_by(category=category).all()]
     if len(groups) == 0:
@@ -524,7 +557,6 @@ async def get_category_msg_compact(category, messages=[]):
     list.sort(key=lambda user: user['name'])
     for line in list:
         lines.append(f"{line['name']:<{ln}} | {line['next_due']:<{lnd}} | {line['last_pay']}")
-    nl = '\n'
     headline = f"{name_hl:<{ln}} | {next_due_hl:<{lnd}} | {last_payment_hl}\n"
     width = len(headline) - len(last_payment_hl) - 1 + llp
     headline = headline + width * '-'
@@ -538,6 +570,7 @@ async def get_category_msg_compact(category, messages=[]):
             chunk = "```" + line
     msgs.append(chunk + "```")
     return messages + msgs
+
 
 async def get_user_msg(groups, messages=[]):
     chunk, msgs = "", []
@@ -565,6 +598,7 @@ async def get_user_msg(groups, messages=[]):
         msgs.append(chunk)
     return msgs
 
+
 async def payments(id, category_id):
     while True:
         messaged = False
@@ -580,15 +614,19 @@ async def payments(id, category_id):
             if not Owner.get(cat_owner.id):
                 name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
                 guess = '(' + name + ') ' if name else ''
-                logger.info(f"Character or clan with id {id} {guess}and category_id {category_id} removed "
-                             "from payments list because they have been deleted from db since last time.")
+                logger.info(
+                    f"Character or clan with id {id} {guess}and category_id {category_id} removed "
+                    f"from payments list because they have been deleted from db since last time."
+                )
                 messaged = True
                 session.delete(cat_owner)
         # remove simple groups that are empty
         if (group.is_simple and messaged and len(group.owners) <= 1) or (not messaged and len(group.owners) == 0):
             if not messaged:
-                logger.info(f"Character or clan with id {id} and category_id {category_id} removed "
-                             "from payments list because they have been deleted from db since last time.")
+                logger.info(
+                    f"Character or clan with id {id} and category_id {category_id} removed "
+                    f"from payments list because they have been deleted from db since last time."
+                )
             session.delete(group)
         await discord.utils.sleep_until(group.next_due)
         group.next_due = group.next_due + group.category.frequency
@@ -596,6 +634,7 @@ async def payments(id, category_id):
         logger.info(f"Deducted 1 bpp from {group.name} ({id}). New balance is {group.balance}. "
                     f"Next due date has been set to {group.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}.")
         session.commit()
+
 
 async def print_payments_msg(ctx, messages):
     if messages == []:
@@ -606,14 +645,17 @@ async def print_payments_msg(ctx, messages):
         else:
             await ctx.send(messages[idx])
 
+
 async def payments_output(guilds, id):
     next_due = None
     while True:
         # confirm that user still exists otherwise break
         cat = session.query(Categories).get(id)
         if not cat:
-            logger.info(f"Category with id {id} removed from payments list "
-                         "because they have been deleted from db since last time.")
+            logger.info(
+                f"Category with id {id} removed from payments list "
+                f"because they have been deleted from db since last time."
+            )
             break
         if cat.verbosity == 0:
             break
@@ -635,6 +677,7 @@ async def payments_output(guilds, id):
                 if channel.id == int(cat.output_channel):
                     messages = await get_category_msg(cat)
                     await print_payments_msg(channel, messages)
+
 
 async def payments_input(category, message):
     cat_owners, cat_owner_ids, found = {}, [], False
@@ -674,6 +717,7 @@ async def payments_input(category, message):
                 logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
     session.commit()
 
+
 async def process_chat_command(message):
     first, second = message.split(' executed chat command ')
     command, params = second.split('  with params ')
@@ -699,6 +743,7 @@ async def process_chat_command(message):
                 f.write(line)
         except Exception as e:
             print(e)
+
 
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
