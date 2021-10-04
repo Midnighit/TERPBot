@@ -422,7 +422,7 @@ async def get_category_msg(category, messages=[]):
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
-    fmt = '%A %d-%b-%Y %H:%M UTC :clock:'
+    fmt = '%A %d-%b-%Y %H:%M UTC'
     freq = category.frequency
     now = datetime.utcnow()
     for group in groups:
@@ -458,14 +458,17 @@ async def get_category_msg_original(category, messages=[]):
     groups.sort(key=lambda owner: owner.name)
     type = "Clans" if category.guild_pay else "Characters"
     chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n"
+    fmt = '%A %d-%b-%Y %H:%M UTC'
+    freq = category.frequency
     msgs = []
     if len(messages) > 0:
         if len(messages[-1] + "\n" + chunk) <= 2000:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
     for group in groups:
-        last_pay = group.last_payment.strftime('%A %d-%b-%Y %H:%M UTC') if group.last_payment else 'Never'
-        next_due = group.next_due.strftime('%A %d-%b-%Y %H:%M UTC')
+        last_pay = group.last_payment.strftime(fmt) if group.last_payment else 'Never'
+        next_due = group.next_due if last_pay == 'Never' else group.last_payment + freq
+
         if category.frequency == timedelta(weeks=1):
             dur = 'week'
         elif category.frequency == timedelta(days=28):
@@ -478,7 +481,7 @@ async def get_category_msg_original(category, messages=[]):
         elif group.balance == 0:
             line = (f"**{group.name}** has **not paid for this {dur} yet**. "
                     f"Last payment was made: **{last_pay}**. "
-                    f"Next payment is due on **{next_due}** at the latest.\n")
+                    f"Next payment is due on **{next_due.strftime(fmt)}** at the latest.\n")
         else:
             periods = f" ({abs(group.balance)} billing periods)" if group.balance < -1 else ''
             line = (f"**{group.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n")
@@ -542,7 +545,7 @@ async def get_user_msg(groups, messages=[]):
         if len(messages[-1] + chunk) <= 2000:
             chunk = messages[-1] + chunk
             msgs = messages[:-1]
-    fmt = '%A %d-%b-%Y UTC'
+    fmt = '%A %d-%b-%Y %H:%M UTC'
     now = datetime.utcnow()
     for group in groups:
         freq = group.category.frequency
