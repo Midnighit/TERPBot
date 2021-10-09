@@ -4,7 +4,6 @@ attrs==20.3.0
 chardet==3.0.4
 construct==2.10.57
 discord.py==1.6.0
-exiles-api>=1.16.12
 factorio-rcon-py==1.2.1
 idna==3.1
 multidict==5.1.0
