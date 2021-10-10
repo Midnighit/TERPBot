@@ -1,6 +1,6 @@
 from exceptions import (
-    NotApplicantError, MemberError, ApplicantError, IsBotError, HasRoleError, HasNotRoleError,
-    RoleTooLowError, NotNumberError, NumberNotInRangeError
+    NotApplicantError, MemberError, ApplicantError, IsBotError, HasRoleError, HasNotRoleError, RoleTooLowError,
+    NotNumberError, NumberNotInRangeError,
 )
 from discord.ext.commands import check, MissingRequiredArgument
 from exiles_api import session, Applications
@@ -9,7 +9,7 @@ from functions import get_roles
 guild = None
 
 ##############
-''' Checks '''
+""" Checks """
 ##############
 
 
@@ -18,17 +18,19 @@ def is_applicant():
         if not session.query(Applications).filter_by(disc_id=ctx.author.id).first():
             raise NotApplicantError()
         return True
+
     return check(predicate)
 
 
 def is_not_applicant():
     async def predicate(ctx):
         if app := session.query(Applications).filter_by(disc_id=ctx.author.id).first():
-            if app.status == 'accepted':
+            if app.status == "accepted":
                 raise MemberError()
             else:
                 raise ApplicantError()
         return True
+
     return check(predicate)
 
 
@@ -37,6 +39,7 @@ def is_not_bot():
         if ctx.author.bot:
             raise IsBotError()
         return True
+
     return check(predicate)
 
 
@@ -47,6 +50,7 @@ def has_not_role(check_role: str):
         if roles[check_role] in member.roles:
             raise HasRoleError(f"Command may not used by users with role {check_role}.")
         return True
+
     return check(predicate)
 
 
@@ -57,6 +61,7 @@ def has_role(check_role: str):
         if not roles[check_role] in member.roles:
             raise HasNotRoleError(f"Command may only be used by users with role {check_role}.")
         return True
+
     return check(predicate)
 
 
@@ -68,6 +73,7 @@ def has_role_greater_or_equal(check_role: str):
             if author_role >= roles[check_role]:
                 return True
         raise RoleTooLowError(f"Command may only be used by users with role greater or equal than {check_role}.")
+
     return check(predicate)
 
 
@@ -79,12 +85,13 @@ def has_role_greater(check_role: str):
             if author_role > roles[check_role]:
                 return True
         raise RoleTooLowError(f"Command may only be used by users with role greater than {check_role}.")
+
     return check(predicate)
 
 
 def number_in_range(min: int, max: int):
     async def predicate(ctx):
-        if ctx.message.content.lstrip().find(' ') > 0:
+        if ctx.message.content.lstrip().find(" ") > 0:
             v = ctx.message.content.split()
         else:
             raise MissingRequiredArgument(ctx.command)
@@ -93,6 +100,7 @@ def number_in_range(min: int, max: int):
         if int(v[1]) < min or int(v[1]) > max:
             raise NumberNotInRangeError(f"Number must be between {str(min)} and {str(max)}.")
         return True
+
     return check(predicate)
 
 

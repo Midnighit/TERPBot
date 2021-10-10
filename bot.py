@@ -12,14 +12,15 @@ from logger import logger
 from checks import has_role, init_checks
 from exiles_api import session, MagicChars, Characters, Groups, Categories, TextBlocks, Applications, GlobalVars
 from functions import (
-    get_channels, get_guild, listplayers, get_time_decimal, set_time_decimal, get_categories, payments,
-    get_roles, exception_catching_callback, payments_output, parse, payments_input, process_chat_command
+    get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal,
+    payments, payments_input, payments_output, parse, listplayers, exception_catching_callback, process_chat_command
 )
 from config import (
-    PREFIX, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY, MAGIC_ROLLS, MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE,
-    CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE,
-    SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME,
-    ROLL_FOR_MANA, NOT_APPLIED_ROLE, WELCOME, STATUS, TIME_SYNC, SHUTDOWN_MSG, RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS
+    PREFIX, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY, MAGIC_ROLLS,
+    MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST,
+    CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, NOT_APPLIED_ROLE, SETROLES_EXPLANATION,
+    SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC, SHUTDOWN_MSG,
+    RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS
 )
 
 intents = discord.Intents.default()
@@ -53,7 +54,7 @@ async def magic_rolls():
             f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:"
         )
         output = f"```{hd[0]:<{wd}} | {hd[1]:>{len(hd[1])}}"
-        output += '\n' + '-' * (len(output) - 3)
+        output += "\n" + "-" * (len(output) - 3)
         for mchar in mchars:
             mchar.mana = random.randint(MAGIC_ROLL_RANGE[0], MAGIC_ROLL_RANGE[1])
             chunk = f"\n{mchar.name:<{wd}} | {mchar.mana:>{len(hd[1])}}"
@@ -124,7 +125,7 @@ async def update_roles():
                 end_pos = len(roles_idx)
             roles_idx.append(name)
 
-        before_clan_roles = roles_idx[:end_pos + 1]
+        before_clan_roles = roles_idx[: end_pos + 1]
         after_clan_roles = roles_idx[start_pos:]
 
         # create a slice of only those guilds that are actually required
@@ -214,9 +215,9 @@ async def set_time():
 
 
 async def set_roles(channels):
-    content = SETROLES_EXPLANATION + '\n'
+    content = SETROLES_EXPLANATION + "\n"
     for emoji, data in SETROLES_REACTIONS.items():
-        content += data['descr'] + '\n'
+        content += data["descr"] + "\n"
     found = None
     async for message in channels[SETROLES].history(limit=100):
         if message.author == bot.user:
@@ -228,8 +229,9 @@ async def set_roles(channels):
     for emoji, data in SETROLES_REACTIONS.items():
         await message.add_reaction(emoji)
 
+
 ##############
-''' Events '''
+""" Events """
 ##############
 
 
@@ -290,7 +292,7 @@ async def on_member_join(member):
     roles = get_roles(guild)
     channels = get_channels(guild)
     await member.add_roles(roles[NOT_APPLIED_ROLE])
-    await channels[WELCOME].send(parse(guild, member, TextBlocks.get('GREETING')))
+    await channels[WELCOME].send(parse(guild, member, TextBlocks.get("GREETING")))
 
 
 @bot.event
@@ -306,7 +308,7 @@ async def on_member_remove(member):
                     if user.id == member.id:
                         await reaction.remove(user)
     app = session.query(Applications).filter_by(disc_id=member.id).first()
-    if app and app.status not in ('rejected', 'approved'):
+    if app and app.status not in ("rejected", "approved"):
         session.delete(app)
         session.commit()
         logger.info(f"{member} just left discord. Ongoing application was cancelled")
@@ -333,7 +335,7 @@ async def on_message(message):
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
     if message.channel == channels[PIPPI_CHATLOG]:
-        if ' executed chat command ' in message.content:
+        if " executed chat command " in message.content:
             await process_chat_command(message.content)
     if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
@@ -346,10 +348,10 @@ async def on_message(message):
             if cmd.name == word:
                 await bot.process_commands(message)
                 return
-    if app and app.status in ('rejected', 'accepted'):
+    if app and app.status in ("rejected", "accepted"):
         return
     if not app or not app.can_edit_questions():
-        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get('APP_CLOSED')))
+        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get("APP_CLOSED")))
         return
     if app.current_question < 0:
         return
@@ -360,9 +362,9 @@ async def on_message(message):
     if app.current_question > 0:
         question = await Apps.get_question_msg(guild, questions, message.author, app.current_question)
         await message.author.dm_channel.send(question)
-    elif not app.status == 'finished':
-        app.status = 'finished'
-        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get('FINISHED')))
+    elif not app.status == "finished":
+        app.status = "finished"
+        await message.author.dm_channel.send(parse(guild, message.author, TextBlocks.get("FINISHED")))
     session.commit()
 
 
@@ -374,9 +376,9 @@ async def on_raw_reaction_add(payload):
         roles = get_roles(guild)
         if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
             reaction = SETROLES_REACTIONS[payload.emoji.name]
-            name = reaction['role']
+            name = reaction["role"]
             if name not in roles:
-                mentionable = reaction['mentionable'] if 'mentionable' in reaction else False
+                mentionable = reaction["mentionable"] if "mentionable" in reaction else False
                 roles[name] = await guild.create_role(name=name, mentionable=mentionable)
             await payload.member.add_roles(roles[name])
 
@@ -389,7 +391,7 @@ async def on_raw_reaction_remove(payload):
         roles = get_roles(guild)
         if payload.emoji.name in SETROLES_REACTIONS and payload.channel_id == channels[SETROLES].id:
             reaction = SETROLES_REACTIONS[payload.emoji.name]
-            name = reaction['role']
+            name = reaction["role"]
             if name in roles:
                 for member in guild.members:
                     if roles[name] in member.roles and member.id == payload.user_id:
@@ -421,5 +423,6 @@ async def on_command_error(ctx, error):
 async def reload(ctx, extension):
     bot.reload_extension(f"cogs.{extension}")
     await ctx.send(f"Cog {extension} has been reloaded.")
+
 
 bot.run(DISCORD_TOKEN)

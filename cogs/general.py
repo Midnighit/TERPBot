@@ -4,8 +4,10 @@ from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
-from config import NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, CLAN_IGNORE_LIST
-from config import CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
+from config import (
+    NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE,
+    CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
+)
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds
 from exceptions import NoDiceFormatError
 from functions import get_guild, get_roles, get_member, split_message, get_channels
@@ -37,41 +39,41 @@ class General(commands.Cog, name="General commands."):
             li = s.rsplit(old, occurrence)
             return new.join(li)
 
-        if input.find('d') == -1:
+        if input.find("d") == -1:
             raise NoDiceFormatError()
         input = input.replace(" ", "")
         dice = Dice()
-        num = ''
-        type = 's'
-        sign = '+'
+        num = ""
+        type = "s"
+        sign = "+"
         val = 0
         d = None
         for c in input:
-            if c in ('+', '-'):
-                if type == 's' and num != '':
-                    val = val - int(num) if sign == '-' else val + int(num)
-                elif type == 's' and num == '':
+            if c in ("+", "-"):
+                if type == "s" and num != "":
+                    val = val - int(num) if sign == "-" else val + int(num)
+                elif type == "s" and num == "":
                     pass
-                elif num != '':
+                elif num != "":
                     d.sides = int(num)
                     d.sign = sign
                     dice.append(d)
                 else:
                     raise NoDiceFormatError()
-                num = ''
-                type = 's'
+                num = ""
+                type = "s"
                 sign = c
-            elif c == 'd':
-                d = Die(num=int(num)) if num != '' else Die()
-                num = ''
-                type = 'd'
+            elif c == "d":
+                d = Die(num=int(num)) if num != "" else Die()
+                num = ""
+                type = "d"
             else:
                 if not c.isnumeric():
                     raise NoDiceFormatError()
                 num += c
-        if type == 's' and num != '':
-            val = val - int(num) if sign == '-' else val + int(num)
-        elif num != '':
+        if type == "s" and num != "":
+            val = val - int(num) if sign == "-" else val + int(num)
+        elif num != "":
             d.sides = int(num)
             d.sign = sign
             dice.append(d)
@@ -94,31 +96,31 @@ class General(commands.Cog, name="General commands."):
         if not users:
             return f"No discord user or character named **{arg}** was found."
 
-        msg = ''
+        msg = ""
         for user in users:
-            disc_id = '(@' + user.disc_id + ') ' if with_disc_id else ''
+            disc_id = "(@" + user.disc_id + ") " if with_disc_id else ""
             if len(user.characters) == 0:
                 msg += f"No characters linked to discord nick **{user.disc_user}** {disc_id}have been found.\n\n"
             else:
                 msg += f"The characters belonging to the discord nick **{user.disc_user}** {disc_id}are:\n"
                 if detailed:
                     for char in user.characters:
-                        char_id = ' (' + str(char.id) + ')' if with_char_id else ''
+                        char_id = " (" + str(char.id) + ")" if with_char_id else ""
                         lldate = char.last_login.strftime("%d-%b-%Y %H:%M UTC")
-                        guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ''
-                        slot = " on **active** slot" if char.slot == 'active' else f" on slot **{char.slot}**"
+                        guild = f" is **{RANKS[char.rank]}** of clan **{char.guild.name}**" if char.has_guild else ""
+                        slot = " on **active** slot" if char.slot == "active" else f" on slot **{char.slot}**"
                         msg += f"**{char.name}**{char_id}{guild}{slot} (last login: {lldate})\n"
                 else:
                     char_names = [char.name for char in user.characters]
                     if len(char_names) > 2:
-                        csv = '**, **'.join(char_names[:-2])
-                        asv = '** and **'.join(char_names[-2:])
-                        msg += '**' + csv + '**, **' + asv + '**\n'
+                        csv = "**, **".join(char_names[:-2])
+                        asv = "** and **".join(char_names[-2:])
+                        msg += "**" + csv + "**, **" + asv + "**\n"
                     elif len(char_names) == 2:
-                        msg += '**' + char_names[0] + '** and **' + char_names[1] + '**\n'
+                        msg += "**" + char_names[0] + "** and **" + char_names[1] + "**\n"
                     else:
-                        msg += '**' + char_names[0] + '**\n'
-                msg += '\n'
+                        msg += "**" + char_names[0] + "**\n"
+                msg += "\n"
         return msg[:-2]
 
     @staticmethod
@@ -127,11 +129,11 @@ class General(commands.Cog, name="General commands."):
             return [f"No clan named **{arg}** was found."]
 
         msg = []
-        chunk = ''
+        chunk = ""
         for guild in guilds:
             members = guild.members
-            mem = 'members' if len(members) > 1 or len(members) == 0 else 'member'
-            gid = f"({guild.id}) " if guild_id else ''
+            mem = "members" if len(members) > 1 or len(members) == 0 else "member"
+            gid = f"({guild.id}) " if guild_id else ""
             chunk += f"Clan **{guild.name}** {gid}has **{len(members)}** {mem}:\n"
             if len(members) == 0:
                 continue
@@ -150,16 +152,18 @@ class General(commands.Cog, name="General commands."):
                 members = members_by_rank[rank]
                 rank_nam = "Undeterminable rank" if rank == -1 else RANKS[rank]
                 for member in members:
-                    mem_msg = ''
+                    mem_msg = ""
                     lldate = member.last_login.strftime("%d-%b-%Y %H:%M UTC")
-                    cid = f"({member.id}) " if char_id else ''
+                    cid = f"({member.id}) " if char_id else ""
                     slot = member.slot
-                    if slot == 'active':
-                        mem_msg += (f"**{member.name}** {cid}is **{rank_nam}** on "
-                                    f"**active** slot (last login: {lldate})\n")
+                    if slot == "active":
+                        mem_msg += (
+                            f"**{member.name}** {cid}is **{rank_nam}** on " f"**active** slot (last login: {lldate})\n"
+                        )
                     else:
-                        mem_msg += (f"**{member.name}** {cid}is **{rank_nam}** on "
-                                    f"slot **{slot}** (last login: {lldate})\n")
+                        mem_msg += (
+                            f"**{member.name}** {cid}is **{rank_nam}** on " f"slot **{slot}** (last login: {lldate})\n"
+                        )
 
                     if len(chunk) + len(mem_msg) >= 2000:
                         msg.append(chunk)
@@ -168,9 +172,9 @@ class General(commands.Cog, name="General commands."):
                         chunk += mem_msg
             if len(chunk) >= 1998:
                 msg.append(chunk)
-                chunk = '\n'
+                chunk = "\n"
             else:
-                chunk += '\n'
+                chunk += "\n"
 
         msg.append(chunk)
         return msg
@@ -183,7 +187,7 @@ class General(commands.Cog, name="General commands."):
         msg = f"Thralls, pets and mounts with **{arg}** in their name:\n"
         for key in sorted(thralls):
             thrall = thralls[key]
-            owner_name = thrall['owner'].name if thrall['owner'] else "nobody"
+            owner_name = thrall["owner"].name if thrall["owner"] else "nobody"
             if owner_name == "":
                 owner_name = "no name"
             msg += f"**{key}** is owned by **{owner_name}**"
@@ -192,7 +196,7 @@ class General(commands.Cog, name="General commands."):
 
                 msg += f" has object_id **{thrall['object_id']}**"
             if loc:
-                ap = session.query(ActorPosition).filter_by(id=thrall['object_id']).first()
+                ap = session.query(ActorPosition).filter_by(id=thrall["object_id"]).first()
                 tp = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
                 msg += f" and is at location `{tp}`"
             msg += ".\n"
@@ -214,7 +218,7 @@ class General(commands.Cog, name="General commands."):
             if loc:
                 if obj:
                     line += " and"
-                ap = session.query(ActorPosition).filter_by(id=thrall['object_id']).first()
+                ap = session.query(ActorPosition).filter_by(id=thrall["object_id"]).first()
                 tp = f"TeleportPlayer {round(ap.x)} {round(ap.y)} {ceil(ap.z)}" if ap else "unknown"
                 line += f" is at location `{tp}`"
             lines.append(line)
@@ -231,7 +235,7 @@ class General(commands.Cog, name="General commands."):
 
         return msg
 
-    @command(name='roll', help="Rolls a dice in NdN format.")
+    @command(name="roll", help="Rolls a dice in NdN format.")
     async def roll(self, ctx, *, Dice: str):
         result = await self.roll_dice(Dice)
         await ctx.send(f"{ctx.author.mention} rolled: " + result)
@@ -250,7 +254,7 @@ class General(commands.Cog, name="General commands."):
             )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="whois", aliases=['whomst', 'whomstthefuck'], help=whois_help)
+    @command(name="whois", aliases=["whomst", "whomstthefuck"], help=whois_help)
     async def whois(self, ctx, *, Name):
         def is_staff():
             roles = get_roles(self.guild)
@@ -267,7 +271,7 @@ class General(commands.Cog, name="General commands."):
         if "disc_id" in arg_list:
             show_disc_id = True
             arg_list.remove("disc_id")
-        arg = ' '.join(arg_list)
+        arg = " ".join(arg_list)
         # try converting the given argument into a member
         member = await get_member(ctx, arg)
         if member:
@@ -275,11 +279,11 @@ class General(commands.Cog, name="General commands."):
             disc_user = str(member)
         # if conversion failed, check if the format looks like it's supposed to be a discord member
         else:
-            if len(arg) > 5 and arg[-5] == '#':
+            if len(arg) > 5 and arg[-5] == "#":
                 disc_user = arg
             elif len(arg) >= 17 and arg.isnumeric():
                 disc_id = arg
-            elif arg[:3] == "<@!" and arg[-1] == '>' and len(arg) == 22:
+            elif arg[:3] == "<@!" and arg[-1] == ">" and len(arg) == 22:
                 disc_id = arg[3:-1]
         # try to determine the user
         users = []
@@ -327,7 +331,7 @@ class General(commands.Cog, name="General commands."):
                 gold, silver, bronze = money
                 m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
-            msg = '\n'.join(m)
+            msg = "\n".join(m)
 
         for part in split_message(msg):
             await ctx.send(part)
@@ -367,7 +371,7 @@ class General(commands.Cog, name="General commands."):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
 
-        guilds = session.query(Guilds).filter(Guilds.name.like('%' + name + '%')).all()
+        guilds = session.query(Guilds).filter(Guilds.name.like("%" + name + "%")).all()
         guild_strings = await self.get_clan_string(name, guilds, guild_id, char_id)
         for msg in guild_strings:
             await ctx.send(msg)
@@ -388,7 +392,7 @@ class General(commands.Cog, name="General commands."):
             strict = True
             arg_list.remove("strict")
         name = " ".join(arg_list)
-        if name == '':
+        if name == "":
             await ctx.send("Name is a required argument that is missing.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
             return
@@ -487,7 +491,7 @@ class General(commands.Cog, name="General commands."):
                 end_pos = len(roles_idx)
             roles_idx.append(name)
 
-        before_clan_roles = roles_idx[:end_pos + 1]
+        before_clan_roles = roles_idx[: end_pos + 1]
         after_clan_roles = roles_idx[start_pos:]
 
         # create a slice of only those guilds that are actually required
@@ -536,16 +540,18 @@ class General(commands.Cog, name="General commands."):
         await self.guild.edit_role_positions(positions)
         await ctx.send("Done!")
 
-    @command(name="donate", aliases=['donations', 'donation'])
+    @command(name="donate", aliases=["donations", "donation"])
     async def donate(self, ctx):
         channels = get_channels(bot=self.bot)
-        donations_channel = channels['donations'] if 'donations' in channels else None
+        donations_channel = channels["donations"] if "donations" in channels else None
         ari = await get_member(ctx, 123298178828206080)
         if donations_channel and ari:
-            await ctx.send(f"If you'd like to contribute to the operating costs of the server, please have a look at "
-                           f"{donations_channel.mention}. You can either contribute monthly through the Patreon, "
-                           f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
-                           f"it helps keep the server up and running at less of an expense to {ari.mention}")
+            await ctx.send(
+                f"If you'd like to contribute to the operating costs of the server, please have a look at "
+                f"{donations_channel.mention}. You can either contribute monthly through the Patreon, "
+                f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
+                f"it helps keep the server up and running at less of an expense to {ari.mention}"
+            )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
 

@@ -1,9 +1,9 @@
 from discord.ext import commands as cmds
 
 
-##############
-''' Exceptions '''
-##############
+##################
+""" Exceptions """
+##################
 
 
 class CustomError(cmds.CommandError):
