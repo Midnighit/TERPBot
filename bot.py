@@ -1,4 +1,3 @@
-# TERPBot v1.2.1
 import os
 import random
 import discord
