@@ -1,8 +1,10 @@
-from config import *
-from exceptions import *
-from discord.ext.commands import check, BadArgument, MissingRequiredArgument
+from exceptions import (
+    NotApplicantError, MemberError, ApplicantError, IsBotError, HasRoleError, HasNotRoleError,
+    RoleTooLowError, NotNumberError, NumberNotInRangeError
+)
+from discord.ext.commands import check, MissingRequiredArgument
 from exiles_api import session, Applications
-from functions import *
+from functions import get_roles
 
 guild = None
 
@@ -32,7 +34,7 @@ def is_not_applicant():
 
 def is_not_bot():
     async def predicate(ctx):
-        if ctx.author == bot.user:
+        if ctx.author.bot:
             raise IsBotError()
         return True
     return check(predicate)

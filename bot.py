@@ -3,15 +3,24 @@ import os
 import random
 import discord
 import asyncio
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from discord import ChannelType
 from discord.ext import commands
+from cogs.applications import Applications as Apps
 from logger import logger
 from checks import has_role, init_checks
-from config import *
-from exiles_api import *
-from functions import *
-from cogs.applications import Applications as Apps
+from exiles_api import session, MagicChars, Characters, Groups, Categories, TextBlocks, Applications, GlobalVars
+from functions import (
+    get_channels, get_guild, listplayers, get_time_decimal, set_time_decimal, get_categories, payments,
+    get_roles, exception_catching_callback, payments_output, parse, payments_input, process_chat_command
+)
+from config import (
+    PREFIX, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY, MAGIC_ROLLS, MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE,
+    CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE,
+    SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME,
+    ROLL_FOR_MANA, NOT_APPLIED_ROLE, WELCOME, STATUS, TIME_SYNC, SHUTDOWN_MSG, RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS
+)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -35,12 +44,14 @@ async def magic_rolls():
         mchars = session.query(MagicChars).filter_by(active=True).order_by(MagicChars.name).all()
         if len(mchars) == 0:
             await channels[MAGIC_ROLLS].send("No magic chars registered.")
-            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No magic chars registered.")
+            logger.info("No magic chars registered.")
             continue
         longest_name = session.query(func.max(func.length(MagicChars.name))).filter_by(active=True).scalar()
         hd = ["Character", " MP"]
         wd = longest_name if longest_name > len(hd[0]) else len(hd[0])
-        await channels[MAGIC_ROLLS].send(f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:")
+        await channels[MAGIC_ROLLS].send(
+            f"Mana point rolls for calendar week **{datetime.utcnow().isocalendar()[1]}**:"
+        )
         output = f"```{hd[0]:<{wd}} | {hd[1]:>{len(hd[1])}}"
         output += '\n' + '-' * (len(output) - 3)
         for mchar in mchars:
@@ -239,7 +250,6 @@ async def on_ready():
     # get all channels
     channels = get_channels(guild)
     # get all roles
-    roles = get_roles(guild)
     # create channel and category if necessary
     for channel in DISCORD_CHANNELS:
         if not channel[0] in channels:
@@ -398,12 +408,10 @@ async def on_command_error(ctx, error):
         await ctx.send(error)
     else:
         await ctx.send("Unknown error. Please check the logs for details.")
-    f = False
     if hasattr(error, "args"):
         for arg in error.args:
             if isinstance(arg, str):
                 error = arg
-                f = True
                 break
     logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {str(error)}")
 

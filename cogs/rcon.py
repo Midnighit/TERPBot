@@ -1,6 +1,4 @@
 import itertools
-import discord
-from discord import Member
 from discord.ext import commands
 from discord.ext.commands import command
 from logger import logger

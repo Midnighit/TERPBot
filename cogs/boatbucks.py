@@ -1,11 +1,12 @@
 import random
+from sqlalchemy import func
 from discord import Member
 from discord.ext import commands
-from discord.ext.commands import command, group
+from discord.ext.commands import group
 from logger import logger
-from config import *
-from exiles_api import *
-from functions import *
+from config import PREFIX
+from exiles_api import session, Boatbucks, Users, GlobalVars
+from functions import pe, get_member
 
 # rowboat birthday 25-July - potential reveal day?
 
@@ -111,11 +112,16 @@ class BBK(commands.Cog, name="Boatbucks commands."):
     @list.error
     async def list_error(self, ctx, error):
         GlobalVars.set_value("caught", 1)
-        await ctx.send("I'm terribly sorry but there has been an error, please contact support or ask my maker for help.")
+        await ctx.send(
+            "I'm terribly sorry but there has been an error, "
+            "please contact support or ask my maker for help."
+        )
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @boatbucks.command(aliases=['pay'],
-                       help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank.")
+    @boatbucks.command(
+        aliases=['pay'],
+        help="Pay boatbucks to another player from your own account... or just print them if you own the boatbank."
+    )
     async def give(self, ctx, bucks: int, member: Member):
         # sender tries to send a negative amount of bucks (i.e. gaining bucks)
         if bucks < 0:
@@ -201,7 +207,13 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @boatbucks.command(name="take", help="Withdraw a given amount of boatbucks from some poor soul. As befits such a tyrannical command, it's only available to Rowboat and her henchmen at the boatbank.")
+    @boatbucks.command(
+        name="take",
+        help=(
+            "Withdraw a given amount of boatbucks from some poor soul. "
+            "As befits such a tyrannical command, it's only available to Rowboat and her henchmen at the boatbank."
+        )
+    )
     async def take(self, ctx, bucks: int, member: Member):
         # sender can't create and take away boatbucks at will
         if ctx.author.id not in self.permitted:
@@ -261,7 +273,13 @@ class BBK(commands.Cog, name="Boatbucks commands."):
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @boatbucks.command(name="tax", help="Withdraw funds to keep the boatbank afloat. Target of the tax is determined by a complicated calculation that is totally not random.")
+    @boatbucks.command(
+        name="tax",
+        help=(
+            "Withdraw funds to keep the boatbank afloat. "
+            "Target of the tax is determined by a complicated algorithm that is totally not random."
+        )
+    )
     async def tax(self, ctx):
         # sender can't collect taxes
         if ctx.author.id not in self.permitted:
