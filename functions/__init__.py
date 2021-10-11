@@ -5,7 +5,7 @@ import pprint
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
-from factorio_rcon import RCONClient
+from mcrcon import MCRcon
 from psutil import process_iter
 from logger import logger
 from exiles_api import (
@@ -13,8 +13,6 @@ from exiles_api import (
     Users, Groups, CatOwners, Categories, OwnersCache, GlobalVars
 )
 from config import RCON_IP, RCON_PORT, RCON_PASSWORD, DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
-
-rcon = RCONClient(RCON_IP, RCON_PORT, RCON_PASSWORD, timeout=5.0, connect_on_init=False)
 
 
 def pp(arg):
@@ -104,11 +102,8 @@ def rreplace(s, old, new):
 
 def listplayers():
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, "ListPlayers")
-        packets = rcon.receive_packets()
-        rcon.close()
-        result = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            result = mcr.command("ListPlayers")
     except Exception as err:
         return (str(err), False)
     lines = result.split("\n")
@@ -192,11 +187,8 @@ def is_time_format(time):
 
 def get_time():
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, "TERPO getTime")
-        packets = rcon.receive_packets()
-        rcon.close()
-        result = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            result = mcr.command("TERPO getTime")
     except Exception as err:
         return (str(err), False)
     return (result, True)
@@ -204,11 +196,8 @@ def get_time():
 
 def set_time(time):
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, f"TERPO setTime {time}")
-        packets = rcon.receive_packets()
-        rcon.close()
-        result = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            result = mcr.command(f"TERPO setTime {time}")
     except Exception as err:
         return (str(err), False)
     return (result, True)
@@ -217,11 +206,8 @@ def set_time(time):
 def get_time_decimal():
     logger.info("Trying to read the time from the game server.")
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, "TERPO getTimeDecimal")
-        packets = rcon.receive_packets()
-        rcon.close()
-        result = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            result = mcr.command("TERPO getTimeDecimal")
     except Exception as err:
         logger.error(f"Failed to read time from game server. RConError: {str(err)}")
         return 1
@@ -237,11 +223,8 @@ def set_time_decimal():
     time = GlobalVars.get_value("LAST_RESTART_TIME")
     logger.info(f"Trying to reset the time to the previously read time of {time}")
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, f"TERPO setTimeDecimal {time}")
-        packets = rcon.receive_packets()
-        rcon.close()
-        result = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            result = mcr.command(f"TERPO setTimeDecimal {time}")
     except Exception as err:
         logger.error(f"Failed to set time {time}. RConError: err == {str(err)}")
         return 1
@@ -294,11 +277,8 @@ def whitelist_player(funcom_id):
     # try whitelisting via rcon
     msg = "Whitelisting failed. Server didn't respond. Please try again later."
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, f"WhitelistPlayer {funcom_id}")
-        packets = rcon.receive_packets()
-        rcon.close()
-        msg = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            msg = mcr.command(f"WhitelistPlayer {funcom_id}")
     except Exception as err:
         return (str(err), False)
 
@@ -333,11 +313,8 @@ def whitelist_player(funcom_id):
 def unwhitelist_player(funcom_id):
     msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
     try:
-        rcon.connect()
-        rcon.send_packet(0, 2, f"UnWhitelistPlayer {funcom_id}")
-        packets = rcon.receive_packets()
-        rcon.close()
-        msg = packets[0].body
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            msg = mcr.command(f"UnwhitelistPlayer {funcom_id}")
     except Exception as err:
         return (str(err), False)
 
