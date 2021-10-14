@@ -6,10 +6,9 @@ from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
 from mcrcon import MCRcon
-from psutil import process_iter
 from logger import logger
 from exiles_api import (
-    session, next_time, Owner, Guilds, Characters,
+    session, next_time, is_running, Owner, Guilds, Characters,
     Users, Groups, CatOwners, Categories, OwnersCache, GlobalVars
 )
 from config import RCON_IP, RCON_PORT, RCON_PASSWORD, DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
@@ -233,19 +232,6 @@ def set_time_decimal():
         return 2
     logger.info("Time was reset successfully!")
     return 0
-
-
-def is_running(process_name, strict=False):
-    """Check if there is any running process that contains the given name process_name."""
-    # Iterate over the all the running process
-    for proc in process_iter():
-        try:
-            # Check if process name contains the given name string.
-            if process_name.lower() in proc.name().lower():
-                return True
-        except Exception:
-            pass
-    return False
 
 
 def is_on_whitelist(funcom_id):

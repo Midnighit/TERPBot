@@ -5,10 +5,10 @@ from discord.ext.commands import command
 from logger import logger
 from checks import has_role_greater_or_equal, has_role
 from config import SUPPORT_ROLE, ADMIN_ROLE, WHITELIST_PATH
-from exiles_api import session, Users
+from exiles_api import session, is_running, Users
 from functions import (
-    listplayers, get_member, whitelist_player, unwhitelist_player, get_time, set_time,
-    is_running, is_on_whitelist, is_time_format
+    listplayers, get_member, whitelist_player, unwhitelist_player,
+    get_time, set_time, is_on_whitelist, is_time_format
 )
 from cogs.applications import Applications
 
