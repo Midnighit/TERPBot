@@ -1,14 +1,16 @@
 import random
+import exiles_api
+from mcrcon import MCRcon
 from math import ceil
 from discord.ext import commands
-from discord.ext.commands import command
+from discord.ext.commands import command, group
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
-    NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE,
+    NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE,
     CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
 )
-from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds
+from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
 from functions import get_guild, get_roles, get_member, split_message, get_channels
 
@@ -309,33 +311,176 @@ class General(commands.Cog, name="General commands."):
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="hasmoney", help="Gives the amount of Pippi money in the wallet of the given character.")
-    @has_role_greater_or_equal(SUPPORT_ROLE)
-    async def hasmoney(self, ctx, *, Name):
-        if Name.isnumeric():
-            owner = Owner.get(Name)
-            owners = [owner]
-        else:
-            owners = Owner.get_by_name(Name, strict=False, nocase=True)
-            money = Properties.get_pippi_money(name=Name)
-
-        if len(owners) == 0:
-            msg = f"No character or clan named **{Name}** was found."
-        else:
+    @group(help="Commands to view/add/remove Pippi money.")
+    async def money(self, ctx):
+        if ctx.invoked_subcommand is None:
+            user = Users.get_users(ctx.author.id)[0]
             m = []
-            for owner in owners:
-                if owner.is_character:
-                    money = Properties.get_pippi_money(char_id=owner.id)
-                else:
-                    money = Properties.get_pippi_money(guild_id=owner.id)
+            for owner in user.characters:
+                money = Properties.get_pippi_money(char_id=owner.id)
                 gold, silver, bronze = money
                 m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
             msg = "\n".join(m)
 
-        for part in split_message(msg):
-            await ctx.send(part)
+            for part in split_message(msg):
+                await ctx.send(part)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @money.command(help="Gives Pippi money to a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def add(self, ctx, *, args):
+        arg_list = args.split()
+        types = ("gold", "silver", "bronze")
+        money = {}
+        rem = []
+        idx, prev = 0, None
+
+        # find and store the money to the money dict
+        for arg in arg_list:
+            # only occurences with numeric values coming before them are considered
+            if prev and prev.isnumeric():
+                # check for each currency type
+                for type in types:
+                    if type == arg.lower():
+                        money[type] = int(prev)
+                        # append index of amount and currency to rem for later deletion
+                        rem += [idx-1, idx]
+
+            prev = arg
+            idx += 1
+
+        # traverse the removal list backwards to ensure the indices remain the same after deletion
+        for idx in reversed(rem):
+            del arg_list[idx]
+
+        name = " ".join(arg_list)
+        owner = None
+        # if name is numeric it could be the char_id
+        if name.isnumeric():
+            owner = session.query(Characters).get(name)
+
+        # if name is not numeric or no owner was found so far, try to find any charcter matching it
+        if not owner:
+            owners = Owner.get_by_name(name, strict=False, include_guilds=False)
+
+            if len(owners) > 1:
+                await ctx.send(
+                        f"Name \"{name}\" is too ambiguous. "
+                        f"Please refine the characters name or use the character id."
+                )
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Name ambiguous.")
+                return
+            elif len(owners) == 0:
+                await ctx.send(
+                        f"Couldn't find a character named \"{name}\". "
+                        f"Please check your spelling or use the character id."
+                )
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No character found.")
+                return
+            else:
+                owner = owners[0]
+
+        add_money = ((money.get("bronze", 0) / 100. + money.get("silver", 0)) / 100. + money.get("gold", 0))
+        p_name = "Pippi_WalletComponent_C.walletAmount"
+        p = session.query(Properties).filter_by(name=p_name, object_id=owner.id).scalar()
+        new_money = p.money + add_money
+        add_gold, add_silver, add_bronze = Properties.num2tuple(add_money)
+        new_gold, new_silver, new_bronze = Properties.num2tuple(new_money)
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            exiles_api.mcr = mcr
+            p.money = new_money
+            session.commit()
+            exiles_api.mcr = None
+        await ctx.send(
+            f"**{add_gold}** gold, **{add_silver}** silver and **{add_bronze}** bronze were given to **{owner.name}**. "
+            f"They now have **{new_gold}** gold, **{new_silver}** silver and **{new_bronze}** bronze."
+        )
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @add.error
+    async def add_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @money.command(help="Takes Pippi money from a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def remove(self, ctx, *, args):
+        arg_list = args.split()
+        types = ("gold", "silver", "bronze")
+        money = {}
+        rem = []
+        idx, prev = 0, None
+
+        # find and store the money to the money dict
+        for arg in arg_list:
+            # only occurences with numeric values coming before them are considered
+            if prev and prev.isnumeric():
+                # check for each currency type
+                for type in types:
+                    if type == arg.lower():
+                        money[type] = int(prev)
+                        # append index of amount and currency to rem for later deletion
+                        rem += [idx-1, idx]
+
+            prev = arg
+            idx += 1
+
+        # traverse the removal list backwards to ensure the indices remain the same after deletion
+        for idx in reversed(rem):
+            del arg_list[idx]
+
+        name = " ".join(arg_list)
+        owner = None
+        # if name is numeric it could be the char_id
+        if name.isnumeric():
+            owner = session.query(Characters).get(name)
+
+        # if name is not numeric or no owner was found so far, try to find any charcter matching it
+        if not owner:
+            owners = Owner.get_by_name(name, strict=False, include_guilds=False)
+
+            if len(owners) > 1:
+                await ctx.send(
+                        f"Name \"{name}\" is too ambiguous. "
+                        f"Please refine the characters name or use the character id."
+                )
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. Name ambiguous.")
+                return
+            elif len(owners) == 0:
+                await ctx.send(
+                        f"Couldn't find a character named \"{name}\". "
+                        f"Please check your spelling or use the character id."
+                )
+                logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No character found.")
+                return
+            else:
+                owner = owners[0]
+
+        remove_money = ((money.get("bronze", 0) / 100. + money.get("silver", 0)) / 100. + money.get("gold", 0))
+        p_name = "Pippi_WalletComponent_C.walletAmount"
+        p = session.query(Properties).filter_by(name=p_name, object_id=owner.id).scalar()
+        new_money = p.money - remove_money
+        new_gold, new_silver, new_bronze = Properties.num2tuple(new_money)
+        remove_gold, remove_silver, remove_bronze = Properties.num2tuple(remove_money)
+        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
+            exiles_api.mcr = mcr
+            p.money = new_money
+            session.commit()
+            exiles_api.mcr = None
+        await ctx.send(
+            f"**{remove_gold}** gold, **{remove_silver}** silver and **{remove_bronze}** bronze were taken from "
+            f"**{owner.name}**. They now have **{new_gold}** gold, **{new_silver}** silver and **{new_bronze}** bronze."
+        )
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @remove.error
+    async def remove_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
     @has_not_role(NOT_APPLIED_ROLE)
@@ -445,7 +590,7 @@ class General(commands.Cog, name="General commands."):
         await ctx.send(await self.get_thralls_string(owner.name, thralls, loc, obj))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="reindex")
+    @command(name="reindex", hidden=True)
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def reindex(self, ctx):
         roles = get_roles(self.guild)
