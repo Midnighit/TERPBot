@@ -311,7 +311,7 @@ class General(commands.Cog, name="General commands."):
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @group(help="Commands to view/add/remove Pippi money.")
+    @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"])
     async def money(self, ctx):
         if ctx.invoked_subcommand is None:
             user = Users.get_users(ctx.author.id)[0]
@@ -326,7 +326,6 @@ class General(commands.Cog, name="General commands."):
             for part in split_message(msg):
                 await ctx.send(part)
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @money.error
     async def money_error(self, ctx, error):
@@ -334,7 +333,11 @@ class General(commands.Cog, name="General commands."):
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @money.command(help="Gives Pippi money to a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
+    @money.command(
+        help="Gives Pippi money to a charcter.",
+        usage="<Name> <Amount> [gold|silver|bronze]",
+        aliases=["give"]
+    )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def add(self, ctx, *, args):
         arg_list = args.split()
@@ -418,7 +421,11 @@ class General(commands.Cog, name="General commands."):
             await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @money.command(help="Takes Pippi money from a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
+    @money.command(
+        help="Takes Pippi money from a charcter.",
+        usage="<Name> <Amount> [gold|silver|bronze]",
+        aliases=["take"]
+    )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def remove(self, ctx, *, args):
         arg_list = args.split()
