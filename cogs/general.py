@@ -1,6 +1,6 @@
 import random
 import exiles_api
-from mcrcon import MCRcon
+from mcrcon import MCRcon, MCRconException
 from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command, group
@@ -328,6 +328,12 @@ class General(commands.Cog, name="General commands."):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
+    @money.error
+    async def money_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
     @money.command(help="Gives Pippi money to a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def add(self, ctx, *, args):
@@ -382,12 +388,16 @@ class General(commands.Cog, name="General commands."):
             else:
                 owner = owners[0]
 
-        add_money = ((money.get("bronze", 0) / 100. + money.get("silver", 0)) / 100. + money.get("gold", 0))
+        add_money = Properties.tuple2bronze((money.get("gold", 0), money.get("silver", 0), money.get("bronze", 0)))
         p_name = "Pippi_WalletComponent_C.walletAmount"
         p = session.query(Properties).filter_by(name=p_name, object_id=owner.id).scalar()
+        if not p:
+            await ctx.send("Can only give money to chars with a non-empty Pippi wallet.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No Pippi wallet was found.")
+            return
         new_money = p.money + add_money
-        add_gold, add_silver, add_bronze = Properties.num2tuple(add_money)
-        new_gold, new_silver, new_bronze = Properties.num2tuple(new_money)
+        add_gold, add_silver, add_bronze = Properties.bronze2tuple(add_money)
+        new_gold, new_silver, new_bronze = Properties.bronze2tuple(new_money)
         with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
             exiles_api.mcr = mcr
             p.money = new_money
@@ -402,7 +412,10 @@ class General(commands.Cog, name="General commands."):
     @add.error
     async def add_error(self, ctx, error):
         GlobalVars.set_value("caught", 1)
-        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        if isinstance(error, (MCRconException, ValueError)):
+            await ctx.send(error)
+        else:
+            await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
     @money.command(help="Takes Pippi money from a charcter.", usage="<Name> <Amount> [gold|silver|bronze]")
@@ -459,12 +472,25 @@ class General(commands.Cog, name="General commands."):
             else:
                 owner = owners[0]
 
-        remove_money = ((money.get("bronze", 0) / 100. + money.get("silver", 0)) / 100. + money.get("gold", 0))
+        remove_money = Properties.tuple2bronze((money.get("gold", 0), money.get("silver", 0), money.get("bronze", 0)))
         p_name = "Pippi_WalletComponent_C.walletAmount"
         p = session.query(Properties).filter_by(name=p_name, object_id=owner.id).scalar()
+        if not p:
+            await ctx.send("Can only remove money from chars with a non-empty Pippi wallet.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No Pippi wallet was found.")
+            return
+
         new_money = p.money - remove_money
-        new_gold, new_silver, new_bronze = Properties.num2tuple(new_money)
-        remove_gold, remove_silver, remove_bronze = Properties.num2tuple(remove_money)
+        if new_money < 0:
+            await ctx.send("Can't remove more money than the character possesses.")
+            logger.info(
+                f"Author: {ctx.author} / Command: {ctx.message.content}. "
+                f"Can't remove more money than the character possesses."
+            )
+            return
+
+        new_gold, new_silver, new_bronze = Properties.bronze2tuple(new_money)
+        remove_gold, remove_silver, remove_bronze = Properties.bronze2tuple(remove_money)
         with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
             exiles_api.mcr = mcr
             p.money = new_money
@@ -479,7 +505,10 @@ class General(commands.Cog, name="General commands."):
     @remove.error
     async def remove_error(self, ctx, error):
         GlobalVars.set_value("caught", 1)
-        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        if isinstance(error, (MCRconException, ValueError)):
+            await ctx.send(error)
+        else:
+            await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
     @command(name="mychars", help="Check which chars have already been linked to your FuncomID.")
