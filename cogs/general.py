@@ -7,7 +7,7 @@ from discord.ext.commands import command, group
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
-    NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE,
+    NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE, BUILDING_TILE_MULT, PLACEBALE_TILE_MULT,
     CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
@@ -256,7 +256,7 @@ class General(commands.Cog, name="General commands."):
             )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @command(name="whois", aliases=["whomst", "whomstthefuck"], help=whois_help)
+    @command(name="whois", help=whois_help, aliases=["whomst", "whomstthefuck"])
     async def whois(self, ctx, *, Name):
         def is_staff():
             roles = get_roles(self.guild)
@@ -733,6 +733,30 @@ class General(commands.Cog, name="General commands."):
                 f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
                 f"it helps keep the server up and running at less of an expense to {ari.mention}"
             )
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @command(name="tiles", help="Gives the tiles belonging to your chars or their clans.")
+    async def tiles(self, ctx):
+        users = Users.get_users(ctx.author.id)
+        if not users:
+            await ctx.send("No characters linked to your discord account have been found.")
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No characters found.")
+            return
+
+        msgs = []
+        # since the discord id was used, there should always only be one user in the list
+        for char in users[0].characters:
+            # if char has a guild, it's not the chars tiles we're interested in but their guild
+            if char.has_guild:
+                guild = char.guild
+                tiles = guild.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
+                msgs.append(f"The clan **{guild.name}** currently has **{tiles}** {'tile' if tiles == 1 else 'tiles'}.")
+            else:
+                tiles = char.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
+                msgs.append(f"The character **{char.name}** currently has **{tiles}** {'tile' if tiles == 1 else 'tiles'}.")
+
+        msg = "\n".join(msgs)
+        await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
 
