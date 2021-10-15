@@ -750,14 +750,22 @@ class General(commands.Cog, name="General commands."):
             if char.has_guild:
                 guild = char.guild
                 tiles = guild.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
-                msgs.append(f"The clan **{guild.name}** currently has **{tiles}** {'tile' if tiles == 1 else 'tiles'}.")
+                tiles = f"**{tiles}** {'tile' if tiles == 1 else 'tiles'}"
+                msgs.append(f"The clan **{guild.name}** currently has {tiles}.")
             else:
                 tiles = char.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
-                msgs.append(f"The character **{char.name}** currently has **{tiles}** {'tile' if tiles == 1 else 'tiles'}.")
+                tiles = f"**{tiles}** {'tile' if tiles == 1 else 'tiles'}"
+                msgs.append(f"The character **{char.name}** currently has {tiles}.")
 
         msg = "\n".join(msgs)
         await ctx.send(msg)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @tiles.error
+    async def tiles_error(self, ctx, error):
+        GlobalVars.set_value("caught", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
 
 def setup(bot):
