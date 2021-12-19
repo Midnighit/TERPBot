@@ -127,7 +127,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @list.error
     async def list_error(self, ctx, error):
-        GlobalVars.set_value("caught", 1)
+        GlobalVars.set_value("CAUGHT", 1)
         await ctx.send(
             "I'm terribly sorry but there has been an error, " "please contact support or ask my maker for help."
         )
@@ -246,7 +246,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @give.error
     async def give_error(self, ctx, error):
-        GlobalVars.set_value("caught", 1)
+        GlobalVars.set_value("CAUGHT", 1)
         if isinstance(error, commands.errors.MissingRequiredArgument):
             if error.param.name == "member":
                 await ctx.send("You need to give me the name of the user you dummy!")
@@ -341,7 +341,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @take.error
     async def take_error(self, ctx, error):
-        GlobalVars.set_value("caught", 1)
+        GlobalVars.set_value("CAUGHT", 1)
         if isinstance(error, commands.errors.MissingRequiredArgument):
             if error.param.name == "member":
                 await ctx.send("You need to give me the name of the user you dummy!")
@@ -415,7 +415,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
 
     @tax.error
     async def tax_error(self, ctx, error):
-        GlobalVars.set_value("caught", 1)
+        GlobalVars.set_value("CAUGHT", 1)
         pe(error)
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 

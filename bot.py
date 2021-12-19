@@ -400,8 +400,8 @@ async def on_raw_reaction_remove(payload):
 
 @bot.event
 async def on_command_error(ctx, error):
-    if int(GlobalVars.get_value("caught")):
-        GlobalVars.set_value("caught", 0)
+    if int(GlobalVars.get_value("CAUGHT")):
+        GlobalVars.set_value("CAUGHT", 0)
         return
     if isinstance(error, commands.BadArgument):
         await ctx.send("Bad argument error.")
