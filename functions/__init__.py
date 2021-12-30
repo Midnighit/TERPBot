@@ -127,6 +127,10 @@ def listplayers():
                             break
                 else:
                     logger.error(f"Function listplayers couldn't find character named {list[idx]['name']} in db.")
+                    continue
+                if char.user is None:
+                    logger.error(f"Char {char.name} has no user assigned.")
+                    continue
                 list.append(
                     {
                         "name": char_name,
