@@ -1,6 +1,6 @@
-import random
 import asyncio
 import exiles_api
+import random
 from datetime import datetime, timedelta
 from mcrcon import MCRcon, MCRconException
 from math import ceil
@@ -348,7 +348,7 @@ class General(commands.Cog, name="General commands."):
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]"])
+    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]")
     async def set(self, ctx, *, args):
         arg_list = args.split()
         types = ("days", "day", "d", "hours", "hour", "h", "minutes", "minute", "m", "seconds", "sec", "s")
