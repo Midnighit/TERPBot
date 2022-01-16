@@ -11,8 +11,8 @@ from logger import logger
 from checks import has_role, init_checks
 from exiles_api import session, MagicChars, Characters, Groups, Categories, TextBlocks, Applications, GlobalVars
 from functions import (
-    get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal,
-    payments, payments_input, payments_output, parse, listplayers, exception_catching_callback, process_chat_command
+    get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal, payments, payments_input,
+    payments_output, parse, listplayers, exception_catching_callback, process_chat_command, set_timer
 )
 from config import (
     PREFIX, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY, MAGIC_ROLLS,
@@ -282,6 +282,11 @@ async def on_ready():
     for category in session.query(Categories).all():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
         payments_output_task.add_done_callback(exception_catching_callback)
+    timers = GlobalVars.get_value("TIMERS")
+    timers = eval(timers) if timers else {}
+    for name, timer in timers.items():
+        set_timer_task = asyncio.create_task(set_timer(name, timer, bot.guilds))
+        set_timer_task.add_done_callback(exception_catching_callback)
 
 
 @bot.event

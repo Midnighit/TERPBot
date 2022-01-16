@@ -396,6 +396,108 @@ def split_message(message, delimiter="\n"):
     return result
 
 
+def format_timedelta(delta, fmt='**'):
+    total_seconds = delta.seconds
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    ret = {
+        'days': delta.days,
+        'hours': hours,
+        'minutes': minutes,
+        'seconds': seconds,
+        'days_str': 'days' if delta.days != 1 else 'day',
+        'hours_str': 'hours' if hours != 1 else 'hour',
+        'minutes_str': 'minutes' if minutes != 1 else 'minute',
+        'seconds_str': 'seconds' if seconds != 1 else 'second'
+    }
+    str_list = []
+    if delta.days != 0:
+        str_list.append(f'{fmt}{delta.days}{fmt} {ret["days_str"]}')
+    if hours != 0:
+        str_list.append(f'{fmt}{hours}{fmt} {ret["hours_str"]}')
+    if minutes != 0:
+        str_list.append(f'{fmt}{minutes}{fmt} {ret["minutes_str"]}')
+    if seconds != 0:
+        str_list.append(f'{fmt}{seconds}{fmt} {ret["seconds_str"]}')
+    if len(str_list) > 2:
+        start = ', '.join(str_list[:-1])
+    else:
+        start = str_list[0]
+    if len(str_list) > 1:
+        ret['full_str'] = f'{start} and {str_list[-1]}'
+    elif len(str_list) == 1:
+        ret['full_str'] = str_list[0]
+    else:
+        ret['full_str'] = ''
+
+    return ret
+
+
+async def set_timer(name, timer, guilds, message=None):
+    """
+    sets a timer using discord.utils.sleep_until function and
+    stores it in the db to ensure it's persistent through bot restarts.
+    name: the name of the timer to allow for multiple timers
+    end: the datetime at which the timer should be resolved
+    channel: the channel that the finished timer should be announced to
+    message: the message to be sent when timere finishes
+    """
+    # timers is a dict of dicts that describe all the various timers
+    # e.g. timers["tea-time"] = {"end": "2021-12-19 17:00", "channel": "hub-alerts"}
+    value = GlobalVars.get_value('TIMERS')
+
+    # confirm some necessary keys are set
+    if not('end' in timer and 'channel' in timer):
+        return None
+    # if no timers exist, create a new one.
+    if not value:
+        timers = {}
+        timers[name] = timer
+    # otherwise add a new one or overwrite an existing one with the same name.
+    else:
+        timers = eval(value)
+        timers[name] = timer
+    # save updated timers value
+    GlobalVars.set_value("TIMERS", str(timers))
+
+    # delete gv variable to ensure it's not reused after sleep.
+    del value
+
+    # wait until the given datetime
+    await discord.utils.sleep_until(datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S"))
+
+    # re-read the timers from the database to delete the given timer
+    value = GlobalVars.get_value('TIMERS')
+    # remove timer from timers dict
+    if value:
+        timers = eval(value)
+        if name in timers:
+            del timers[name]
+            GlobalVars.set_value("TIMERS", str(timers))
+
+    # message is either the given message or a default
+    message = timer.get('message', f"It is now **{timer['end']}** and timer **{name}** has just run out.")
+
+    # determine the channel and owner - if available
+    o, c = None, None
+    for guild in guilds:
+        for channel in guild.channels:
+            if channel.id == int(timer['channel']):
+                c = channel
+                if 'owner' in timer:
+                    for member in guild.members:
+                        if member.id == timer['owner']:
+                            o = member
+                            break
+                    message = f'{o.mention} {message}'
+                break
+        if c:
+            break
+
+    if c:
+        await c.send(message)
+
+
 async def get_member(ctx, name):
     if name is not str:
         name = str(name)
