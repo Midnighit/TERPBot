@@ -1,5 +1,7 @@
 import random
+import asyncio
 import exiles_api
+from datetime import datetime, timedelta
 from mcrcon import MCRcon, MCRconException
 from math import ceil
 from discord.ext import commands
@@ -12,7 +14,10 @@ from config import (
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
-from functions import get_guild, get_roles, get_member, split_message, get_channels
+from functions import (
+    exception_catching_callback, format_timedelta, get_guild, get_roles, get_member,
+    split_message, get_channels, set_timer
+)
 
 whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
 
@@ -310,6 +315,82 @@ class General(commands.Cog, name="General commands."):
         detailed = True if is_staff() else False
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @group(help="Commands to set, view and delete alarms.", aliases=[])
+    async def alarm(self, ctx):
+        if ctx.invoked_subcommand is None:
+            value = GlobalVars.get_value("TIMERS")
+            messages = []
+            now = datetime.utcnow()
+            if not value:
+                await ctx.send("You currently have **no** alarms set.")
+            else:
+                timers = eval(value)
+                for name, timer in timers.items():
+                    print(name, ctx.author.id)
+                    if 'owner' in timer and timer['owner'] == ctx.author.id:
+                        end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
+                        delta = format_timedelta(end - now)['full_str']
+                        messages.append(f"**{name}** has been set to **{timer['end']}** UTC which is in {delta}.")
+                        messages = split_message('\n'.join(messages))
+
+                if len(messages) > 0:
+                    for message in messages:
+                        await ctx.send(message)
+                else:
+                    await ctx.send("You currently have **no** alarms set.")
+
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @alarm.error
+    async def alarm_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]")
+    async def set(self, ctx, *, args):
+        arg_list = args.split()
+        types = ("days", "day", "d", "hours", "hour", "h", "minutes", "minute", "seconds", "sec", "s")
+        td = {}
+        rem = []
+        idx, prev = 0, None
+
+        # find and store the timedelta to the td dict
+        for arg in arg_list:
+            # only occurences with numeric values coming before them are considered
+            if prev and prev.isnumeric():
+                # check for each type
+                for type in types:
+                    if type == arg.lower():
+                        td[type] = int(prev)
+                        # append index of amount and currency to rem for later deletion
+                        rem += [idx-1, idx]
+
+            prev = arg
+            idx += 1
+
+        # traverse the removal list backwards to ensure the indices remain the same after deletion
+        for idx in reversed(rem):
+            del arg_list[idx]
+
+        name = " ".join(arg_list)
+        seconds = 0
+        for type, amount in td.items():
+            if type in ('days', 'day', 'd'):
+                seconds += amount * 24 * 60 * 60
+            elif type in ('hours', 'hour', 'h'):
+                seconds += amount * 60 * 60
+            elif type in ('minutes', 'minute', 'm'):
+                seconds += amount * 60
+            else:
+                seconds += amount
+
+        end = datetime.utcnow() + timedelta(seconds=seconds)
+        timer = {'owner': ctx.author.id, 'channel': ctx.channel.id, 'end': end.strftime("%Y-%m-%d %H:%M:%S")}
+        set_timer_task = asyncio.create_task(set_timer(name, timer, self.bot.guilds))
+        set_timer_task.add_done_callback(exception_catching_callback)
+        await ctx.send(f"Timer **{name}** set to **{timer['end']}** UTC.")
 
     @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"])
     async def money(self, ctx):
