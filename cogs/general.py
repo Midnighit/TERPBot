@@ -316,7 +316,7 @@ class General(commands.Cog, name="General commands."):
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
-    @group(help="Commands to set, view and delete alarms.", aliases=[])
+    @group(help="Commands to set, view and delete alarms.", aliases=['alarms', 'alert', 'alerts'])
     async def alarm(self, ctx):
         if ctx.invoked_subcommand is None:
             value = GlobalVars.get_value("TIMERS")
@@ -348,10 +348,10 @@ class General(commands.Cog, name="General commands."):
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]")
+    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]"])
     async def set(self, ctx, *, args):
         arg_list = args.split()
-        types = ("days", "day", "d", "hours", "hour", "h", "minutes", "minute", "seconds", "sec", "s")
+        types = ("days", "day", "d", "hours", "hour", "h", "minutes", "minute", "m", "seconds", "sec", "s")
         td = {}
         rem = []
         idx, prev = 0, None

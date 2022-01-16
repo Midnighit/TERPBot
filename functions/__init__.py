@@ -485,21 +485,28 @@ async def set_timer(name, timer, guilds, message=None):
     # determine the channel and owner - if available
     o, c = None, None
     for guild in guilds:
+        if 'owner' in timer:
+            for member in guild.members:
+                if member.id == timer['owner']:
+                    o = member
+                    break
         for channel in guild.channels:
             if channel.id == int(timer['channel']):
                 c = channel
-                if 'owner' in timer:
-                    for member in guild.members:
-                        if member.id == timer['owner']:
-                            o = member
-                            break
-                    message = f'{o.mention} {message}'
                 break
-        if c:
+        if o and c:
             break
 
-    if c:
+    if o and c:
+        await c.send(f'{o.mention} {message}')
+    elif c:
         await c.send(message)
+    elif o:
+        await o.send(message)
+    else:
+        return None
+    
+    return True
 
 
 async def get_member(ctx, name):
