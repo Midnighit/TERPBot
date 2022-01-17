@@ -9,13 +9,13 @@ from discord.ext.commands import command, group
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
-    NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE, BUILDING_TILE_MULT, PLACEBALE_TILE_MULT,
-    CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
+    DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE, BUILDING_TILE_MULT,
+    PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
 from functions import (
-    exception_catching_callback, format_timedelta, get_guild, get_roles, get_member,
+    exception_catching_callback, filter_types, format_timedelta, get_guild, get_roles, get_member,
     split_message, get_channels, set_timer
 )
 
@@ -327,11 +327,10 @@ class General(commands.Cog, name="General commands."):
             else:
                 timers = eval(value)
                 for name, timer in timers.items():
-                    print(name, ctx.author.id)
                     if 'owner' in timer and timer['owner'] == ctx.author.id:
                         end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
                         delta = format_timedelta(end - now)['full_str']
-                        messages.append(f"**{name}** has been set to **{timer['end']}** UTC which is in {delta}.")
+                        messages.append(f"**{name}** is set to **{timer['end']} UTC** which is in {delta}.")
                         messages = split_message('\n'.join(messages))
 
                 if len(messages) > 0:
@@ -350,47 +349,31 @@ class General(commands.Cog, name="General commands."):
 
     @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]")
     async def set(self, ctx, *, args):
-        arg_list = args.split()
-        types = ("days", "day", "d", "hours", "hour", "h", "minutes", "minute", "m", "seconds", "sec", "s")
-        td = {}
-        rem = []
-        idx, prev = 0, None
-
-        # find and store the timedelta to the td dict
-        for arg in arg_list:
-            # only occurences with numeric values coming before them are considered
-            if prev and prev.isnumeric():
-                # check for each type
-                for type in types:
-                    if type == arg.lower():
-                        td[type] = int(prev)
-                        # append index of amount and currency to rem for later deletion
-                        rem += [idx-1, idx]
-
-            prev = arg
-            idx += 1
-
-        # traverse the removal list backwards to ensure the indices remain the same after deletion
-        for idx in reversed(rem):
-            del arg_list[idx]
-
-        name = " ".join(arg_list)
+        name, result = filter_types(args, DURA_TYPES)
         seconds = 0
-        for type, amount in td.items():
-            if type in ('days', 'day', 'd'):
-                seconds += amount * 24 * 60 * 60
-            elif type in ('hours', 'hour', 'h'):
-                seconds += amount * 60 * 60
-            elif type in ('minutes', 'minute', 'm'):
-                seconds += amount * 60
-            else:
+        for type, amount in result.items():
+            if type == 'seconds':
                 seconds += amount
+            elif type == 'minutes':
+                seconds += amount * 60
+            elif type == 'hours':
+                seconds += amount * 60 * 60
+            elif type == 'days':
+                seconds += amount * 24 * 60 * 60
+            else:
+                seconds += amount * 7 * 24 * 60 * 60
 
         end = datetime.utcnow() + timedelta(seconds=seconds)
         timer = {'owner': ctx.author.id, 'channel': ctx.channel.id, 'end': end.strftime("%Y-%m-%d %H:%M:%S")}
         set_timer_task = asyncio.create_task(set_timer(name, timer, self.bot.guilds))
         set_timer_task.add_done_callback(exception_catching_callback)
         await ctx.send(f"Timer **{name}** set to **{timer['end']}** UTC.")
+
+    @set.error
+    async def set_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
     @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"])
     async def money(self, ctx):
@@ -421,31 +404,8 @@ class General(commands.Cog, name="General commands."):
     )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def add(self, ctx, *, args):
-        arg_list = args.split()
-        types = ("gold", "silver", "bronze")
-        money = {}
-        rem = []
-        idx, prev = 0, None
-
-        # find and store the money to the money dict
-        for arg in arg_list:
-            # only occurences with numeric values coming before them are considered
-            if prev and prev.isnumeric():
-                # check for each currency type
-                for type in types:
-                    if type == arg.lower():
-                        money[type] = int(prev)
-                        # append index of amount and currency to rem for later deletion
-                        rem += [idx-1, idx]
-
-            prev = arg
-            idx += 1
-
-        # traverse the removal list backwards to ensure the indices remain the same after deletion
-        for idx in reversed(rem):
-            del arg_list[idx]
-
-        name = " ".join(arg_list)
+        types = ("gold", "g", "silver", "s", "bronze", "b")
+        money, name = filter_types(args, types)
         owner = None
         # if name is numeric it could be the char_id
         if name.isnumeric():
@@ -509,31 +469,8 @@ class General(commands.Cog, name="General commands."):
     )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def remove(self, ctx, *, args):
-        arg_list = args.split()
-        types = ("gold", "silver", "bronze")
-        money = {}
-        rem = []
-        idx, prev = 0, None
-
-        # find and store the money to the money dict
-        for arg in arg_list:
-            # only occurences with numeric values coming before them are considered
-            if prev and prev.isnumeric():
-                # check for each currency type
-                for type in types:
-                    if type == arg.lower():
-                        money[type] = int(prev)
-                        # append index of amount and currency to rem for later deletion
-                        rem += [idx-1, idx]
-
-            prev = arg
-            idx += 1
-
-        # traverse the removal list backwards to ensure the indices remain the same after deletion
-        for idx in reversed(rem):
-            del arg_list[idx]
-
-        name = " ".join(arg_list)
+        types = ("gold", "g", "silver", "s", "bronze", "b")
+        money, name = filter_types(args, types)
         owner = None
         # if name is numeric it could be the char_id
         if name.isnumeric():
