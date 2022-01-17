@@ -11,15 +11,15 @@ from logger import logger
 from checks import has_role, init_checks
 from exiles_api import session, MagicChars, Characters, Groups, Categories, TextBlocks, Applications, GlobalVars
 from functions import (
-    get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal, payments, payments_input,
-    payments_output, parse, listplayers, exception_catching_callback, process_chat_command, set_timer
+    filter_types, get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal, payments,
+    payments_input, payments_output, parse, listplayers, exception_catching_callback, process_chat_command, set_timer
 )
 from config import (
-    PREFIX, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY, MAGIC_ROLLS,
-    MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST,
-    CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, NOT_APPLIED_ROLE, SETROLES_EXPLANATION,
-    SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC, SHUTDOWN_MSG,
-    RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS
+    DURA_TYPES, HUB_ALERTS, PREFIX, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY,
+    MAGIC_ROLLS, MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST,
+    CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
+    SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
+    SHUTDOWN_MSG, RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS, TIMERS
 )
 
 intents = discord.Intents.default()
@@ -324,6 +324,7 @@ async def on_member_remove(member):
 async def on_message(message):
     guild = get_guild(bot)
     channels = get_channels(guild)
+    roles = get_roles(guild)
     if TIME_SYNC and message.channel == channels[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
             get_time_task = asyncio.create_task(get_time())
@@ -332,6 +333,39 @@ async def on_message(message):
         elif message.content.startswith(RESTART_MSG):
             set_time_task = asyncio.create_task(set_time())
             set_time_task.add_done_callback(exception_catching_callback)
+
+    if TIMERS and message.channel.id == HUB_ALERTS and ' has purchased a ' in message.content:
+        location, rest = message.content.split(': ', 1)
+        char_name, rest = rest.split(' has purchased a ')
+        duration, _ = rest.split(' permit.')
+        result, _ = filter_types(duration, DURA_TYPES)
+        seconds = 0
+        for type, amount in result.items():
+            if type == 'seconds':
+                seconds += amount
+            elif type == 'minutes':
+                seconds += amount * 60
+            elif type == 'hours':
+                seconds += amount * 60 * 60
+            elif type == 'days':
+                seconds += amount * 24 * 60 * 60
+            else:
+                seconds += amount * 7 * 24 * 60 * 60
+        now = datetime.utcnow()
+        end = (now + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        name = f'{location}-{char_name}-{now.strftime("%H:%M")}-permit'
+        msg = (
+            f'It is now **{end}** and timer **{name}** has just run out. '
+            f'{roles[SUPPORT_ROLE].mention} {roles[DM_ROLE].mention}.'
+        )
+        timer = {'end': end, 'channel': HUB_ALERTS, 'mention': 0, 'message': msg}
+        chars = Characters.get_by_name(char_name, include_guilds=False)
+        if len(chars) == 1 and chars[0].user and chars[0].user.disc_id:
+            timer['owner'] = int(chars[0].user.disc_id)
+
+        set_timer_task = asyncio.create_task(set_timer(name, timer, bot.guilds))
+        set_timer_task.add_done_callback(exception_catching_callback)
+        await message.channel.send(f'**{name}** timer started. It will finish at **{end} UTC**.')
 
     for category in session.query(Categories).all():
         if message.channel.id == int(category.input_channel) and category.alert_message in message.content:
