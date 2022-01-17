@@ -437,18 +437,74 @@ def format_timedelta(delta, fmt='**'):
     return ret
 
 
-async def set_timer(name, timer, guilds, message=None):
+def filter_types(args, types):
+    """
+    Parses an argument string for a given set of types that are have leading number values and tallies them up.
+    The types are given as a dict consisting of searchstring: target_dict_key.
+    Returns a tuble consisting of the filter argument string and a dict with the tallied values by target_dict_key.
+    example:
+    args == 'set MyTimer 5 h 20 m 30 sec'
+    types == {
+        'hours': 'hours', 'hour': 'hours', 'hrs': 'hours', 'h': 'hours',
+        'minutes': 'minutes', 'minute': 'minutes', 'min': 'minutes', 'm': 'minutes',
+        'seconds': 'seconds', 'second': 'seconds', 'sec': 'seconds', 's': 'seconds'
+    }
+    returns == ({'hours': 5, 'minutes': 20, 'seconds': 30}, 'set MyTimer')
+    """
+
+    # split argument string into a list of arguments
+    arg_list = args.split()
+    results = {}
+    rem = []
+    idx, prev = 0, None
+
+    # go through all arguments
+    for arg in arg_list:
+        # check current argument for each type
+        for type, key in types.items():
+            # if arg matches a type and it's following another argument and that argument is numeric
+            if type == arg.lower() and prev and prev.isnumeric():
+                results[key] = int(prev) if key not in results else results[key] + int(prev)
+                # append index of amount and type arguments to rem for later deletion
+                rem += [idx-1, idx]
+            elif arg.lower().endswith(type) and arg.lower()[0:-len(type)].isnumeric():
+                amount = int(arg.lower()[0:-len(type)])
+                results[key] = amount if key not in results else results[key] + amount
+                # append index of combined amount and type argument to rem for later deletion
+                rem += [idx]
+
+        prev = arg
+        idx += 1
+
+    # traverse the removal list backwards to ensure the indices remain the same after deletion
+    for idx in reversed(rem):
+        del arg_list[idx]
+
+    remainder = " ".join(arg_list)
+    return (results, remainder)
+
+
+async def set_timer(name, timer, guilds):
     """
     sets a timer using discord.utils.sleep_until function and
     stores it in the db to ensure it's persistent through bot restarts.
     name: the name of the timer to allow for multiple timers
-    end: the datetime at which the timer should be resolved
-    channel: the channel that the finished timer should be announced to
+    timer: dict that stores the timer attributes.
+        Required attributes:
+            channel: the channel that the finished timer should be announced to
+            end: the datetime at which the timer should be resolved
+        Optional attributes:
+            owner: the discord_id of the owner of the timer.
+            mention: set to 1 to ping owner 0 otherwise. Is assumed to be 1 if not given.
+            message: message to send once the timer runs out. A default message is sent if no message is given.
     message: the message to be sent when timere finishes
     """
     # timers is a dict of dicts that describe all the various timers
     # e.g. timers["tea-time"] = {"end": "2021-12-19 17:00", "channel": "hub-alerts"}
     value = GlobalVars.get_value('TIMERS')
+    # the mention setting only works if owner is also given
+
+    mention = timer.get('mention', 1) and 'owner' in timer
 
     # confirm some necessary keys are set
     if not('end' in timer and 'channel' in timer):
@@ -485,7 +541,8 @@ async def set_timer(name, timer, guilds, message=None):
     # determine the channel and owner - if available
     o, c = None, None
     for guild in guilds:
-        if 'owner' in timer:
+        # skip owner detection if mention is disabled
+        if mention:
             for member in guild.members:
                 if member.id == timer['owner']:
                     o = member
@@ -494,10 +551,11 @@ async def set_timer(name, timer, guilds, message=None):
             if channel.id == int(timer['channel']):
                 c = channel
                 break
-        if o and c:
+        # stop searching if either owner and channel were found or only channel if mention has been disabled
+        if (o and c) or (c and not mention):
             break
 
-    if o and c:
+    if mention and o and c:
         await c.send(f'{o.mention} {message}')
     elif c:
         await c.send(message)
@@ -505,7 +563,7 @@ async def set_timer(name, timer, guilds, message=None):
         await o.send(message)
     else:
         return None
-    
+
     return True
 
 
