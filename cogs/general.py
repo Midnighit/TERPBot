@@ -16,7 +16,7 @@ from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, 
 from exceptions import NoDiceFormatError
 from functions import (
     exception_catching_callback, filter_types, format_timedelta, get_guild, get_roles, get_member,
-    split_message, get_channels, set_timer
+    has_support_role_or_greater, split_message, get_channels, set_timer
 )
 
 whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
@@ -326,14 +326,14 @@ class General(commands.Cog, name="General commands."):
                 await ctx.send("You currently have **no** alarms set.")
             else:
                 timers = eval(value)
-                for name, timer in timers.items():
+                for key, timer in timers.items():
                     if 'owner' in timer and timer['owner'] == ctx.author.id:
                         end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
                         delta = format_timedelta(end - now)['full_str']
-                        messages.append(f"**{name}** is set to **{timer['end']} UTC** which is in {delta}.")
-                        messages = split_message('\n'.join(messages))
+                        messages.append(f"**{key}** is set to **{timer['end']} UTC** which is in {delta}.")
 
                 if len(messages) > 0:
+                    messages = split_message('\n'.join(messages))
                     for message in messages:
                         await ctx.send(message)
                 else:
@@ -347,9 +347,9 @@ class General(commands.Cog, name="General commands."):
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @alarm.command(help="Sets an alarm.", usage="<Name> <Amount> [days|hours|minutes|seconds]")
+    @alarm.command(help="Sets an alarm.", usage="<name> <amount> [days|hours|minutes|seconds]")
     async def set(self, ctx, *, args):
-        name, result = filter_types(args, DURA_TYPES)
+        result, name = filter_types(args, DURA_TYPES)
         seconds = 0
         for type, amount in result.items():
             if type == 'seconds':
@@ -371,6 +371,154 @@ class General(commands.Cog, name="General commands."):
 
     @set.error
     async def set_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @alarm.command(help="deletes an alarm.", usage="<name>")
+    async def delete(self, ctx, name: str):
+        value = GlobalVars.get_value("TIMERS")
+        msg = f"No alarms named {name} found."
+        if not value:
+            await ctx.send(msg)
+        else:
+            guild = get_guild(self.bot)
+            is_staff = has_support_role_or_greater(guild, ctx.author)
+            timers = eval(value)
+            for key, timer in timers.items():
+                if key.lower() == name.lower():
+                    if "owner" in timer and ctx.author.id == timer["owner"] or is_staff:
+                        msg = f'**{key}** deleted successfully'
+                        del timers[key]
+                        GlobalVars.set_value("TIMERS", str(timers))
+                        break
+                    elif "owner" in timer and ctx.author.id == timer["owner"]:
+                        msg = 'You may only delete your own alarms.'
+                        break
+
+            await ctx.send(msg)
+            logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @delete.error
+    async def delete_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @alarm.group(help="View alarms that have been set.", usage="[timer|player|all] <name>")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def view(self, ctx):
+        if ctx.invoked_subcommand is None:
+            await ctx.send(
+                f"`{PREFIX}alarm view` command requires either the keyword **all** "
+                f"or either **timer** or **player** followed by a **name**."
+            )
+
+    @view.error
+    async def view_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @view.command(help="View alarms with the given name.")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def timer(self, ctx, name: str):
+        value = GlobalVars.get_value("TIMERS")
+        messages = []
+        now = datetime.utcnow()
+        if not value:
+            await ctx.send(f"There currently are **no** alarms set that have **{name}** in their name.")
+        else:
+            timers = eval(value)
+            for key, timer in timers.items():
+                if name.lower() in key.lower():
+                    end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
+                    delta = format_timedelta(end - now)['full_str']
+                    messages.append(f"**{key}** is set to **{timer['end']} UTC** which is in {delta}.")
+
+            if len(messages) > 0:
+                messages = split_message('\n'.join(messages))
+                for message in messages:
+                    await ctx.send(message)
+            else:
+                await ctx.send(f"There currently are **no** alarms set that have **{name}** in their name.")
+
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @timer.error
+    async def timer_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @view.command(help="View alarms owner by the player with the given name.")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def player(self, ctx, player: str):
+        value = GlobalVars.get_value("TIMERS")
+        messages = []
+        now = datetime.utcnow()
+        if not value:
+            await ctx.send(
+                f"There currently are **no** set alarms owned by anyone with **{player}** in their name."
+            )
+        else:
+            timers = eval(value)
+            cmp = player.lower()
+            for key, timer in timers.items():
+                if "owner" in timer:
+                    member = await get_member(ctx, timer["owner"])
+
+                if member and (cmp in member.name.lower() or cmp in member.display_name.lower()):
+                    end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
+                    delta = format_timedelta(end - now)['full_str']
+                    messages.append(
+                        f"**{key}** belonging to **{member.display_name}** is set to "
+                        f"**{timer['end']} UTC** which is in {delta}."
+                    )
+
+            if len(messages) > 0:
+                messages = split_message('\n'.join(messages))
+                for message in messages:
+                    await ctx.send(message)
+            else:
+                await ctx.send(
+                    f"There currently are **no** set alarms owned by anyone with **{player}** in their name."
+                )
+
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @player.error
+    async def player_error(self, ctx, error):
+        GlobalVars.set_value("CAUGHT", 1)
+        await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
+        logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
+
+    @view.command(help="View all alarms.")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def all(self, ctx):
+        value = GlobalVars.get_value("TIMERS")
+        messages = []
+        now = datetime.utcnow()
+        if not value:
+            await ctx.send("There currently are **no** alarms set.")
+        else:
+            timers = eval(value)
+            for key, timer in timers.items():
+                end = datetime.strptime(timer['end'], "%Y-%m-%d %H:%M:%S")
+                delta = format_timedelta(end - now)['full_str']
+                messages.append(f"**{key}** is set to **{timer['end']} UTC** which is in {delta}.")
+
+            if len(messages) > 0:
+                messages = split_message('\n'.join(messages))
+                for message in messages:
+                    await ctx.send(message)
+            else:
+                await ctx.send("There currently are **no** alarms set.")
+
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @player.error
+    async def all_error(self, ctx, error):
         GlobalVars.set_value("CAUGHT", 1)
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
