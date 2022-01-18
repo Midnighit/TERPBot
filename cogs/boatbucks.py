@@ -255,7 +255,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         elif isinstance(error, commands.errors.BadArgument):
             await ctx.send(f"Sorry but who tf is **{error.argument}** supposed to be?")
         elif isinstance(error, ValueError):
-            await ctx.send(f"You need to pay in boatbucks not in members dummy!")
+            await ctx.send("You need to pay in boatbucks not in members dummy!")
         else:
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
@@ -354,7 +354,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
         elif isinstance(error, commands.errors.BadArgument):
             await ctx.send(f"Sorry but who tf is **{error.argument}** supposed to be?")
         elif isinstance(error, ValueError):
-            await ctx.send(f"You need to take boatbucks not members dummy!")
+            await ctx.send("You need to take boatbucks not members dummy!")
         else:
             pe(error)
             logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
