@@ -950,7 +950,7 @@ class General(commands.Cog, name="General commands."):
                     active_members = len(guild.members.active(INACTIVITY))
                     count = active_members - 1 if active_members >= 1 else 0
                     allowance = ALLOWANCE_BASE + count * ALLOWANCE_CLAN
-                addition = f" which is **{tiles-allowance}** over the limit." if tiles > allowance else ''
+                addition = f" which is **{tiles-allowance}** over the limit" if tiles > allowance else ''
                 tiles = f"**{tiles}** of **{allowance}** allowed tiles{addition}"
                 msgs.append(f"The clan **{guild.name}** currently has {tiles}.")
             elif owner.is_character:
