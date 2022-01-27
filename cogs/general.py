@@ -10,7 +10,8 @@ from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
     DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE, BUILDING_TILE_MULT,
-    PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE
+    PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
+    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
@@ -524,12 +525,19 @@ class General(commands.Cog, name="General commands."):
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
     @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"])
-    async def money(self, ctx):
+    async def money(self, ctx, *, args=None):
         if ctx.invoked_subcommand is None:
-            user = Users.get_users(ctx.author.id)[0]
+            owners = []
+            guild = get_guild(self.bot)
+            is_staff = has_support_role_or_greater(guild, ctx.author)
+            if args and is_staff:
+                owners = Owner.get_by_name(args, strict=False)
+            if not owners:
+                user = Users.get_users(ctx.author.id)[0]
+                owners = user.characters
             m = []
-            for owner in user.characters:
-                money = Properties.get_pippi_money(char_id=owner.id)
+            for owner in owners:
+                money = Properties.bronze2tuple(owner.money)
                 gold, silver, bronze = money
                 m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
@@ -902,26 +910,55 @@ class General(commands.Cog, name="General commands."):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="tiles", help="Gives the tiles belonging to your chars or their clans.")
-    async def tiles(self, ctx):
-        users = Users.get_users(ctx.author.id)
-        if not users:
-            await ctx.send("No characters linked to your discord account have been found.")
+    async def tiles(self, ctx, *, args=None):
+        owners = []
+        guild = get_guild(self.bot)
+        is_staff = has_support_role_or_greater(guild, ctx.author)
+        if args and is_staff:
+            owners = Owner.get_by_name(args, strict=False)
+        if not owners:
+            user = Users.get_users(ctx.author.id)[0]
+            owners = user.characters
+        if not owners:
+            if args and is_staff:
+                await ctx.send(f"No characters linked to {args} have been found.")
+            elif args and not is_staff:
+                roles = get_roles(guild)
+                check_role = roles[SUPPORT_ROLE]
+                await ctx.send(f"Command may only be used by users with role greater or equal than {check_role}.")
+            else:
+                await ctx.send("No characters linked to your discord account have been found.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. No characters found.")
             return
 
         msgs = []
-        # since the discord id was used, there should always only be one user in the list
-        for char in users[0].characters:
+        guilds = []
+        for owner in owners:
             # if char has a guild, it's not the chars tiles we're interested in but their guild
-            if char.has_guild:
-                guild = char.guild
+            if owner.is_guild or (owner.is_character and owner.has_guild):
+                guild = owner.guild if owner.is_character else owner
+                # avoid double entries
+                if guild.name in guilds:
+                    continue
+                else:
+                    guilds.append(guild.name)
                 tiles = guild.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
-                tiles = f"**{tiles}** {'tile' if tiles == 1 else 'tiles'}"
+                # allowance is base allowance + clan allowance for each member over the first
+                if ALLOWANCE_INCLUDES_INACTIVES:
+                    allowance = ALLOWANCE_BASE + (len(guild.members) - 1) * ALLOWANCE_CLAN
+                else:
+                    active_members = len(guild.members.active(INACTIVITY))
+                    count = active_members - 1 if active_members >= 1 else 0
+                    allowance = ALLOWANCE_BASE + count * ALLOWANCE_CLAN
+                addition = f" which is **{tiles-allowance}** over the limit." if tiles > allowance else ''
+                tiles = f"**{tiles}** of **{allowance}** allowed tiles{addition}"
                 msgs.append(f"The clan **{guild.name}** currently has {tiles}.")
-            else:
-                tiles = char.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
-                tiles = f"**{tiles}** {'tile' if tiles == 1 else 'tiles'}"
-                msgs.append(f"The character **{char.name}** currently has {tiles}.")
+            elif owner.is_character:
+                tiles = owner.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
+                allowance = ALLOWANCE_BASE
+                addition = f" which is **{tiles-allowance}** over the limit." if tiles > allowance else ''
+                tiles = f"**{tiles}** of **{allowance}** allowed tiles{addition}"
+                msgs.append(f"The character **{owner.name}** currently has {tiles}.")
 
         msg = "\n".join(msgs)
         await ctx.send(msg)
