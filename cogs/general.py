@@ -251,26 +251,39 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="getfuncomid", help="Checks if your FuncomID has been set.")
     @has_not_role(NOT_APPLIED_ROLE)
-    async def getfuncomid(self, ctx):
-        disc_id = ctx.author.id
-        user = session.query(Users).filter_by(disc_id=disc_id).first()
-        if user and user.funcom_id:
-            await ctx.channel.send(f"Your FuncomID is currently set to {user.funcom_id}.")
+    async def getfuncomid(self, ctx, *, args=None):
+        guild = get_guild(self.bot)
+        is_staff = has_support_role_or_greater(guild, ctx.author)
+        disc_id = None
+        if args and is_staff:
+            # try converting the given argument into a member
+            member = await get_member(ctx, args)
+            if member:
+                disc_id = member.id
+                args = member.name
+        elif not args:
+            disc_id = ctx.author.id
+
+        if not disc_id:
+            await ctx.send(f"No user named **{args}** found.")
         else:
-            await ctx.channel.send(
-                f"Your FuncomID has not been set yet. You can set it with `{PREFIX}setfuncomid <FuncomID>`"
-            )
+            user = session.query(Users).filter_by(disc_id=disc_id).first()
+            if args and user:
+                await ctx.send(f"The FuncomID of **{args}** is currently set to **{user.funcom_id}**.")
+            elif not args and user and user.funcom_id:
+                await ctx.send(f"Your FuncomID is currently set to **{user.funcom_id}**.")
+            elif args and not user:
+                await ctx.send(f"The FuncomID of **{args}** has not been set yet.")
+            else:
+                await ctx.send(
+                    "Your FuncomID has not been set yet. Please contact staff with your FuncomID to be whitelisted."
+                )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whois", help=whois_help, aliases=["whomst", "whomstthefuck"])
     async def whois(self, ctx, *, Name):
-        def is_staff():
-            roles = get_roles(self.guild)
-            member = self.guild.get_member(ctx.author.id)
-            for author_role in member.roles:
-                if author_role >= roles[SUPPORT_ROLE]:
-                    return True
-
+        guild = get_guild(self.bot)
+        is_staff = has_support_role_or_greater(guild, ctx.author)
         disc_id = disc_user = user = show_char_id = show_disc_id = None
         arg_list = Name.split()
         if "char_id" in arg_list:
@@ -313,7 +326,7 @@ class General(commands.Cog, name="General commands."):
         for user in Characters.get_users(arg):
             if user not in users:
                 users += [user]
-        detailed = True if is_staff() else False
+        detailed = True if is_staff else False
         await ctx.send(await self.get_user_string(arg, users, detailed, show_char_id, show_disc_id))
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
