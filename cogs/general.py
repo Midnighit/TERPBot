@@ -625,6 +625,7 @@ class General(commands.Cog, name="General commands."):
     @add.error
     async def add_error(self, ctx, error):
         GlobalVars.set_value("CAUGHT", 1)
+        error = getattr(error, 'original', error)
         if isinstance(error, (MCRconException, ValueError)):
             await ctx.send(error)
         else:
@@ -699,6 +700,7 @@ class General(commands.Cog, name="General commands."):
     @remove.error
     async def remove_error(self, ctx, error):
         GlobalVars.set_value("CAUGHT", 1)
+        error = getattr(error, 'original', error)
         if isinstance(error, (MCRconException, ValueError)):
             await ctx.send(error)
         else:
