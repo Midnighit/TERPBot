@@ -537,7 +537,7 @@ class General(commands.Cog, name="General commands."):
         await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
         logger.error(f"Author: {ctx.author} / Command: {ctx.message.content}. {error}")
 
-    @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"])
+    @group(help="Commands to view/add/remove Pippi money.", aliases=["hasmoney"], invoke_without_command=True)
     async def money(self, ctx, *, args=None):
         if ctx.invoked_subcommand is None:
             owners = []
@@ -573,7 +573,7 @@ class General(commands.Cog, name="General commands."):
     )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def add(self, ctx, *, args):
-        types = ("gold", "g", "silver", "s", "bronze", "b")
+        types = {"gold": 'gold', "g": 'gold', "silver": 'silver', "s": 'silver', "bronze": 'bronze', "b": 'bronze'}
         money, name = filter_types(args, types)
         owner = None
         # if name is numeric it could be the char_id
@@ -638,7 +638,7 @@ class General(commands.Cog, name="General commands."):
     )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def remove(self, ctx, *, args):
-        types = ("gold", "g", "silver", "s", "bronze", "b")
+        types = {"gold": 'gold', "g": 'gold', "silver": 'silver', "s": 'silver', "bronze": 'bronze', "b": 'bronze'}
         money, name = filter_types(args, types)
         owner = None
         # if name is numeric it could be the char_id
