@@ -324,7 +324,7 @@ async def on_member_remove(member):
 async def on_message(message):
     guild = get_guild(bot)
     channels = get_channels(guild)
-    roles = get_roles(guild)
+    staff_roles = get_roles(bot=bot, name='Exiled Staff')
     if TIME_SYNC and message.channel == channels[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
             get_time_task = asyncio.create_task(get_time())
@@ -356,7 +356,7 @@ async def on_message(message):
         name = f'{location}-{char_name}-{now.strftime("%H:%M")}-permit'
         msg = (
             f'It is now **{end}** and timer **{name}** has just run out. '
-            f'{roles[SUPPORT_ROLE].mention} {roles[DM_ROLE].mention}.'
+            f'{staff_roles[SUPPORT_ROLE].mention} {staff_roles[DM_ROLE].mention}.'
         )
         timer = {'end': end, 'channel': HUB_ALERTS, 'mention': 0, 'message': msg}
         chars = Characters.get_by_name(char_name, include_guilds=False)
@@ -365,6 +365,7 @@ async def on_message(message):
 
         set_timer_task = asyncio.create_task(set_timer(name, timer, bot.guilds))
         set_timer_task.add_done_callback(exception_catching_callback)
+        logger.info(f'**{name}** timer started. It will finish at **{end} UTC**.')
         await message.channel.send(f'**{name}** timer started. It will finish at **{end} UTC**.')
 
     for category in session.query(Categories).all():
