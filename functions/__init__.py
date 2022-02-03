@@ -26,33 +26,33 @@ def pe(arg):
     pp(dir(arg))
 
 
-def get_guild(bot=None, guild=None):
+def get_guild(bot=None, guild=None, name=DISCORD_NAME):
     if guild:
         return guild
     elif bot:
-        return discord.utils.get(bot.guilds, name=DISCORD_NAME)
+        return discord.utils.get(bot.guilds, name=name)
     else:
         logger.error("Called get_guild() but passed neither bot nor guild.")
         return None
 
 
-def get_categories(guild=None, bot=None):
-    guild = get_guild(bot, guild)
+def get_categories(guild=None, bot=None, name=DISCORD_NAME):
+    guild = get_guild(bot, guild, name)
     if guild:
         return {category.name: category for category in guild.categories}
     return None
 
 
-def get_channels(guild=None, bot=None):
-    guild = get_guild(bot, guild)
+def get_channels(guild=None, bot=None, name=DISCORD_NAME):
+    guild = get_guild(bot, guild, name)
     if guild:
         return {channel.name: channel for channel in guild.channels}
     logger.error("Called get_channels() but passed neither bot nor guild.")
     return None
 
 
-def get_roles(guild=None, bot=None):
-    guild = get_guild(bot, guild)
+def get_roles(guild=None, bot=None, name=DISCORD_NAME):
+    guild = get_guild(bot, guild, name)
     if guild:
         return {role.name: role for role in guild.roles}
     logger.error("Called get_roles() but passed neither bot nor guild.")
