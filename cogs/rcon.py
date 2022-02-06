@@ -1,3 +1,4 @@
+import asyncio
 import re
 import itertools
 from discord.ext import commands
@@ -76,7 +77,7 @@ class RCon(commands.Cog, name="RCon commands"):
     )
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def listplayers(self, ctx):
-        playerlist, success = listplayers()
+        playerlist, _ = await asyncio.create_task(listplayers())
         await ctx.send(playerlist)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
@@ -113,12 +114,12 @@ class RCon(commands.Cog, name="RCon commands"):
         if isinstance(success, list):
             removed = success
             for id in removed:
-                result, err = unwhitelist_player(id)
+                result, _ = unwhitelist_player(id)
                 if not result.endswith("removed from whitelist."):
                     await ctx.send(
                         f"Unwhitelisting former FuncomID {id} failed. Server didn't respond. Please try again later."
                     )
-        msg, err = whitelist_player(funcom_id)
+        msg, _ = await whitelist_player(funcom_id)
         if removed:
             r = (
                 "FuncomID " + removed[0] + " was"
@@ -148,7 +149,7 @@ class RCon(commands.Cog, name="RCon commands"):
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}. {msg}")
             return
         await self.remove_user(funcom_id)
-        result, success = unwhitelist_player(funcom_id)
+        result, _ = await unwhitelist_player(funcom_id)
         if not result.endswith("removed from whitelist."):
             msg = f"Unwhitelisting FuncomID {funcom_id} failed. Please try again later."
         else:
@@ -224,18 +225,18 @@ class RCon(commands.Cog, name="RCon commands"):
     @command(name="gettime", help="Tells the current time on the server")
     async def gettime(self, ctx):
         anc = f"Author: {ctx.author} / Command: {ctx.message.content}."
-        result, success = get_time()
-        if not success:
-            msg = "Failed to get time. Try again in a few seconds."
-            logger.error(f"{anc} RConError: {result}")
-        elif result == "Still processing previous command.":
-            msg = "Still processing previous command. Try again in a few seconds."
-        elif is_time_format(result):
+        result, success = await get_time()
+        failed = "RCon error. Failed to get time. Try again in a few seconds."
+        if success and is_time_format(result):
             msg = f"It's currently **{result}** on the server."
+            logger.info(f"{anc} Current server time was sent to {ctx.author}.")
+        elif result:
+            msg = failed
+            logger.error(f"{anc} RConError: {result}")
         else:
-            msg = f"Error: {result}."
+            msg = failed
+            logger.error(f"{anc} Error.")
         await ctx.send(msg)
-        logger.info(f"{anc} Current server time was sent to {ctx.author}.")
 
     @command(name="settime", help="Sets the time on the server")
     @has_role(ADMIN_ROLE)
@@ -245,18 +246,18 @@ class RCon(commands.Cog, name="RCon commands"):
         if not time:
             msg = "Bad time format. Please enter time in HH[:MM[:SS]] 24h format."
         else:
-            result, success = set_time(time)
-            if not success:
-                msg = "Failed to set time. Try again in a few seconds."
-                logger.error(f"{anc} RConError: {result}")
-            elif result == "Still processing previous command.":
-                msg = "Still processing previous command. Try again in a few seconds."
-            elif result.startswith("Time has been set to"):
+            result, success = await set_time(time)
+            failed = "RCon error. Failed to set time. Try again later."
+            if success and result.startswith("Time has been set to"):
                 msg = result
+                logger.info(f"{anc} Current server time was set to {time} by {ctx.author}.")
+            elif result:
+                msg = failed
+                logger.error(f"{anc} RConError: {result}")
             else:
-                msg = f"Failed to set time. Error: {result}"
+                msg = failed
+                logger.error(f"{anc} Error.")
         await ctx.send(msg)
-        logger.info(f"{anc} Current server time was set to {time} by {ctx.author}.")
 
 
 def setup(bot):

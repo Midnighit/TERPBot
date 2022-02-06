@@ -2,16 +2,16 @@ import re
 import discord
 import itertools
 import pprint
+import exiles_api
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
-from mcrcon import MCRcon
 from logger import logger
 from exiles_api import (
     session, next_time, is_running, Owner, Guilds, Characters,
     Users, Groups, CatOwners, Categories, OwnersCache, GlobalVars
 )
-from config import RCON_IP, RCON_PORT, RCON_PASSWORD, DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
+from config import DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
 
 
 def pp(arg):
@@ -74,11 +74,12 @@ def get_chars_by_user(user):
     return user.characters
 
 
-def parse(guild, user, msg):
+def parse(guild, user=None, msg=''):
     channels = get_channels(guild)
     roles = get_roles(guild)
     msg = str(msg).replace("{PREFIX}", PREFIX).replace("{OWNER}", guild.owner.mention)
-    msg = msg.replace("{PLAYER}", user.mention) if isinstance(user, Member) else msg.replace("{PLAYER}", str(user))
+    if user:
+        msg = msg.replace("{PLAYER}", user.mention) if isinstance(user, Member) else msg.replace("{PLAYER}", str(user))
     for name, channel in channels.items():
         msg = re.sub("(?i){" + name + "}", channel.mention, msg)
     for name, role in roles.items():
@@ -97,68 +98,6 @@ def is_float(s):
 def rreplace(s, old, new):
     li = s.rsplit(old, 1)
     return new.join(li)
-
-
-def listplayers():
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            result = mcr.command("ListPlayers")
-    except Exception as err:
-        return (str(err), False)
-    lines = result.split("\n")
-    list, names = [], []
-    name, level, guild, rank, disc_user = "Char name", "Level", "Clan name", "Rank", "Discord"
-    ln, ll, lg, lr, ld = len(name), len(level), len(guild), len(rank), len(disc_user)
-    idx = 0
-    if len(lines) > 1:
-        for line in lines[1:]:
-            columns = line.split("|")
-            if len(columns) >= 4:
-                char_name, funcom_id = columns[1].strip(), columns[3].strip()
-                if char_name == "":
-                    continue
-                characters = Owner.get_by_name(char_name, include_guilds=False)
-                if len(characters) == 1:
-                    char = characters[0]
-                elif len(characters) > 1:
-                    for c in characters:
-                        if c.account.funcom_id == funcom_id:
-                            char = c
-                            break
-                else:
-                    logger.error(f"Function listplayers couldn't find character named {list[idx]['name']} in db.")
-                    continue
-                if char.user is None:
-                    logger.error(f"Char {char.name} has no user assigned.")
-                    continue
-                list.append(
-                    {
-                        "name": char_name,
-                        "funcom_id": funcom_id,
-                        "guild": char.guild.name if char and char.has_guild else "",
-                        "rank": char.rank_name if char and char.has_guild else "",
-                        "level": str(char.level) if char else "",
-                        "disc_user": char.user.disc_user if char else "",
-                    }
-                )
-                idx = len(list) - 1
-                ln = max(ln, len(list[idx]["name"]))
-                ll = max(ll, len(list[idx]["level"]))
-                lg = max(lg, len(list[idx]["guild"]))
-                lr = max(lr, len(list[idx]["rank"]))
-                ld = max(ld, len(list[idx]["disc_user"]))
-    list.sort(key=lambda user: user["name"])
-    for line in list:
-        names.append(f"{line['name']:<{ln}} | {line['guild']}")
-    num = len(list)
-    if num == 0:
-        return ("Nobody is currently online", True)
-    else:
-        nl = "\n"
-        headline = f"{name:<{ln}} | {guild}\n"
-        width = len(headline) - len(guild) - 1 + lg
-        headline = headline + width * "-" + "\n"
-        return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
 
 
 def is_time_format(time):
@@ -188,56 +127,6 @@ def is_time_format(time):
     return ":".join([hours, minutes, seconds])
 
 
-def get_time():
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            result = mcr.command("TERPO getTime")
-    except Exception as err:
-        return (str(err), False)
-    return (result, True)
-
-
-def set_time(time):
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            result = mcr.command(f"TERPO setTime {time}")
-    except Exception as err:
-        return (str(err), False)
-    return (result, True)
-
-
-def get_time_decimal():
-    logger.info("Trying to read the time from the game server.")
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            result = mcr.command("TERPO getTimeDecimal")
-    except Exception as err:
-        logger.error(f"Failed to read time from game server. RConError: {str(err)}")
-        return 1
-    if not is_float(result):
-        logger.info(f"Failed reading time. {result}")
-        return 2
-    logger.info(f"Time read successfully: {result}")
-    GlobalVars.set_value("LAST_RESTART_TIME", result)
-    return 0
-
-
-def set_time_decimal():
-    time = GlobalVars.get_value("LAST_RESTART_TIME")
-    logger.info(f"Trying to reset the time to the previously read time of {time}")
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            result = mcr.command(f"TERPO setTimeDecimal {time}")
-    except Exception as err:
-        logger.error(f"Failed to set time {time}. RConError: err == {str(err)}")
-        return 1
-    if not result.startswith("Time has been set to"):
-        logger.info(f"Failed setting time. {result}")
-        return 2
-    logger.info("Time was reset successfully!")
-    return 0
-
-
 def is_on_whitelist(funcom_id):
     try:
         with open(WHITELIST_PATH, "rb") as f:
@@ -255,85 +144,6 @@ def is_on_whitelist(funcom_id):
         if funcom_id in line.upper():
             return True
     return False
-
-
-def whitelist_player(funcom_id):
-    # intercept obvious wrong cases
-    if not is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
-        return (f"{funcom_id} is not a valid FuncomID.", False)
-    elif funcom_id == "8187A5834CD94E58":
-        return (f"{funcom_id} is the example FuncomID of Midnight.", False)
-
-    # try whitelisting via rcon
-    msg = "Whitelisting failed. Server didn't respond. Please try again later."
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            msg = mcr.command(f"WhitelistPlayer {funcom_id}")
-    except Exception as err:
-        return (str(err), False)
-
-    if msg == f"Player {funcom_id} added to whitelist.":
-        return (msg, True)
-
-    # handle possible failure messages
-    # msg is unchanged if server is completely down and doesn't react
-    if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
-        write2file = True
-    # before server has really begun starting up, still allows writing to file
-    elif msg == 'Couldn\'t find the command: WhitelistPlayer. Try "help"':
-        write2file = True
-    # server is up but rejected command
-    elif msg == "Still processing previous command.":
-        write2file = False
-    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
-    else:
-        write2file = False
-        logger.error(f"Unknown RCon error message: {msg}")
-
-    # write funcom_id to file directly
-    if write2file and not is_running("ConanSandboxServer"):
-        update_whitelist_file(funcom_id)
-        msg = f"Player {funcom_id} added to whitelist."
-    # try again later
-    elif write2file:
-        msg = "Server is not ready. Please try again later."
-    return (msg, True)
-
-
-def unwhitelist_player(funcom_id):
-    msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
-    try:
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            msg = mcr.command(f"UnwhitelistPlayer {funcom_id}")
-    except Exception as err:
-        return (str(err), False)
-
-    if msg == f"Player {funcom_id} removed from whitelist.":
-        return (msg, True)
-
-    # handle possible failure messages
-    # when server is completely down and doesn't react
-    if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
-        write2file = True
-    # before server has really begun starting up, still allows writing to file
-    elif msg == 'Couldn\'t find the command: UnWhitelistPlayer. Try "help"':
-        write2file = True
-    # server is up but rejected command
-    elif msg == "Still processing previous command.":
-        write2file = False
-    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
-    else:
-        write2file = False
-        logger.error(f"Unknown RCon error message: {msg}")
-
-    # remove funcom_id from file directly
-    if write2file and not is_running("ConanSandboxServer"):
-        update_whitelist_file(funcom_id, add=False)
-        msg = f"Player {funcom_id} removed from whitelist."
-    # try again later
-    elif write2file and is_running("ConanSandboxServer"):
-        msg = "Server is not ready. Please try again later."
-    return (msg, True)
 
 
 def update_whitelist_file(funcom_id, add=True):
@@ -884,6 +694,206 @@ async def process_chat_command(message):
                 f.write(line)
         except Exception as e:
             print(e)
+
+
+async def listplayers():
+    if exiles_api.trc:
+        result, success = await exiles_api.trc.safe_send_cmd("ListPlayers")
+    else:
+        return "Server is not running right now, please try again later.", False
+
+    if not success:
+        return result, success
+
+    lines = result.split("\n")
+    list, names = [], []
+    name, level, guild, rank, disc_user = "Char name", "Level", "Clan name", "Rank", "Discord"
+    ln, ll, lg, lr, ld = len(name), len(level), len(guild), len(rank), len(disc_user)
+    idx = 0
+    if len(lines) > 1:
+        for line in lines[1:]:
+            columns = line.split("|")
+            if len(columns) >= 4:
+                char_name, funcom_id = columns[1].strip(), columns[3].strip()
+                if char_name == "":
+                    continue
+                characters = Owner.get_by_name(char_name, include_guilds=False)
+                if len(characters) == 1:
+                    char = characters[0]
+                elif len(characters) > 1:
+                    for c in characters:
+                        if c.account.funcom_id == funcom_id:
+                            char = c
+                            break
+                else:
+                    logger.error(f"Function listplayers couldn't find character named {list[idx]['name']} in db.")
+                    continue
+                if char.user is None:
+                    logger.error(f"Char {char.name} has no user assigned.")
+                    continue
+                list.append(
+                    {
+                        "name": char_name,
+                        "funcom_id": funcom_id,
+                        "guild": char.guild.name if char and char.has_guild else "",
+                        "rank": char.rank_name if char and char.has_guild else "",
+                        "level": str(char.level) if char else "",
+                        "disc_user": char.user.disc_user if char else "",
+                    }
+                )
+                idx = len(list) - 1
+                ln = max(ln, len(list[idx]["name"]))
+                ll = max(ll, len(list[idx]["level"]))
+                lg = max(lg, len(list[idx]["guild"]))
+                lr = max(lr, len(list[idx]["rank"]))
+                ld = max(ld, len(list[idx]["disc_user"]))
+    list.sort(key=lambda user: user["name"])
+    for line in list:
+        names.append(f"{line['name']:<{ln}} | {line['guild']}")
+    num = len(list)
+    if num == 0:
+        return ("Nobody is currently online", True)
+    else:
+        nl = "\n"
+        headline = f"{name:<{ln}} | {guild}\n"
+        width = len(headline) - len(guild) - 1 + lg
+        headline = headline + width * "-" + "\n"
+        return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
+
+
+async def whitelist_player(funcom_id):
+    # intercept obvious wrong cases
+    if not is_hex(funcom_id) or len(funcom_id) < 14 or len(funcom_id) > 16:
+        return (f"{funcom_id} is not a valid FuncomID.", False)
+    elif funcom_id == "8187A5834CD94E58":
+        return (f"{funcom_id} is the example FuncomID of Midnight.", False)
+
+    # try whitelisting via rcon
+    msg = "Whitelisting failed. Server didn't respond. Please try again later."
+
+    if exiles_api.trc:
+        msg, success = await exiles_api.trc.safe_send_cmd(f"WhitelistPlayer {funcom_id}")
+    else:
+        return "Server is not running right now, please try again later.", False
+
+    if not success:
+        return msg, success
+
+    if msg == f"Player {funcom_id} added to whitelist.":
+        return (msg, True)
+
+    # handle possible failure messages
+    # msg is unchanged if server is completely down and doesn't react
+    if msg == "Whitelisting failed. Server didn't respond. Please try again later.":
+        write2file = True
+    # before server has really begun starting up, still allows writing to file
+    elif msg == 'Couldn\'t find the command: WhitelistPlayer. Try "help"':
+        write2file = True
+    # server is up but rejected command
+    elif msg == "Still processing previous command.":
+        write2file = False
+    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+    else:
+        write2file = False
+        logger.error(f"Unknown RCon error message: {msg}")
+
+    # write funcom_id to file directly
+    if write2file and not is_running("ConanSandboxServer"):
+        update_whitelist_file(funcom_id)
+        msg = f"Player {funcom_id} added to whitelist."
+    # try again later
+    elif write2file:
+        msg = "Server is not ready. Please try again later."
+    return (msg, True)
+
+
+async def unwhitelist_player(funcom_id):
+    msg = "Unwhitelisting failed. Server didn't respond. Please try again later."
+
+    if exiles_api.trc:
+        msg, success = await exiles_api.trc.safe_send_cmd(f"UnwhitelistPlayer {funcom_id}")
+    else:
+        return "Server is not running right now, please try again later.", False
+
+    if not success:
+        return msg, success
+
+    if msg == f"Player {funcom_id} removed from whitelist.":
+        return (msg, True)
+
+    # handle possible failure messages
+    # when server is completely down and doesn't react
+    if msg == "Unwhitelisting failed. Server didn't respond. Please try again later.":
+        write2file = True
+    # before server has really begun starting up, still allows writing to file
+    elif msg == 'Couldn\'t find the command: UnWhitelistPlayer. Try "help"':
+        write2file = True
+    # server is up but rejected command
+    elif msg == "Still processing previous command.":
+        write2file = False
+    # unknown? If it ever gets here, take note of msg and see if writing to file is possible
+    else:
+        write2file = False
+        logger.error(f"Unknown RCon error message: {msg}")
+
+    # remove funcom_id from file directly
+    if write2file and not is_running("ConanSandboxServer"):
+        update_whitelist_file(funcom_id, add=False)
+        msg = f"Player {funcom_id} removed from whitelist."
+    # try again later
+    elif write2file and is_running("ConanSandboxServer"):
+        msg = "Server is not ready. Please try again later."
+    return (msg, True)
+
+
+async def get_time() -> tuple:
+    if exiles_api.trc:
+        return await exiles_api.trc.safe_send_cmd("TERPO getTime")
+    else:
+        return "Server is not running right now, please try again later.", False
+
+
+async def set_time(time) -> tuple:
+    if exiles_api.trc:
+        return await exiles_api.trc.safe_send_cmd(f"TERPO setTime {time}")
+    else:
+        return "Server is not running right now, please try again later.", False
+
+
+async def get_time_decimal():
+    logger.info("Trying to read the time from the game server.")
+    if exiles_api.trc:
+        result, success = await exiles_api.trc.safe_send_cmd("TERPO getTimeDecimal")
+    else:
+        success = False
+        result = "Server is not running right now, please try again later."
+    if not exiles_api.trc or not success:
+        logger.error(f"Failed to read time from game server. RConError: {result}")
+        return 1
+    if not is_float(result):
+        logger.info(f"Failed reading time. {result}")
+        return 2
+    logger.info(f"Time read successfully: {result}")
+    GlobalVars.set_value("LAST_RESTART_TIME", result)
+    return 0
+
+
+async def set_time_decimal():
+    time = GlobalVars.get_value("LAST_RESTART_TIME")
+    logger.info(f"Trying to reset the time to the previously read time of {time}")
+    if exiles_api.trc:
+        result, success = await exiles_api.trc.safe_send_cmd(f"TERPO setTimeDecimal {time}")
+    else:
+        success = False
+        result = "Server is not running right now, please try again later."
+    if not exiles_api.trc or not success:
+        logger.error(f"Failed to set time {time}. RConError: err == {result}")
+        return 1
+    if not result.startswith("Time has been set to"):
+        logger.info(f"Failed setting time. {result}")
+        return 2
+    logger.info("Time was reset successfully!")
+    return 0
 
 
 # errors in tasks raise silently normally so lets make them speak up

@@ -1,15 +1,13 @@
 import asyncio
-import exiles_api
 import random
 from datetime import datetime, timedelta
-from mcrcon import MCRcon, MCRconException
 from math import ceil
 from discord.ext import commands
 from discord.ext.commands import command, group
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
-    DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, RCON_IP, RCON_PASSWORD, RCON_PORT, SUPPORT_ROLE, BUILDING_TILE_MULT,
+    DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
     INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN
 )
@@ -282,6 +280,7 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="whois", help=whois_help, aliases=["whomst", "whomstthefuck"])
     async def whois(self, ctx, *, Name):
+        print("calling whois command")
         guild = get_guild(self.bot)
         is_staff = has_support_role_or_greater(guild, ctx.author)
         disc_id = disc_user = user = show_char_id = show_disc_id = None
@@ -554,10 +553,12 @@ class General(commands.Cog, name="General commands."):
                 gold, silver, bronze = money
                 m.append(f"**{owner.name}** has **{gold}** gold, **{silver}** silver and **{bronze}** bronze.")
 
-            msg = "\n".join(m)
-
-            for part in split_message(msg):
-                await ctx.send(part)
+            if len(owners) > 0:
+                msg = "\n".join(m)
+                for part in split_message(msg):
+                    await ctx.send(part)
+            else:
+                await ctx.send("No characters found.")
             logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @money.error
@@ -611,11 +612,7 @@ class General(commands.Cog, name="General commands."):
         new_money = p.money + add_money
         add_gold, add_silver, add_bronze = Properties.bronze2tuple(add_money)
         new_gold, new_silver, new_bronze = Properties.bronze2tuple(new_money)
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            exiles_api.mcr = mcr
-            p.money = new_money
-            session.commit()
-            exiles_api.mcr = None
+        await p.set_money(new_money)
         await ctx.send(
             f"**{add_gold}** gold, **{add_silver}** silver and **{add_bronze}** bronze were given to **{owner.name}**. "
             f"They now have **{new_gold}** gold, **{new_silver}** silver and **{new_bronze}** bronze."
@@ -626,7 +623,7 @@ class General(commands.Cog, name="General commands."):
     async def add_error(self, ctx, error):
         GlobalVars.set_value("CAUGHT", 1)
         error = getattr(error, 'original', error)
-        if isinstance(error, (MCRconException, ValueError)):
+        if isinstance(error, ValueError):
             await ctx.send(error)
         else:
             await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
@@ -686,11 +683,7 @@ class General(commands.Cog, name="General commands."):
 
         new_gold, new_silver, new_bronze = Properties.bronze2tuple(new_money)
         remove_gold, remove_silver, remove_bronze = Properties.bronze2tuple(remove_money)
-        with MCRcon(RCON_IP, RCON_PASSWORD, RCON_PORT) as mcr:
-            exiles_api.mcr = mcr
-            p.money = new_money
-            session.commit()
-            exiles_api.mcr = None
+        await p.set_money(new_money)
         await ctx.send(
             f"**{remove_gold}** gold, **{remove_silver}** silver and **{remove_bronze}** bronze were taken from "
             f"**{owner.name}**. They now have **{new_gold}** gold, **{new_silver}** silver and **{new_bronze}** bronze."
@@ -701,7 +694,7 @@ class General(commands.Cog, name="General commands."):
     async def remove_error(self, ctx, error):
         GlobalVars.set_value("CAUGHT", 1)
         error = getattr(error, 'original', error)
-        if isinstance(error, (MCRconException, ValueError)):
+        if isinstance(error, ValueError):
             await ctx.send(error)
         else:
             await ctx.send("An error has occured. Please try again and contact Midnight if it persists.")
