@@ -5,9 +5,11 @@ from datetime import datetime
 from logger import logger
 from checks import is_not_applicant, is_applicant, has_role
 from config import APPLICATIONS, PREFIX, ADMIN_ROLE, NOT_APPLIED_ROLE, SUPPORT
-from exiles_api import session, TextBlocks, Users, Applications as AppsTable
+from exiles_api import session, Users, TextBlocks, Applications as AppsTable
 from exceptions import NotNumberError, NumberNotInRangeError
-from functions import parse, get_guild, get_channels, get_member, get_roles, whitelist_player
+from functions import (
+    parse, get_guild, get_channels, get_member, get_roles, whitelist_player
+)
 
 
 class Applications(commands.Cog, name="Application commands"):
@@ -286,7 +288,7 @@ class Applications(commands.Cog, name="Application commands"):
         info = parse(guild, ctx.author, f"They have been informed to request whitelisting in {channels[SUPPORT]}.")
         if funcom_id:
             funcom_id = funcom_id.upper()
-            result, err = whitelist_player(funcom_id)
+            result, _ = await whitelist_player(funcom_id)
             if result == f"Player {funcom_id} added to whitelist.":
                 await self.add_new_user(member, funcom_id)
                 await member.send(parse(guild, ctx.author, TextBlocks.get("WHITELISTING_SUCCEEDED")))
