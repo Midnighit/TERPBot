@@ -280,7 +280,6 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="whois", help=whois_help, aliases=["whomst", "whomstthefuck"])
     async def whois(self, ctx, *, Name):
-        print("calling whois command")
         guild = get_guild(self.bot)
         is_staff = has_support_role_or_greater(guild, ctx.author)
         disc_id = disc_user = user = show_char_id = show_disc_id = None

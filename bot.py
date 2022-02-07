@@ -282,7 +282,6 @@ async def keep_trc_alive():
             if time_passed < RCON_KEEP_ALIVE_TIME:
                 await asyncio.sleep(1)
             else:
-                print("time_passed >= keep_alive")
                 msg, success = await exiles_api.trc.safe_send_cmd("help")
                 if success:
                     logger.debug(f'keeping connection alive. Waiting for {RCON_KEEP_ALIVE_TIME.seconds} seconds.')
