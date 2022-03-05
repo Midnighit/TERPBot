@@ -185,15 +185,21 @@ async def update_roles():
 async def display_playerlist():
     while True:
         channels = get_channels(bot=bot)
+        message = None
         async for message in channels[PLAYERLIST].history(limit=100):
             if message.author == bot.user:
                 break
+
         now = datetime.utcnow()
         playerlist, success = await listplayers()
         if not success:
             await discord.utils.sleep_until(now + timedelta(seconds=30))
             continue
-        await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
+        
+        if message:
+            await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
+        else:
+            await channels[PLAYERLIST].send(f"{playerlist}\n(last update: {now:%H:%M} UTC)")
         await discord.utils.sleep_until(now + DISPLAY_PLAYERLIST)
 
 
