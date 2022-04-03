@@ -24,7 +24,7 @@ from config import (
     CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
     SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
     SHUTDOWN_MSG, RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
-    RCON_PORT
+    RCON_PORT, STAFF_DISCORD_NAME
 )
 
 intents = discord.Intents.default()
@@ -400,7 +400,7 @@ async def on_member_remove(member):
 async def on_message(message):
     guild = get_guild(bot)
     channels = get_channels(guild)
-    staff_roles = get_roles(bot=bot, name='Exiled Staff')
+    staff_roles = get_roles(bot=bot, name=STAFF_DISCORD_NAME)
     if TIME_SYNC and message.channel == channels[STATUS]:
         if message.content.startswith(SHUTDOWN_MSG):
             get_time_task = asyncio.create_task(get_time())
