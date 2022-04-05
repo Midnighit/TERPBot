@@ -339,8 +339,8 @@ class Mag(commands.Cog, name="Magic commands."):
                     f"{mchar.total_uses:>{len(hd[2])}} | "
                     f"{mchar.total_spent:>{len(hd[3])}}"
                 )
-                # ensure that the whole output isn't longer than 2000 characters
-                if (len(output) + len(chunk)) >= 2000:
+                # ensure that the whole output isn't longer than 1800 characters
+                if (len(output) + len(chunk)) >= 1800:
                     await ctx.send(output)
                     output = chunk
                 else:

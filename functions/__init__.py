@@ -196,13 +196,13 @@ def update_whitelist_file(funcom_id, add=True):
 
 def split_message(message, delimiter="\n"):
     result = []
-    # if message is longer than 2000 chars, split it at the delimiter
-    while len(message) > 2000:
-        # get the closest delimiter to the 2000 chars and split the message there.
+    # if message is longer than 1800 chars, split it at the delimiter
+    while len(message) > 1800:
+        # get the closest delimiter to the 1800 chars and split the message there.
         # the first part is appended to the result list
-        result.append(message[0:message.rfind(delimiter, 0, 2000)])
+        result.append(message[0:message.rfind(delimiter, 0, 1800)])
         # the second part becomes the new message
-        message = message[message.rfind(delimiter, 0, 2000) + 1:]
+        message = message[message.rfind(delimiter, 0, 1800) + 1:]
 
     # the leftover message becomes the last part of the list
     result.append(message)
@@ -398,7 +398,7 @@ async def get_category_msg(category, messages=[]):
     chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n"
     msgs = []
     if len(messages) > 0:
-        if len(messages[-1] + "\n" + chunk) <= 2000:
+        if len(messages[-1] + "\n" + chunk) <= 1800:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
     fmt = "%A %d-%b-%Y %H:%M UTC"
@@ -422,7 +422,7 @@ async def get_category_msg(category, messages=[]):
         line = f"**{name}:**\nLast payment: {last_pay}.\nNext due: {next_due.strftime(fmt)}"
         line += ". **(Overdue)**\n\n" if now > next_due else "\n\n"
 
-        if len(chunk + line) > 2000:
+        if len(chunk + line) > 1800:
             msgs.append(chunk)
             chunk = line
         else:
@@ -442,7 +442,7 @@ async def get_category_msg_original(category, messages=[]):
     freq = category.frequency
     msgs = []
     if len(messages) > 0:
-        if len(messages[-1] + "\n" + chunk) <= 2000:
+        if len(messages[-1] + "\n" + chunk) <= 1800:
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
     for group in groups:
@@ -466,7 +466,7 @@ async def get_category_msg_original(category, messages=[]):
         else:
             periods = f" ({abs(group.balance)} billing periods)" if group.balance < -1 else ""
             line = f"**{group.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n"
-        if len(chunk + line) > 2000:
+        if len(chunk + line) > 1800:
             msgs.append(chunk)
             chunk = line
         else:
@@ -512,7 +512,7 @@ async def get_category_msg_compact(category, messages=[]):
     chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n```{headline}"
     msgs = []
     for line in lines:
-        if len(chunk + "\n" + line + "```") <= 2000:
+        if len(chunk + "\n" + line + "```") <= 1800:
             chunk = chunk + "\n" + line
         else:
             msgs.append(chunk + "```")
@@ -524,7 +524,7 @@ async def get_category_msg_compact(category, messages=[]):
 async def get_user_msg(groups, messages=[]):
     chunk, msgs = "", []
     if len(messages) > 0:
-        if len(messages[-1] + chunk) <= 2000:
+        if len(messages[-1] + chunk) <= 1800:
             chunk = messages[-1] + chunk
             msgs = messages[:-1]
     fmt = "%A %d-%b-%Y %H:%M UTC"
@@ -538,7 +538,7 @@ async def get_user_msg(groups, messages=[]):
             line += f"Next payment is due on **{next_due.strftime(fmt)}**.\n"
         else:
             line += f"Next payment **was** due on **{next_due.strftime(fmt)}**. **(Overdue)**\n"
-        if len(chunk + line) > 2000:
+        if len(chunk + line) > 1800:
             msgs.append(chunk)
             chunk = line
         else:

@@ -81,7 +81,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         block = "People with **boatbucks**:\n"
                         positives = True
                     add = f"{bucks} - {name}\n"
-                    if len(block) + len(add) > 2000:
+                    if len(block) + len(add) > 1800:
                         blocks.append(block)
                         block = add
                     else:
@@ -96,7 +96,7 @@ class BBK(commands.Cog, name="Boatbucks commands."):
                         block = "People with **boatdebt**:\n"
                         negatives = True
                     add = f"{abs(bucks)} - {name}\n"
-                    if len(block) + len(add) > 2000:
+                    if len(block) + len(add) > 1800:
                         blocks.append(block)
                         block = add
                     else:

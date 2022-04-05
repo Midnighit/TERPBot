@@ -38,15 +38,15 @@ class Applications(commands.Cog, name="Application commands"):
             answer = questions[id].answer + "\n"
             question = f"__**Question {id + 1}:**__\n> {parse(guild, author, questions[id].question)}\n"
             if answer != "":
-                if len(chunk) + len(question) >= 2000:
+                if len(chunk) + len(question) >= 1800:
                     overview.append(chunk)
                     chunk = ""
                 chunk += question
-                if len(chunk) + len(answer) >= 2000:
+                if len(chunk) + len(answer) >= 1800:
                     overview.append(chunk)
                     chunk = ""
                 chunk += answer
-        if msg and len(chunk) + len(msg) >= 2000:
+        if msg and len(chunk) + len(msg) >= 1800:
             overview.append(chunk)
             overview.append(msg)
         elif msg:

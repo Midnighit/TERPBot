@@ -171,7 +171,7 @@ class General(commands.Cog, name="General commands."):
                             f"**{member.name}** {cid}is **{rank_nam}** on " f"slot **{slot}** (last login: {lldate})\n"
                         )
 
-                    if len(chunk) + len(mem_msg) >= 2000:
+                    if len(chunk) + len(mem_msg) >= 1800:
                         msg.append(chunk)
                         chunk = mem_msg
                     else:

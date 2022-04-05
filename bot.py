@@ -62,8 +62,8 @@ async def magic_rolls():
         for mchar in mchars:
             mchar.mana = random.randint(MAGIC_ROLL_RANGE[0], MAGIC_ROLL_RANGE[1])
             chunk = f"\n{mchar.name:<{wd}} | {mchar.mana:>{len(hd[1])}}"
-            # ensure that the whole output isn't longer than 2000 characters
-            if (len(output) + len(chunk)) > 2000:
+            # ensure that the whole output isn't longer than 1800 characters
+            if (len(output) + len(chunk)) > 1800:
                 await channels[MAGIC_ROLLS].send(output)
                 output = chunk
             else:
@@ -195,7 +195,7 @@ async def display_playerlist():
         if not success:
             await discord.utils.sleep_until(now + timedelta(seconds=30))
             continue
-        
+
         if message:
             await message.edit(content=f"{playerlist}\n(last update: {now:%H:%M} UTC)")
         else:
