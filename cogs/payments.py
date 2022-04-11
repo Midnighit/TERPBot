@@ -53,7 +53,7 @@ class Payments(commands.Cog, name="Payment commands."):
                 await ctx.send("You have no characters or clans on any of the payment lists.")
             else:
                 messages = []
-                for owner_id, groups in group_list.items():
+                for groups in group_list.values():
                     messages = await get_user_msg(groups, messages)
                 await print_payments_msg(ctx.channel, messages)
 

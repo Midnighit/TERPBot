@@ -8,7 +8,7 @@ from discord.ext import commands
 from datetime import timedelta, datetime
 from logger import logger
 from exiles_api import (
-    session, next_time, is_running, Owner, Guilds, Characters,
+    session, next_time, adjusted_next_due, is_running, Owner, Guilds, Characters,
     Users, Groups, CatOwners, Categories, OwnersCache, GlobalVars
 )
 from config import DISCORD_NAME, SUPPORT_ROLE, PREFIX, WHITELIST_PATH, SAVED_DIR_PATH
@@ -402,25 +402,18 @@ async def get_category_msg(category, messages=[]):
             chunk = messages[-1] + "\n" + chunk
             msgs = messages[:-1]
     fmt = "%A %d-%b-%Y %H:%M UTC"
-    freq = category.frequency
     now = datetime.utcnow()
     for group in groups:
-        # owner doesn't exist anymore
-        if group.name is None:
-            if len(group.owners) > 0:
-                owner = group.owners[0]
-                name = session.query(OwnersCache.name).filter_by(id=group.owner.id).scalar()
-                line = f"**{name}: Not found in db and may have to be deleted."
-            continue
-        elif group.name == "Ruins":
-            owner = group.owners[0]
-            name = session.query(OwnersCache.name).filter_by(id=owner.id).scalar() + " (Ruins)"
-        else:
-            name = group.name
+        name = group.name
         last_pay = group.last_payment.strftime(fmt) if group.last_payment else "Never"
-        next_due = group.next_due if last_pay == "Never" else group.last_payment + freq
-        line = f"**{name}:**\nLast payment: {last_pay}.\nNext due: {next_due.strftime(fmt)}"
-        line += ". **(Overdue)**\n\n" if now > next_due else "\n\n"
+        line = f"**{name}:**\nLast payment: {last_pay}.\n"
+        next_due = adjusted_next_due(group.next_due, group.category.mode, group.balance)
+        if now < next_due:
+            line += f'Next due: **{next_due.strftime(fmt)}**'
+        elif group.balance == -1:
+            line += f'Was due: **{next_due.strftime(fmt)}** (1 period behind).'
+        else:
+            line += f'Was due: **{next_due.strftime(fmt)}** ({abs(group.balance)} periods behind).'
 
         if len(chunk + line) > 1800:
             msgs.append(chunk)
@@ -429,96 +422,6 @@ async def get_category_msg(category, messages=[]):
             chunk += line
     msgs.append(chunk)
     return msgs
-
-
-async def get_category_msg_original(category, messages=[]):
-    groups = [g for g in session.query(Groups).filter_by(category=category).all()]
-    if len(groups) == 0:
-        return messages
-    groups.sort(key=lambda owner: owner.name)
-    type = "Clans" if category.guild_pay else "Characters"
-    chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n"
-    fmt = "%A %d-%b-%Y %H:%M UTC"
-    freq = category.frequency
-    msgs = []
-    if len(messages) > 0:
-        if len(messages[-1] + "\n" + chunk) <= 1800:
-            chunk = messages[-1] + "\n" + chunk
-            msgs = messages[:-1]
-    for group in groups:
-        last_pay = group.last_payment.strftime(fmt) if group.last_payment else "Never"
-        next_due = group.next_due if last_pay == "Never" else group.last_payment + freq
-
-        if category.frequency == timedelta(weeks=1):
-            dur = "week"
-        elif category.frequency == timedelta(days=28):
-            dur = "month"
-        else:
-            dur = "billing period"
-        if group.balance > 0:
-            line = f"**{group.name}** has **already paid for this {dur}**. " f"Last payment was made: **{last_pay}**.\n"
-        elif group.balance == 0:
-            line = (
-                f"**{group.name}** has **not paid for this {dur} yet**. "
-                f"Last payment was made: **{last_pay}**. "
-                f"Next payment is due on **{next_due.strftime(fmt)}** at the latest.\n"
-            )
-        else:
-            periods = f" ({abs(group.balance)} billing periods)" if group.balance < -1 else ""
-            line = f"**{group.name}'s** payment is **overdue{periods}**. Last payment was made: **{last_pay}**.\n"
-        if len(chunk + line) > 1800:
-            msgs.append(chunk)
-            chunk = line
-        else:
-            chunk += line
-    msgs.append(chunk)
-    return msgs
-
-
-async def get_category_msg_compact(category, messages=[]):
-    groups = [g for g in session.query(Groups).filter_by(category=category).all()]
-    if len(groups) == 0:
-        return messages
-    groups.sort(key=lambda owner: owner.name)
-    type = "Clans" if category.guild_pay else "Characters"
-    list, lines = [], []
-    name_hl, next_due_hl, last_payment_hl = "Name", "Next due date (UTC)", "Last payment (UTC)"
-    ln, lnd, llp = len(name_hl), len(next_due_hl), len(last_payment_hl)
-    date_format = "%A %d-%b-%Y %H:%M"
-    if category.frequency == timedelta(weeks=1):
-        dur = "week"
-    elif category.frequency == timedelta(days=28):
-        dur = "month"
-    else:
-        dur = "billing period"
-    for group in groups:
-        if group.balance > 0:
-            next_due = f"Paid for this {dur}"
-        elif group.balance == 0:
-            next_due = group.last_payment.strftime(date_format)
-        else:
-            next_due = ">> OVERDUE! <<"
-        last_payment = group.last_payment.strftime(date_format) if group.last_payment else "Never"
-        list.append({"name": group.name, "last_pay": last_payment, "next_due": next_due})
-        ln = max(ln, len(group.name))
-        lnd = max(lnd, len(next_due))
-        llp = max(llp, len(last_payment))
-    list.sort(key=lambda user: user["name"])
-    for line in list:
-        lines.append(f"{line['name']:<{ln}} | {line['next_due']:<{lnd}} | {line['last_pay']}")
-    headline = f"{name_hl:<{ln}} | {next_due_hl:<{lnd}} | {last_payment_hl}\n"
-    width = len(headline) - len(last_payment_hl) - 1 + llp
-    headline = headline + width * "-"
-    chunk = f"__**{type}** and groups in category **{category.cmd}**:__\n```{headline}"
-    msgs = []
-    for line in lines:
-        if len(chunk + "\n" + line + "```") <= 1800:
-            chunk = chunk + "\n" + line
-        else:
-            msgs.append(chunk + "```")
-            chunk = "```" + line
-    msgs.append(chunk + "```")
-    return messages + msgs
 
 
 async def get_user_msg(groups, messages=[]):
@@ -530,14 +433,14 @@ async def get_user_msg(groups, messages=[]):
     fmt = "%A %d-%b-%Y %H:%M UTC"
     now = datetime.utcnow()
     for group in groups:
-        freq = group.category.frequency
         last_pay = group.last_payment.strftime(fmt) if group.last_payment else "Never"
-        next_due = group.next_due if last_pay == "Never" else group.last_payment + freq
+        next_due = adjusted_next_due(group.next_due, group.category.mode, group.balance)
         line = f"**{group.name}** last paid their **{group.category.name}** on **{last_pay}**.\n"
         if now < next_due:
             line += f"Next payment is due on **{next_due.strftime(fmt)}**.\n"
         else:
-            line += f"Next payment **was** due on **{next_due.strftime(fmt)}**. **(Overdue)**\n"
+            periods = 'periods behind' if group.balance < -1 else 'period behind'
+            line += f'Last payment **was** due on **{next_due.strftime(fmt)}** ({abs(group.balance)} {periods}).\n'
         if len(chunk + line) > 1800:
             msgs.append(chunk)
             chunk = line
@@ -564,7 +467,7 @@ async def payments(id, category_id):
                 name = session.query(OwnersCache.name).filter_by(id=cat_owner.id).scalar()
                 guess = "(" + name + ") " if name else ""
                 logger.info(
-                    f"Character or clan with id {id} {guess}and category_id {category_id} removed "
+                    f"Character or clan with id {id} {guess} and category_id {category_id} removed "
                     f"from payments list because they have been deleted from db since last time."
                 )
                 messaged = True
@@ -578,8 +481,8 @@ async def payments(id, category_id):
                 )
             session.delete(group)
         await discord.utils.sleep_until(group.next_due)
-        group.next_due = group.next_due + group.category.frequency
         group.balance -= 1
+        group.next_due = adjusted_next_due(group.next_due, group.category.mode, 1)
         logger.info(
             f"Deducted 1 bpp from {group.name} ({id}). New balance is {group.balance}. "
             f"Next due date has been set to {group.next_due.strftime('%A %d-%b-%Y %H:%M UTC')}."
@@ -610,18 +513,19 @@ async def payments_output(guilds, id):
             break
         if cat.verbosity == 0:
             break
-        if cat.frequency > timedelta(days=1):
+        frequency, _, _ = cat.mode.split(';')
+        if frequency in ('monthly', 'weekly'):
             delay = timedelta(days=1) + timedelta(seconds=cat.id * 5)
-        elif cat.frequency >= timedelta(days=1):
+        elif frequency == 'daily':
             delay = timedelta(hours=12) + timedelta(seconds=cat.id * 5)
-        elif cat.frequency >= timedelta(hours=1):
+        elif frequency == 'hourly':
             delay = timedelta(minutes=30) + timedelta(seconds=cat.id * 5)
         else:
             break
 
-        next_due = next_time(cat.start) - delay if not next_due else next_due + cat.frequency
+        next_due = next_time(cat.mode) - delay
         if next_due <= datetime.utcnow():
-            next_due += cat.frequency
+            next_due = adjusted_next_due(next_due, cat.mode, 1)
         await discord.utils.sleep_until(next_due)
         for guild in guilds:
             for channel in guild.channels:

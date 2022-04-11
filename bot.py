@@ -355,7 +355,7 @@ async def on_ready():
     for group in session.query(Groups).order_by(Groups.next_due).all():
         payments_task = asyncio.create_task(payments(group.id, group.category_id))
         payments_task.add_done_callback(exception_catching_callback)
-    for category in session.query(Categories).all():
+    for category in session.query(Categories).filter(Categories.verbosity != 0).all():
         payments_output_task = asyncio.create_task(payments_output(bot.guilds, category.id))
         payments_output_task.add_done_callback(exception_catching_callback)
     timers = GlobalVars.get_value("TIMERS")
