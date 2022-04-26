@@ -409,11 +409,11 @@ async def get_category_msg(category, messages=[]):
         line = f"**{name}:**\nLast payment: {last_pay}.\n"
         next_due = adjusted_next_due(group.next_due, group.category.mode, group.balance)
         if now < next_due:
-            line += f'Next due: **{next_due.strftime(fmt)}**'
+            line += f'Next due: **{next_due.strftime(fmt)}**\n'
         elif group.balance == -1:
-            line += f'Was due: **{next_due.strftime(fmt)}** (1 period behind).'
+            line += f'Was due: **{next_due.strftime(fmt)}** (1 period behind).\n'
         else:
-            line += f'Was due: **{next_due.strftime(fmt)}** ({abs(group.balance)} periods behind).'
+            line += f'Was due: **{next_due.strftime(fmt)}** ({abs(group.balance)} periods behind).\n'
 
         if len(chunk + line) > 1800:
             msgs.append(chunk)
