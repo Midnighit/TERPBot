@@ -1,5 +1,6 @@
 import re
 import discord
+import asyncio
 import itertools
 import pprint
 import exiles_api
@@ -601,10 +602,20 @@ async def process_chat_command(message):
 
 
 async def listplayers():
-    if exiles_api.trc:
-        result, success = await exiles_api.trc.safe_send_cmd("ListPlayers")
-    else:
-        return "Server is not running right now, please try again later.", False
+    # repeat is set to True for the first iteration
+    repeat = True
+    while repeat:
+        # the working assumption is that no repetition is required
+        repeat = False
+        if exiles_api.trc:
+            result, success = await exiles_api.trc.safe_send_cmd("ListPlayers")
+        else:
+            return "Server is not running right now, please try again later.", False
+
+        # if playerlisting fails because there was still a previous rcon result cached try again after 1 second
+        if not success and result.endswith(' added to whitelist.') or result.endswith(' removed from whitelist.'):
+            repeat = True
+            await asyncio.sleep(1)
 
     if not success:
         return result, success
@@ -675,10 +686,21 @@ async def whitelist_player(funcom_id):
     # try whitelisting via rcon
     msg = "Whitelisting failed. Server didn't respond. Please try again later."
 
-    if exiles_api.trc:
-        msg, success = await exiles_api.trc.safe_send_cmd(f"WhitelistPlayer {funcom_id}")
-    else:
-        return "Server is not running right now, please try again later.", False
+    # repeat is set to True for the first iteration
+    repeat = True
+    while repeat:
+        # the working assumption is that no repetition is required
+        repeat = False
+        if exiles_api.trc:
+            msg, success = await exiles_api.trc.safe_send_cmd(f"WhitelistPlayer {funcom_id}")
+        else:
+            return "Server is not running right now, please try again later.", False
+
+        # if whitelisting fails because there was still a previous rcon result cached try again after 1 second
+        if not success and msg.startswith('Idx | Char name'):
+            repeat = True
+            msg = "Whitelisting failed. Server didn't respond. Please try again later."
+            await asyncio.sleep(1)
 
     if not success:
         return msg, success
