@@ -547,14 +547,14 @@ async def payments_input(category, message):
                 break
             cat_owner = cat_owners[guild.id]
             group = cat_owner.group
-            if guild.name in message.content:
+            if message.content == f"{guild.name} {category.alert_message}":
                 found = True
                 group.balance += 1
                 group.last_payment = datetime.utcnow()
                 logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
             else:
                 for char in guild.members:
-                    if char.name in message.content:
+                    if message.content == f"{char.name} {category.alert_message}":
                         found = True
                         cat_owner.balance += 1
                         cat_owner.last_payment = datetime.utcnow()
@@ -566,7 +566,7 @@ async def payments_input(category, message):
                 break
             cat_owner = cat_owners[char.id]
             group = cat_owner.group
-            if char.name in message.content:
+            if message.content == f"{char.name} {category.alert_message}":
                 found = True
                 group.balance += 1
                 group.last_payment = datetime.utcnow()
