@@ -23,7 +23,7 @@ from config import (
     MAGIC_ROLLS, MAGIC_ROLL_RANGE, UPDATE_ROLES_TIME, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_IGNORE_LIST, CLAN_ROLE_HOIST,
     CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
     SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
-    SHUTDOWN_MSG, RESTART_MSG, PIPPI_CHATLOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
+    SHUTDOWN_MSG, RESTART_MSG, CHATLOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
     RCON_PORT, STAFF_DISCORD_NAME
 )
 
@@ -449,7 +449,7 @@ async def on_message(message):
             await payments_input(category, message)
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
-    if message.channel == channels[PIPPI_CHATLOG]:
+    if message.channel == channels[CHATLOG]:
         if " executed chat command " in message.content:
             await process_chat_command(message.content)
     if not message.channel.type == ChannelType.private or not app:
