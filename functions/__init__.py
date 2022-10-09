@@ -565,12 +565,19 @@ async def payments_input(category, message):
             if found:
                 break
             cat_owner = cat_owners[char.id]
-            group = cat_owner.group
             if message.content == f"{char.name} {category.alert_message}":
+                group = cat_owner.group
                 found = True
                 group.balance += 1
                 group.last_payment = datetime.utcnow()
                 logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
+            
+            if not found:
+                logger.info(
+                    f"Found payments message '{message.content}' "
+                    f"but no character or guild named {group.name} ({group.id})."
+                )
+
     session.commit()
 
 
