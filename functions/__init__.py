@@ -4,6 +4,7 @@ import asyncio
 import itertools
 import pprint
 import exiles_api
+import json
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
@@ -571,7 +572,7 @@ async def payments_input(category, message):
                 group.balance += 1
                 group.last_payment = datetime.utcnow()
                 logger.info(f"Added 1 bpp to {group.name} ({group.id}).")
-            
+
             if not found:
                 logger.info(
                     f"Found payments message '{message.content}' "
@@ -581,31 +582,65 @@ async def payments_input(category, message):
     session.commit()
 
 
-async def process_chat_command(message):
+async def process_pippi_chat_command(message):
     first, second = message.split(" executed chat command ")
     command, params = second.split("  with params ")
     name = first[7:]
     command = command[1:-1]
     params = params[1:-1]
+    file = 'Chat'
     now = datetime.utcnow().strftime("%Y.%m.%d-%H.%M.%S:%f")[:-3]
-    line = None
+    data = {'datetime': now, 'name': name}
     if command == "me":
-        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Emote]: *{name} {params}*\n"
+        data['channel'] = 'Say'
+        data['type'] = 'Chat'
+        data['content'] = f"{name} {params}"
     elif command == "do":
-        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Emote]: *{params} {name}*\n"
+        data['channel'] = 'Say'
+        data['type'] = 'Chat'
+        data['content'] = f"{params} {name}"
     elif command == "shout":
-        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Shout]: *{name} shouts: {params}*\n"
+        data['channel'] = 'Yell'
+        data['type'] = 'Chat'
+        data['content'] = f"{name} shouts: {params}"
     elif command == "mumble":
-        line = f"[{now}][Pippi]PippiChat: {name} said in channel [Mumble]: *{name} mumbles: {params}*\n"
+        data['channel'] = 'Mumble'
+        data['type'] = 'Chat'
+        data['content'] = f"{name} mumbles: {params}"
     else:
-        params = f" with params {params}" if len(params) > 0 else params
-        line = f"[{now}][Pippi]PippiCommand: Character {name} used command {command}{params}\n"
-    if line:
-        try:
-            with open(SAVED_DIR_PATH + "/Logs/PippiCommands.log", "a", encoding="utf-8-sig") as f:
-                f.write(line)
-        except Exception as e:
-            print(e)
+        file = 'Commands'
+        data['command'] = command
+        data['type'] = 'PippiCommand'
+        data['params'] = params
+    try:
+        with open(SAVED_DIR_PATH + "/Logs/" + file + ".log", "a", encoding="utf-8-sig") as f:
+            f.write(json.dumps(data, separators=(',', ':')) + '\n')
+    except Exception as e:
+        print(e)
+
+
+async def process_rr_chat_command(message):
+    pattern = r'\:([\w]+): \[[\d:]+\]\[([\w]+)\] ([^:]+): (.*)'
+    file = 'Chat'
+    trans = {'mega': 'Chat', 'game_die': 'Attribute', 'muscle': 'Ability'}
+    try:
+        type, channel, name, content = re.search(pattern, message).groups()
+    except Exception:
+        file = 'Unhandled'
+
+    try:
+        if file == 'Chat':
+            now = datetime.utcnow().strftime("%Y.%m.%d-%H.%M.%S:%f")[:-3]
+            content = ' '.join(content.split('\n'))
+            type = trans[type]
+            data = {'datetime': now, 'name': name, 'channel': channel, 'type': type, 'content': content}
+            with open(SAVED_DIR_PATH + "/Logs/Chat.log", "a", encoding="utf-8-sig") as f:
+                f.write(json.dumps(data, separators=(',', ':')) + '\n')
+        else:
+            with open(SAVED_DIR_PATH + "/Logs/Unhandled.log", "a", encoding="utf-8-sig") as f:
+                f.write(message + '\n')
+    except Exception as e:
+        print(e)
 
 
 async def listplayers():

@@ -15,8 +15,8 @@ from exiles_api import (
 )
 from functions import (
     filter_types, get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal,
-    payments, payments_input, payments_output, parse, listplayers, exception_catching_callback, process_chat_command,
-    set_timer, is_running
+    payments, payments_input, payments_output, parse, listplayers, exception_catching_callback, set_timer, is_running,
+    process_pippi_chat_command, process_rr_chat_command
 )
 from config import (
     DURA_TYPES, HUB_ALERTS, PREFIX, DISCORD_TOKEN, DISCORD_CHANNELS, DISCORD_NAME, UPDATE_MAGIC_TIME, UPDATE_MAGIC_DAY,
@@ -24,7 +24,7 @@ from config import (
     CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
     SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
     SHUTDOWN_MSG, RESTART_MSG, CHATLOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
-    RCON_PORT, STAFF_DISCORD_NAME
+    RCON_PORT, STAFF_DISCORD_NAME, RR_CHAT_WEBHOOK
 )
 
 intents = discord.Intents.default()
@@ -450,8 +450,10 @@ async def on_message(message):
 
     app = session.query(Applications).filter_by(disc_id=message.author.id).first()
     if message.channel == channels[CHATLOG]:
-        if " executed chat command " in message.content:
-            await process_chat_command(message.content)
+        if message.author.id == RR_CHAT_WEBHOOK:
+            await process_rr_chat_command(message.content)
+        elif " executed chat command " in message.content:
+            await process_pippi_chat_command(message.content)
     if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
             return
