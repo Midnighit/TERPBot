@@ -3,6 +3,7 @@ import random
 import discord
 import asyncio
 import exiles_api
+import openai
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from discord import ChannelType
@@ -24,7 +25,7 @@ from config import (
     CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
     SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
     SHUTDOWN_MSG, RESTART_MSG, CHATLOG, DICELOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
-    RCON_PORT, STAFF_DISCORD_NAME, RR_CHAT_WEBHOOK
+    RCON_PORT, STAFF_DISCORD_NAME, RR_CHAT_WEBHOOK, OPENAI_API_KEY
 )
 
 intents = discord.Intents.default()
@@ -335,6 +336,7 @@ async def on_ready():
             logger.info(f"{channel[0]} channel was created (id = {channels[channel[0]].id})")
     # initialize randomizer
     random.seed()
+    openai.api_key = OPENAI_API_KEY
     # load cogs
     for filename in os.listdir("cogs"):
         if filename.endswith(".py"):
@@ -455,7 +457,7 @@ async def on_message(message):
     elif message.channel == channels[DICELOG]:
         if message.author.id == RR_CHAT_WEBHOOK:
             await process_rr_chat_command(message.content)
-    
+
     if not message.channel.type == ChannelType.private or not app:
         if message.content in IGNORE_CMDS:
             return

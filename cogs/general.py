@@ -1,5 +1,6 @@
 import asyncio
 import random
+import openai
 from datetime import datetime, timedelta
 from math import ceil
 from discord.ext import commands
@@ -914,6 +915,18 @@ class General(commands.Cog, name="General commands."):
                 f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
                 f"it helps keep the server up and running at less of an expense to {ari.mention}"
             )
+        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
+    async def ask(self, ctx, *, question):
+        kwargs = {
+            'model': 'text-davinci-003',
+            'prompt': question,
+            'max_tokens': 200,
+            'temperature': 0.25
+        }
+        response = openai.Completion.create(**kwargs)
+        await ctx.send(response.choices[0].text)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="tiles", help="Gives the tiles belonging to your chars or their clans.")
