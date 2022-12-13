@@ -918,12 +918,26 @@ class General(commands.Cog, name="General commands."):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
-    async def ask(self, ctx, *, question):
+    async def ask(self, ctx, *, arg):
+        arg_list = arg.split()
+        temperature = 0
+        try:
+            if "temp" in arg_list:
+                idx = arg_list.index('temp') + 1
+                t = arg_list[idx]
+                arg_list.remove("temp")
+                arg_list.remove(t)
+                temperature = float(t)
+
+        except Exception:
+            pass
+        
+        question = " ".join(arg_list)
         kwargs = {
             'model': 'text-davinci-003',
             'prompt': question,
             'max_tokens': 200,
-            'temperature': 0.25
+            'temperature': temperature
         }
         response = openai.Completion.create(**kwargs)
         await ctx.send(response.choices[0].text)
