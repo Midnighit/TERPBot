@@ -1,6 +1,7 @@
 import asyncio
 import random
 import openai
+from string import punctuation
 from datetime import datetime, timedelta
 from math import ceil
 from discord.ext import commands
@@ -10,7 +11,7 @@ from checks import has_not_role, has_role_greater_or_equal
 from config import (
     DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
-    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN
+    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PROMPT
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
@@ -932,11 +933,13 @@ class General(commands.Cog, name="General commands."):
         except Exception:
             pass
         
-        question = " ".join(arg_list)
+        question = OPENAI_PROMPT.replace('<name>', ctx.author.display_name) + " ".join(arg_list)
+        if not question[-1] in punctuation:
+            question += '?'
         kwargs = {
             'model': 'text-davinci-003',
             'prompt': question,
-            'max_tokens': 200,
+            'max_tokens': 2000,
             'temperature': temperature
         }
         response = openai.Completion.create(**kwargs)
