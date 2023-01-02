@@ -11,7 +11,7 @@ from checks import has_not_role, has_role_greater_or_equal
 from config import (
     DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
-    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PROMPT
+    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
@@ -20,10 +20,16 @@ from functions import (
     has_support_role_or_greater, split_message, get_channels, set_timer
 )
 
+try:
+    from config import OPENAI_PROMPT
+except Exception:
+    logger.info("OpenAI couldn't be initialised prompt command is not available.")
+
 whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
 
 
 class General(commands.Cog, name="General commands."):
+
     def __init__(self, bot):
         self.bot = bot
         self.guild = get_guild(bot)
@@ -920,6 +926,10 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
     async def ask(self, ctx, *, arg):
+        if 'OPENAI_PROMPT' not in locals():
+            # don't react to command calls if OpenAI isn't initialised properly.
+            return
+
         arg_list = arg.split()
         temperature = 0
         try:
@@ -932,7 +942,7 @@ class General(commands.Cog, name="General commands."):
 
         except Exception:
             pass
-        
+
         question = OPENAI_PROMPT.replace('<name>', ctx.author.display_name) + " ".join(arg_list)
         if not question[-1] in punctuation:
             question += '?'
@@ -979,7 +989,9 @@ class General(commands.Cog, name="General commands."):
                     continue
                 else:
                     guilds.append(guild.name)
-                tiles = guild.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
+                bTiles = guild.num_tiles(bMult=BUILDING_TILE_MULT, pMult=0)
+                pTiles = guild.num_tiles(bMult=0, pMult=PLACEBALE_TILE_MULT)
+                tiles = bTiles + pTiles
                 # allowance is base allowance + clan allowance for each member over the first
                 if ALLOWANCE_INCLUDES_INACTIVES:
                     allowance = ALLOWANCE_BASE + (len(guild.members) - 1) * ALLOWANCE_CLAN
@@ -987,15 +999,28 @@ class General(commands.Cog, name="General commands."):
                     active_members = len(guild.members.active(INACTIVITY))
                     count = active_members - 1 if active_members >= 1 else 0
                     allowance = ALLOWANCE_BASE + count * ALLOWANCE_CLAN
-                addition = f" which is **{tiles-allowance}** over the limit" if tiles > allowance else ''
-                tiles = f"**{tiles}** of **{allowance}** allowed tiles{addition}"
-                msgs.append(f"The clan **{guild.name}** currently has {tiles}.")
+                pAllowance = allowance / 3
+                pAllowance = int(round(allowance / 3, 0))
+                name = guild.name
+
             elif owner.is_character:
-                tiles = owner.num_tiles(bMult=BUILDING_TILE_MULT, pMult=PLACEBALE_TILE_MULT)
+                bTiles = owner.num_tiles(bMult=BUILDING_TILE_MULT, pMult=0)
+                pTiles = owner.num_tiles(bMult=0, pMult=PLACEBALE_TILE_MULT)
+                tiles = bTiles + pTiles
                 allowance = ALLOWANCE_BASE
-                addition = f" which is **{tiles-allowance}** over the limit." if tiles > allowance else ''
-                tiles = f"**{tiles}** of **{allowance}** allowed tiles{addition}"
-                msgs.append(f"The character **{owner.name}** currently has {tiles}.")
+                pAllowance = int(round(allowance / 3, 0))
+                name = owner.name
+
+            excl = ':exclamation:'
+            pTile_str = f"**{pTiles}** of **{pAllowance}** allowed placables."
+            if pTiles > pAllowance:
+                pTile_str += f" {excl}**{pTiles - pAllowance}** placables over the allowance{excl}"
+
+            tile_str = f"**{tiles}** of **{allowance}** allowed total tiles"
+            if tiles > allowance:
+                tile_str += f" {excl}**{tiles - allowance}** tiles over the allowance{excl}"
+
+            msgs.append(f"**{name}**:\n**{bTiles}** building tiles\n{pTile_str}\n{tile_str}\n")
 
         msg = "\n".join(msgs)
         await ctx.send(msg)
