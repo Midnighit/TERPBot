@@ -11,7 +11,7 @@ from checks import has_not_role, has_role_greater_or_equal
 from config import (
     DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
-    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN
+    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PROMPT
 )
 from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
 from exceptions import NoDiceFormatError
@@ -19,11 +19,6 @@ from functions import (
     exception_catching_callback, filter_types, format_timedelta, get_guild, get_roles, get_member,
     has_support_role_or_greater, split_message, get_channels, set_timer
 )
-
-try:
-    from config import OPENAI_PROMPT
-except Exception:
-    logger.info("OpenAI couldn't be initialised prompt command is not available.")
 
 whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
 
@@ -926,10 +921,6 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
     async def ask(self, ctx, *, arg):
-        if 'OPENAI_PROMPT' not in locals():
-            # don't react to command calls if OpenAI isn't initialised properly.
-            return
-
         arg_list = arg.split()
         temperature = 0
         try:
