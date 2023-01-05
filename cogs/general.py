@@ -11,9 +11,9 @@ from checks import has_not_role, has_role_greater_or_equal
 from config import (
     DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
-    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PROMPT
+    INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PERSONALITIES
 )
-from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars
+from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, Characters, Guilds, GlobalVars, OpenAI
 from exceptions import NoDiceFormatError
 from functions import (
     exception_catching_callback, filter_types, format_timedelta, get_guild, get_roles, get_member,
@@ -921,6 +921,7 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
     async def ask(self, ctx, *, arg):
+
         arg_list = arg.split()
         temperature = 0
         try:
@@ -934,17 +935,31 @@ class General(commands.Cog, name="General commands."):
         except Exception:
             pass
 
-        question = OPENAI_PROMPT.replace('<name>', ctx.author.display_name) + " ".join(arg_list)
+        # arg_list[0] can be personality otherwise pick first element of OPENAI_PERSONALITIES as default
+        personality = OPENAI_PERSONALITIES[0]
+        for p in OPENAI_PERSONALITIES:
+            if arg_list[0].lower() == p.lower():
+                personality = p
+                arg_list.pop(0)
+                break
+
+        # get all previous questions and answers from db as prompt
+        prompt = '\r\n'.join([txt for txt, in session.query(OpenAI.text).filter_by(personality=personality).all()])
+        question = f'\r\n{ctx.author.display_name} [{ctx.author.id}]: ' + ' '.join(arg_list)
         if not question[-1] in punctuation:
             question += '?'
+        prompt += question
+
         kwargs = {
             'model': 'text-davinci-003',
-            'prompt': question,
+            'prompt': prompt,
             'max_tokens': 2000,
             'temperature': temperature
         }
-        response = openai.Completion.create(**kwargs)
-        await ctx.send(response.choices[0].text)
+        response = openai.Completion.create(**kwargs).choices[0].text
+        await ctx.send(response)
+        session.add(OpenAI(personality=personality, text=question[2:] + response))
+        session.commit()
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="tiles", help="Gives the tiles belonging to your chars or their clans.")
