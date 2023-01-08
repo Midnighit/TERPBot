@@ -863,6 +863,20 @@ async def set_time_decimal():
     logger.info("Time was reset successfully!")
     return 0
 
+async def split_message(message, length=2000, separator='\n'):
+        length = length - len(separator)
+        chunk = ""
+        chunks = []
+        lines = message.split(separator)
+        for line in lines:
+                if len(chunk) > 0 and (len(chunk) + len(line)) >= length:
+                    chunks.append(chunk)
+                    chunk = ''
+                chunk += (separator + line)
+
+        if len(chunk) > 0:
+            chunks.append(chunk)
+        return chunks
 
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
