@@ -9,7 +9,7 @@ from config import SUPPORT_ROLE, ADMIN_ROLE, WHITELIST_PATH
 from exiles_api import session, is_running, Users
 from functions import (
     listplayers, get_member, whitelist_player, unwhitelist_player,
-    get_time, set_time, is_on_whitelist, is_time_format
+    get_time, set_time, is_on_whitelist, is_time_format, split_message
 )
 from cogs.applications import Applications
 
@@ -78,7 +78,9 @@ class RCon(commands.Cog, name="RCon commands"):
     @has_role_greater_or_equal(SUPPORT_ROLE)
     async def listplayers(self, ctx):
         playerlist, _ = await asyncio.create_task(listplayers())
-        await ctx.send(playerlist)
+        chunks = await split_message(playerlist)
+        for chunk in chunks:
+            await ctx.send(chunk)
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whitelist", aliases=["whitelistplayer"], help="Whitelists the player using the given FuncomID")
