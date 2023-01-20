@@ -197,20 +197,20 @@ def update_whitelist_file(funcom_id, add=True):
         f.writelines(wlist)
 
 
-def split_message(message, delimiter="\n"):
-    result = []
-    # if message is longer than 1800 chars, split it at the delimiter
-    while len(message) > 1800:
-        # get the closest delimiter to the 1800 chars and split the message there.
-        # the first part is appended to the result list
-        result.append(message[0:message.rfind(delimiter, 0, 1800)])
-        # the second part becomes the new message
-        message = message[message.rfind(delimiter, 0, 1800) + 1:]
+# def split_message(message, delimiter="\n"):
+#     result = []
+#     # if message is longer than 1800 chars, split it at the delimiter
+#     while len(message) > 1800:
+#         # get the closest delimiter to the 1800 chars and split the message there.
+#         # the first part is appended to the result list
+#         result.append(message[0:message.rfind(delimiter, 0, 1800)])
+#         # the second part becomes the new message
+#         message = message[message.rfind(delimiter, 0, 1800) + 1:]
 
-    # the leftover message becomes the last part of the list
-    result.append(message)
+#     # the leftover message becomes the last part of the list
+#     result.append(message)
 
-    return result
+#     return result
 
 
 def format_timedelta(delta, fmt='**'):
@@ -309,7 +309,6 @@ async def summarize(context, length=500):
     return openai.Completion.create(**kwargs).choices[0].text[length:]
 
 
-
 async def set_timer(name, timer, guilds):
     """
     sets a timer using discord.utils.sleep_until function and
@@ -333,7 +332,7 @@ async def set_timer(name, timer, guilds):
     mention = timer.get('mention', 1) and 'owner' in timer
 
     # confirm some necessary keys are set
-    if not('end' in timer and 'channel' in timer):
+    if not ('end' in timer and 'channel' in timer):
         return None
     # if no timers exist, create a new one.
     if not value:
@@ -729,7 +728,7 @@ async def listplayers():
         headline = f"{name:<{ln}} | {guild}\n"
         width = len(headline) - len(guild) - 1 + lg
         headline = headline + width * "-" + "\n"
-        return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}```", True)
+        return (f"__**Players online:**__ {len(list)}\n```{headline}{nl.join(names)}", True)
 
 
 async def whitelist_player(funcom_id):
@@ -877,20 +876,22 @@ async def set_time_decimal():
     logger.info("Time was reset successfully!")
     return 0
 
-async def split_message(message, length=2000, separator='\n'):
-        length = length - len(separator)
-        chunk = ""
-        chunks = []
-        lines = message.split(separator)
-        for line in lines:
-                if len(chunk) > 0 and (len(chunk) + len(line)) >= length:
-                    chunks.append(chunk)
-                    chunk = ''
-                chunk += (separator + line)
 
-        if len(chunk) > 0:
+async def split_message(message, length=2000, separator='\n'):
+    length = length - len(separator)
+    chunk = ""
+    chunks = []
+    lines = message.split(separator)
+    for line in lines:
+        if len(chunk) > 0 and (len(chunk) + len(line)) >= length:
             chunks.append(chunk)
-        return chunks
+            chunk = ''
+        chunk += (separator + line)
+
+    if len(chunk) > 0:
+        chunks.append(chunk)
+    return chunks
+
 
 # errors in tasks raise silently normally so lets make them speak up
 def exception_catching_callback(task):
