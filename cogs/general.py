@@ -9,7 +9,7 @@ from discord.ext.commands import command, group
 from logger import logger
 from checks import has_not_role, has_role_greater_or_equal
 from config import (
-    DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT,
+    DURA_TYPES, NOT_APPLIED_ROLE, PREFIX, SUPPORT_ROLE, BUILDING_TILE_MULT, ADMIN_ROLE,
     PLACEBALE_TILE_MULT, CLAN_IGNORE_LIST, CLAN_START_ROLE, CLAN_END_ROLE, CLAN_ROLE_HOIST, CLAN_ROLE_MENTIONABLE,
     INACTIVITY, ALLOWANCE_INCLUDES_INACTIVES, ALLOWANCE_BASE, ALLOWANCE_CLAN, OPENAI_PERSONALITIES
 )
@@ -920,10 +920,11 @@ class General(commands.Cog, name="General commands."):
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="prompt", aliases=["ask", "ama", "chatgpt"], help="Give a prompt the bot will finish your sentence.")
+    @has_role_greater_or_equal(ADMIN_ROLE)
     async def ask(self, ctx, *, arg):
 
         arg_list = arg.split()
-        temperature = 0
+        temperature = 0.5
         try:
             if "temp" in arg_list:
                 idx = arg_list.index('temp') + 1
@@ -936,7 +937,7 @@ class General(commands.Cog, name="General commands."):
             pass
 
         # arg_list[0] can be personality otherwise pick first element of OPENAI_PERSONALITIES as default
-        personality = OPENAI_PERSONALITIES[0]
+        personality = OPENAI_PERSONALITIES[2]
         for p in OPENAI_PERSONALITIES:
             if arg_list[0].lower() == p.lower():
                 personality = p
@@ -946,14 +947,22 @@ class General(commands.Cog, name="General commands."):
         # get all previous questions and answers from db as prompt
         prompt = '\r\n'.join([txt for txt, in session.query(OpenAI.text).filter_by(personality=personality).all()])
         question = f'\r\n{ctx.author.display_name} [{ctx.author.id}]: ' + ' '.join(arg_list)
+
+        """
+        qna = []
+        for text, in session.query(OpenAI.text).filter_by(personality=personality, disc_id=ctx.author.id).all():
+            qna.append[text]
+        prompt = '\n'.join([txt for txt, in session.query(OpenAI.text).filter_by(personality=personality).all()])
+        question = f'\n{ctx.author.display_name} [{ctx.author.id}]: ' + ' '.join(arg_list)
+        """
         if not question[-1] in punctuation:
             question += '?'
         prompt += question
 
         kwargs = {
-            'model': 'text-davinci-003',
+            'engine': 'text-davinci-002',
             'prompt': prompt,
-            'max_tokens': 2000,
+            'max_tokens': 2048,
             'temperature': temperature
         }
         response = openai.Completion.create(**kwargs).choices[0].text
@@ -961,6 +970,28 @@ class General(commands.Cog, name="General commands."):
         session.add(OpenAI(personality=personality, text=question[2:] + response))
         session.commit()
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
+
+    @command(name="summarize")
+    @has_role_greater_or_equal(SUPPORT_ROLE)
+    async def summarize(self, ctx):
+        personality = OPENAI_PERSONALITIES[0]
+        context = session.query(OpenAI.text).filter_by(personality=personality).first()
+        prompt = 'Summarize the following conversation:\n"' + context[0] + '"'
+        kwargs = {
+            'engine': "text-davinci-002",
+            'prompt': prompt,
+            'max_tokens': 2048,
+            'n': 1,
+            'stop': None,
+            'temperature': 0.5
+        }
+        response = openai.Completion.create(**kwargs).choices[0]
+        print(response)
+        await ctx.send(
+            f"The original context has {len(context[0])} characters.\n"
+            f"The summary of the context has {len(response.text)} characters.\n"
+            f"Summary:\n{response.text}"
+        )
 
     @command(name="tiles", help="Gives the tiles belonging to your chars or their clans.")
     async def tiles(self, ctx, *, args=None):
