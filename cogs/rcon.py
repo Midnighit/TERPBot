@@ -79,8 +79,11 @@ class RCon(commands.Cog, name="RCon commands"):
     async def listplayers(self, ctx):
         playerlist, _ = await asyncio.create_task(listplayers())
         chunks = await split_message(playerlist)
+        sep = ''
         for chunk in chunks:
-            await ctx.send(chunk)
+            msg = sep + chunk + '```'
+            await ctx.send(msg)
+            sep = '```'
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @command(name="whitelist", aliases=["whitelistplayer"], help="Whitelists the player using the given FuncomID")
