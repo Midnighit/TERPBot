@@ -5,6 +5,7 @@ import itertools
 import pprint
 import exiles_api
 import json
+import openai
 from discord import Member
 from discord.ext import commands
 from datetime import timedelta, datetime
@@ -294,6 +295,19 @@ def filter_types(args, types):
 
     remainder = " ".join(arg_list)
     return (results, remainder)
+
+
+async def summarize(context, length=500):
+    kwargs = {
+        'engine': "text-davinci-002",
+        'prompt': f"Summarize the following in less than {length} characters:\n{context}",
+        'max_tokens': 2048,
+        'n': 1,
+        'stop': None,
+        'temperature': 0.5
+    }
+    return openai.Completion.create(**kwargs).choices[0].text[length:]
+
 
 
 async def set_timer(name, timer, guilds):
