@@ -17,7 +17,7 @@ from exiles_api import RANKS, session, ActorPosition, Users, Owner, Properties, 
 from exceptions import NoDiceFormatError
 from functions import (
     exception_catching_callback, filter_types, format_timedelta, get_guild, get_roles, get_member,
-    has_support_role_or_greater, split_message, get_channels, set_timer
+    has_support_role_or_greater, split_message, set_timer
 )
 
 whois_help = "Tells you the chararacter name(s) belonging to the given discord user or vice versa."
@@ -907,15 +907,16 @@ class General(commands.Cog, name="General commands."):
 
     @command(name="donate", aliases=["donations", "donation"])
     async def donate(self, ctx):
-        channels = get_channels(bot=self.bot)
-        donations_channel = channels["donations"] if "donations" in channels else None
+        # TODO: determine how "posts" are handled in the discord api
+        # channels = get_channels(bot=self.bot)
+        # donations_channel = channels["donations"] if "donations" in channels else None
         ari = await get_member(ctx, 123298178828206080)
-        if donations_channel and ari:
+        if ari:
             await ctx.send(
                 f"If you'd like to contribute to the operating costs of the server, please have a look at "
-                f"{donations_channel.mention}. You can either contribute monthly through the Patreon, "
-                f"or make a one time donation through PayPal. You aren't obligated to pay, but either way "
-                f"it helps keep the server up and running at less of an expense to {ari.mention}"
+                f"<https://discord.com/channels/235982917422153728/1054881627005779999>. You can either contribute "
+                f"monthly through the Patreon, or make a one time donation through PayPal. You aren't obligated to "
+                f"pay, but either way it helps keep the server up and running at less of an expense to {ari.mention}"
             )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
