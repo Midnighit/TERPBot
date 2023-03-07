@@ -1050,7 +1050,7 @@ class General(commands.Cog, name="General commands."):
                 name = owner.name
 
             excl = ':exclamation:'
-            pTile_str = f"**{pTiles}** of **{pAllowance}** allowed placables."
+            pTile_str = f"**{pTiles}** of **{pAllowance}** allowed placable tiles."
             if pTiles > pAllowance:
                 pTile_str += f" {excl}**{pTiles - pAllowance}** placables over the allowance{excl}"
 
