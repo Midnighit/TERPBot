@@ -8,7 +8,7 @@ from config import APPLICATIONS, PREFIX, ADMIN_ROLE, NOT_APPLIED_ROLE, SUPPORT
 from exiles_api import session, Users, TextBlocks, Applications as AppsTable
 from exceptions import NotNumberError, NumberNotInRangeError
 from functions import (
-    parse, get_guild, get_channels, get_member, get_roles, whitelist_player
+    parse, get_guild, get_channels, get_member, get_roles, whitelist_player, split_message
 )
 
 
@@ -522,7 +522,8 @@ class Applications(commands.Cog, name="Application commands"):
             if len(apps) > 0:
                 msg += f"You can view a specific application by entering `{PREFIX}showapp <applicant>`."
 
-            await ctx.channel.send(msg)
+            for part in await split_message(msg):
+                await ctx.channel.send(part)
             logger.info(f"{anc} {msg}")
             return
 
