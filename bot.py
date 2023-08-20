@@ -25,7 +25,7 @@ from config import (
     CLAN_ROLE_MENTIONABLE, PLAYERLIST, DISPLAY_PLAYERLIST, ADMIN_ROLE, SUPPORT_ROLE, DM_ROLE, NOT_APPLIED_ROLE,
     SETROLES_EXPLANATION, SETROLES_REACTIONS, SETROLES, DISPLAY_SETROLES, ROLL_FOR_MANA, WELCOME, STATUS, TIME_SYNC,
     SHUTDOWN_MSG, RESTART_MSG, CHATLOG, DICELOG, IGNORE_CMDS, TIMERS, RCON_KEEP_ALIVE_TIME, RCON_IP, RCON_PASSWORD,
-    RCON_PORT, STAFF_DISCORD_NAME, RR_CHAT_WEBHOOK, OPENAI_API_KEY
+    RCON_PORT, STAFF_DISCORD_NAME, RR_CHAT_WEBHOOK, OPENAI_API_KEY, INACTIVITY, ACTIVE_CHAR_ROLE, UPDATE_CLAN_ROLES
 )
 
 intents = discord.Intents.default()
@@ -75,6 +75,12 @@ async def magic_rolls():
 
 async def update_roles():
     guild = get_guild(bot)
+    if UPDATE_ROLES_TIME is False:
+        return
+
+    if not (UPDATE_CLAN_ROLES or ACTIVE_CHAR_ROLE):
+        return
+
     while True:
         # schedule the next function call
         now = datetime.utcnow()
@@ -85,102 +91,119 @@ async def update_roles():
         await discord.utils.sleep_until(then)
         # perfom the actual role update
         roles = get_roles(guild)
+        # get all characters
+        characters = session.query(Characters)
 
-        # clan roles that are required based on the actual Characters table
-        logger.info("Starting to reindex discord clan roles.")
+        if UPDATE_CLAN_ROLES:
+            # clan roles that are required based on the actual Characters table
+            logger.info("Starting to reindex discord clan roles.")
 
-        guild_members = {}
-        for member in guild.members:
-            guild_members[str(member.id)] = member
+            guild_members = {}
+            for member in guild.members:
+                guild_members[str(member.id)] = member
 
-        required_clan_roles = {}
-        for char in session.query(Characters):
-            if char.has_guild:
-                guild_name = char.guild.name
-                if guild_name in CLAN_IGNORE_LIST:
-                    continue
-                user = char.user
-                if not user:
-                    logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
-                    continue
-                disc_id = user.disc_id
-                if not disc_id:
-                    logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
-                    continue
-                if disc_id not in guild_members:
-                    logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
-                    continue
-                member = guild_members[disc_id]
-                if guild_name not in required_clan_roles:
-                    required_clan_roles[guild_name] = [member]
+            required_clan_roles = {}
+            for char in characters:
+                if char.has_guild:
+                    guild_name = char.guild.name
+                    if guild_name in CLAN_IGNORE_LIST:
+                        continue
+                    user = char.user
+                    if not user:
+                        logger.info(f"Couldn't find User for char {char.name} for clan roles indexing")
+                        continue
+                    disc_id = user.disc_id
+                    if not disc_id:
+                        logger.info(f"Couldn't find DiscordID for char {char.name} for clan roles indexing")
+                        continue
+                    if disc_id not in guild_members:
+                        logger.info(f"Couldn't get member by DiscordID for {char.name} for clan roles indexing")
+                        continue
+                    member = guild_members[disc_id]
+                    if guild_name not in required_clan_roles:
+                        required_clan_roles[guild_name] = [member]
+                    else:
+                        required_clan_roles[guild_name].append(member)
+
+            # index roles by position
+            roles_by_pos = {}
+            for name, role in roles.items():
+                roles_by_pos[role.position] = role
+
+            roles_idx = []
+            for pos in sorted(roles_by_pos):
+                name = roles_by_pos[pos].name
+                if name == CLAN_START_ROLE:
+                    start_pos = len(roles_idx)
+                elif name == CLAN_END_ROLE:
+                    end_pos = len(roles_idx)
+                roles_idx.append(name)
+
+            before_clan_roles = roles_idx[: end_pos + 1]
+            after_clan_roles = roles_idx[start_pos:]
+
+            # create a slice of only those guilds that are actually required
+            clan_roles = []
+            for name in sorted(roles_idx[end_pos + 1:start_pos]):
+                # remove existing roles that are no longer required
+                if name not in required_clan_roles:
+                    await roles[name].delete()
+                    del roles[name]
+                    logger.info(f"Deleting role {name}.")
+                # create the slice of existing clans otherwise
                 else:
-                    required_clan_roles[guild_name].append(member)
+                    clan_roles.append(name)
 
-        # index roles by position
-        roles_by_pos = {}
-        for name, role in roles.items():
-            roles_by_pos[role.position] = role
-
-        roles_idx = []
-        for pos in sorted(roles_by_pos):
-            name = roles_by_pos[pos].name
-            if name == CLAN_START_ROLE:
-                start_pos = len(roles_idx)
-            elif name == CLAN_END_ROLE:
-                end_pos = len(roles_idx)
-            roles_idx.append(name)
-
-        before_clan_roles = roles_idx[: end_pos + 1]
-        after_clan_roles = roles_idx[start_pos:]
-
-        # create a slice of only those guilds that are actually required
-        clan_roles = []
-        for name in sorted(roles_idx[end_pos + 1:start_pos]):
-            # remove existing roles that are no longer required
-            if name not in required_clan_roles:
-                await roles[name].delete()
-                del roles[name]
-                logger.info(f"Deleting role {name}.")
-            # create the slice of existing clans otherwise
-            else:
-                clan_roles.append(name)
-
-        # add roles and update their members as required
-        for name, members in required_clan_roles.items():
-            # add clan roles not existing yet
-            if name not in roles:
-                clan_roles.append(name)
-                hoist = CLAN_ROLE_HOIST
-                mentionable = CLAN_ROLE_MENTIONABLE
-                roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
-                logger.info(f"Creating role {name}.")
-                # add all members to that role
-                for member in members:
-                    await member.add_roles(roles[name])
-                    logger.info(f"Adding {str(member)} to role {name}.")
-            # update existing roles
-            else:
-                # add members not alread assigned to the role
-                for member in members:
-                    if member not in roles[name].members:
+            # add roles and update their members as required
+            for name, members in required_clan_roles.items():
+                # add clan roles not existing yet
+                if name not in roles:
+                    clan_roles.append(name)
+                    hoist = CLAN_ROLE_HOIST
+                    mentionable = CLAN_ROLE_MENTIONABLE
+                    roles[name] = await guild.create_role(name=name, hoist=hoist, mentionable=mentionable)
+                    logger.info(f"Creating role {name}.")
+                    # add all members to that role
+                    for member in members:
                         await member.add_roles(roles[name])
                         logger.info(f"Adding {str(member)} to role {name}.")
-                # remove members that are assigned to the role but shouldn't be
-                for member in roles[name].members:
-                    if member not in members:
-                        await member.remove_roles(roles[name])
-                        logger.info(f"Removing {str(member)} from role {name}.")
+                # update existing roles
+                else:
+                    # add members not alread assigned to the role
+                    for member in members:
+                        if member not in roles[name].members:
+                            await member.add_roles(roles[name])
+                            logger.info(f"Adding {str(member)} to role {name}.")
+                    # remove members that are assigned to the role but shouldn't be
+                    for member in roles[name].members:
+                        if member not in members:
+                            await member.remove_roles(roles[name])
+                            logger.info(f"Removing {str(member)} from role {name}.")
 
-        # create a positions list for the roles
-        reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
-        positions = {}
-        for position in range(1, len(reindexed_roles)):
-            name = reindexed_roles[position]
-            positions[roles[name]] = position
+            # create a positions list for the roles
+            reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
+            positions = {}
+            for position in range(1, len(reindexed_roles)):
+                name = reindexed_roles[position]
+                positions[roles[name]] = position
 
-        # reorder the clan roles alphabetically
-        await guild.edit_role_positions(positions)
-        logger.info("Finished reindexing discord clan roles.")
+            # reorder the clan roles alphabetically
+            await guild.edit_role_positions(positions)
+            logger.info("Finished reindexing discord clan roles.")
+
+        if ACTIVE_CHAR_ROLE:
+            # update the active role
+            logger.info("Starting to update discord active roles.")
+            active_role = roles[ACTIVE_CHAR_ROLE]
+            for member in guild.members:
+                for char in characters:
+                    if char.user and char.user.disc_id == str(member.id):
+                        if char.last_login + INACTIVITY >= now and active_role not in member.roles:
+                            await member.add_roles(active_role)
+                            logger.info(f"Adding {str(member)} to role {active_role.name}.")
+                        elif char.last_login + INACTIVITY < now and active_role in member.roles:
+                            await member.remove_roles(active_role)
+                            logger.info(f"Removing {str(member)} from role {active_role.name}.")
 
 
 async def display_playerlist():
