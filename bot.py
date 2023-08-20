@@ -12,7 +12,7 @@ from cogs.applications import Applications as Apps
 from logger import logger
 from checks import has_role, init_checks
 from exiles_api import (
-    session, MagicChars, Characters, Groups, Categories, TextBlocks, Applications, GlobalVars, TERPRCon
+    session, MagicChars, Characters, Users, Groups, Categories, TextBlocks, Applications, GlobalVars, TERPRCon
 )
 from functions import (
     filter_types, get_roles, get_guild, get_channels, get_categories, get_time_decimal, set_time_decimal,
@@ -195,15 +195,27 @@ async def update_roles():
             # update the active role
             logger.info("Starting to update discord active roles.")
             active_role = roles[ACTIVE_CHAR_ROLE]
+            users = {user.disc_id: user.characters for user in session.query(Users).all() if len(user.characters) > 0}
             for member in guild.members:
-                for char in characters:
-                    if char.user and char.user.disc_id == str(member.id):
-                        if char.last_login + INACTIVITY >= now and active_role not in member.roles:
-                            await member.add_roles(active_role)
-                            logger.info(f"Adding {str(member)} to role {active_role.name}.")
-                        elif char.last_login + INACTIVITY < now and active_role in member.roles:
-                            await member.remove_roles(active_role)
-                            logger.info(f"Removing {str(member)} from role {active_role.name}.")
+                # discord_id found in users
+                if member.id in users:
+                    chars = users[member.id]
+                    # member has active chars but not the active role
+                    if chars.active(INACTIVITY) and active_role not in member.roles:
+                        await member.add_roles(active_role)
+                        logger.info(f"Adding {str(member)} to role {active_role.name}.")
+                    # member has the active role but no active chars
+                    elif not chars.active(INACTIVITY) and active_role in member.roles:
+                        await member.remove_roles(active_role)
+                        logger.info(f"Removing {str(member)} from role {active_role.name}.")
+            # discord_id not found in users. This shouldn't really happen
+            else:
+                logger.error(f"Couldn't find user for member {str(member)}")
+                if active_role in member.roles:
+                    await member.remove_roles(active_role)
+                    logger.info(f"Removing {str(member)} from role {active_role.name}.")
+
+            logger.info("Finished updating discord active roles.")
 
 
 async def display_playerlist():
