@@ -166,19 +166,19 @@ async def update_roles():
                     # add all members to that role
                     for member in members:
                         await member.add_roles(roles[name])
-                        logger.info(f"Adding {str(member)} to role {name}.")
+                        logger.info(f"Adding {member.name} to role {name}.")
                 # update existing roles
                 else:
                     # add members not alread assigned to the role
                     for member in members:
                         if member not in roles[name].members:
                             await member.add_roles(roles[name])
-                            logger.info(f"Adding {str(member)} to role {name}.")
+                            logger.info(f"Adding {member.name} to role {name}.")
                     # remove members that are assigned to the role but shouldn't be
                     for member in roles[name].members:
                         if member not in members:
                             await member.remove_roles(roles[name])
-                            logger.info(f"Removing {str(member)} from role {name}.")
+                            logger.info(f"Removing {member.name} from role {name}.")
 
             # create a positions list for the roles
             reindexed_roles = before_clan_roles + sorted(clan_roles, reverse=True) + after_clan_roles
@@ -203,17 +203,15 @@ async def update_roles():
                     # member has active chars but not the active role
                     if chars.active(INACTIVITY) and active_role not in member.roles:
                         await member.add_roles(active_role)
-                        logger.info(f"Adding {str(member)} to role {active_role.name}.")
+                        logger.info(f"Adding {member.name} ({member.id}) to role {active_role.name}.")
                     # member has the active role but no active chars
                     elif not chars.active(INACTIVITY) and active_role in member.roles:
                         await member.remove_roles(active_role)
-                        logger.info(f"Removing {str(member)} from role {active_role.name}.")
-            # discord_id not found in users. This shouldn't really happen
-            else:
-                logger.error(f"Couldn't find user for member {str(member)}")
-                if active_role in member.roles:
+                        logger.info(f"Removing {member.name} ({member.id}) from role {active_role.name}.")
+                # member has no char or user is not on the list
+                elif active_role in member.roles:
                     await member.remove_roles(active_role)
-                    logger.info(f"Removing {str(member)} from role {active_role.name}.")
+                    logger.info(f"Removing {member.name} ({member.id}) from role {active_role.name}.")
 
             logger.info("Finished updating discord active roles.")
 
