@@ -198,8 +198,8 @@ async def update_roles():
             users = {user.disc_id: user.characters for user in session.query(Users).all() if len(user.characters) > 0}
             for member in guild.members:
                 # discord_id found in users
-                if member.id in users:
-                    chars = users[member.id]
+                if str(member.id) in users:
+                    chars = users[str(member.id)]
                     # member has active chars but not the active role
                     if chars.active(INACTIVITY) and active_role not in member.roles:
                         await member.add_roles(active_role)
