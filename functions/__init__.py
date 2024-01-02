@@ -393,7 +393,7 @@ async def set_timer(name, timer, guilds):
 
 
 async def get_member(ctx, name):
-    if name is not str:
+    if type(name) is not str:
         name = str(name)
     try:
         return await commands.MemberConverter().convert(ctx, name)
