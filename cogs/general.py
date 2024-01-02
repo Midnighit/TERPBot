@@ -915,7 +915,7 @@ class General(commands.Cog, name="General commands."):
             await ctx.send(
                 f"If you'd like to contribute to the operating costs of the server, please have a look at "
                 f"<https://discord.com/channels/235982917422153728/1054881627005779999>. You can either contribute "
-                f"monthly through the Patreon, or make a one time donation through PayPal. You aren't obligated to "
+                f"monthly through the Patreon, or make a one time donation through Ko-fi. You aren't obligated to "
                 f"pay, but either way it helps keep the server up and running at less of an expense to {ari.mention}"
             )
         logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
