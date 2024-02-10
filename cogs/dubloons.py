@@ -18,7 +18,7 @@ class DBL(commands.Cog, name="Dubloons commands."):
         self.master = f"<@{self.master_id}>"
         self.bot = bot
 
-    @group(help="Commands to pay and get paid with dubloons... if you're lucky.")
+    @group(aliases=["dubloon", "dbl"], help="Commands to pay and get paid with dubloons... if you're lucky.")
     async def dubloons(self, ctx):
         if ctx.author.id in self.permitted:
             if ctx.invoked_subcommand is None:
@@ -170,13 +170,13 @@ class DBL(commands.Cog, name="Dubloons commands."):
             await ctx.send(
                 (
                     "Alright boss, just give me a moment...\n"
-                    f"*discreetely slides over a stack of papers to {str(ctx.author)[:-5]}*"
+                    f"*discreetely slides over a stack of papers to {str(ctx.author)[:-6]}*"
                 )
             )
-            blocks = []
+            blocks, block = [], ''
             positives, negatives, changed, delete = False, False, False, []
-            for bbs in session.query(Dubloons).order_by(Dubloons.dubloons.desc()).all():
-                dubloons, disc_id = bbs.dubloons, bbs.id
+            for dbl in session.query(Dubloons).order_by(Dubloons.dubloons.desc()).all():
+                dubloons, disc_id = dbl.dubloons, dbl.id
                 name = await get_member(ctx, disc_id)
                 user = session.query(Users).filter_by(disc_id=disc_id).first()
                 if not name:
@@ -244,7 +244,6 @@ class DBL(commands.Cog, name="Dubloons commands."):
                     "most of the times...\nif it suits us..."
                 )
             )
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @list.error
     async def list_error(self, ctx, error):
@@ -586,7 +585,6 @@ class DBL(commands.Cog, name="Dubloons commands."):
                     ]
                 session.commit()
         await ctx.send(random.choice(replies))
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @give.error
     async def give_error(self, ctx, error):
@@ -816,7 +814,6 @@ class DBL(commands.Cog, name="Dubloons commands."):
                 ]
             session.commit()
         await ctx.send(random.choice(replies))
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @take.error
     async def take_error(self, ctx, error):
@@ -940,7 +937,6 @@ class DBL(commands.Cog, name="Dubloons commands."):
                     )
                 ]
         await ctx.send(random.choice(replies))
-        logger.info(f"Author: {ctx.author} / Command: {ctx.message.content}.")
 
     @tax.error
     async def tax_error(self, ctx, error):
